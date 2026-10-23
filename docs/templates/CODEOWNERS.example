@@ -1,0 +1,30 @@
+# 비활성 예시: 모든 패턴을 주석으로 두었으며 실제 CODEOWNERS가 아니다.
+# 실제 경로, 담당자/팀, 쓰기 권한과 가시성을 확인한 뒤 프로젝트에서 검토한다.
+# <USER>, <ORG>, <TEAM>은 채울 값이며 실제 계정이 아니다.
+# 기본 규칙 뒤에 좁은 경로를 두고, 마지막 일치 규칙의 소유자가 적용되는지 확인한다.
+# 복수 소유자는 같은 줄에 적는다. 이 파일은 쓰기 권한/잠금/AI 승인 설정이 아니다.
+# 필요한 영역만 선택한다. 아래 모든 예시를 일괄 활성화하지 않는다.
+#
+# * @<ORG>/<DEFAULT_TEAM>
+# /Source/ @<ORG>/<CODE_TEAM>
+# /Source/<SHARED_MODULE>/ @<USER> @<ORG>/<SHARED_REVIEW_TEAM>
+# /Content/ @<ORG>/<CONTENT_TEAM>
+# /Content/<MAPS_FOLDER>/ @<ORG>/<MAP_REVIEW_TEAM>
+# /Config/ @<ORG>/<CONFIG_TEAM>
+# /Plugins/ @<ORG>/<PLUGIN_TEAM>
+# /Build/ @<ORG>/<BUILD_TEAM>
+# /docs/ @<ORG>/<DOCS_TEAM>
+# /docs/ai/ @<ORG>/<AI_POLICY_TEAM>
+# /docs/unreal/ @<ORG>/<ENGINE_REVIEW_TEAM>
+# /.github/workflows/ @<ORG>/<CI_TEAM>
+# /AGENTS.md @<ORG>/<AI_POLICY_TEAM>
+# /CLAUDE.md @<ORG>/<AI_POLICY_TEAM>
+# /.agents/skills/ @<ORG>/<AI_POLICY_TEAM>
+# /.claude/skills/ @<ORG>/<AI_POLICY_TEAM>
+# /.claude/agents/ @<ORG>/<AI_POLICY_TEAM>
+# /.codex/agents/ @<ORG>/<AI_POLICY_TEAM>
+# /.github/CODEOWNERS @<ORG>/<OWNERSHIP_REVIEW_TEAM>
+#
+# 맵/바이너리의 동시 작업은 별도 경계표의 잠금·명시적 조율로 관리한다.
+# 실제 CODEOWNERS 위치가 다르면 마지막 예시 경로도 바꾼다.
+# base 브랜치 적용, 실제 파일 매칭, GitHub 오류와 필수 리뷰 설정을 따로 확인한다.

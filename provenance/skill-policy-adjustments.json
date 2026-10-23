@@ -1,0 +1,84 @@
+{
+  "date": "2026-10-23",
+  "purpose": "프로젝트 실행 정책과 외부 스킬 충돌 정리",
+  "canonical_root": ".agents/skills",
+  "mirror_root": ".claude/skills",
+  "policy_adapter": "_bmad/PROJECT_INTEGRATION.md",
+  "changes": [
+    {
+      "path": ".agents/skills/search-first/SKILL.md",
+      "before_sha256": "8af87d5b956993e0316e90c03b13de1db47de7cba393af4261700db764150c28",
+      "after_sha256": "317a0db7ad1b438407061f2056a237b4192182867250fc89e2d3ba2a163eeda4"
+    },
+    {
+      "path": ".agents/skills/gds-quick-dev/step-oneshot.md",
+      "before_sha256": "400fcd81dd8debacef2387a380e3155906b41978d53515eacb2beb1aa08912d2",
+      "after_sha256": "f5c2d21196153744d0a53cf4bf8ab2177ef0aa252df5d635ecd20a41a50d6574"
+    },
+    {
+      "path": ".agents/skills/gds-quick-dev/step-05-present.md",
+      "before_sha256": "e48c221d400b799107864d3752e081ee356562d7843326b78f2b2155a5b56462",
+      "after_sha256": "3367c4c691ca7216c315452f0beeeae940968290770a10fe0dc36ef9c8b3f4a7"
+    },
+    {
+      "path": ".agents/skills/gds-quick-dev/step-03-implement.md",
+      "before_sha256": "4d848865eafe5eeba7d83529c766bd410a9cc20a05de1d6a764954c7275b4749",
+      "after_sha256": "0ccec43df2542b60b6bed0c51da57d8a06ade516aeb039313bb8d3906ebecef4"
+    },
+    {
+      "path": ".agents/skills/gds-quick-dev/step-04-review.md",
+      "before_sha256": "e62a50a37ab20eb426f5abd44179dfac51548707b5e85e6fe7817c144cbe3dae",
+      "after_sha256": "09cacdaa5e0cfbac39ede7b7765b39e40065dd50455c3562f3daf26070a6df7f"
+    },
+    {
+      "path": ".agents/skills/gds-code-review/steps/step-02-review.md",
+      "before_sha256": "00a6a01eef43d1d29861b1625058f64fcd0851824766e701ddfa338499d78bab",
+      "after_sha256": "1bd5f591889cc82c70644052c2404b16b58bbbbce326f1ab7d3b5b789b093a38"
+    },
+    {
+      "path": ".agents/skills/gds-dev-story/SKILL.md",
+      "before_sha256": "5e7ad6e61c6feb7d5a9b5e87122df40c916d775ee6d6a21fc9e5640c337d1f7e",
+      "after_sha256": "b3bd3f832689f58fd79115402a8054316d11266fbb3d0003618db064b1c8dde2"
+    },
+    {
+      "path": ".agents/skills/bmad-help/SKILL.md",
+      "before_sha256": "bf6cb99bdb4cf4950dbe2093a1837de3e295047f6ab95fd7adeb141f42307bb1",
+      "after_sha256": "0c5e93bec3bf97f69cad8104a2c5dd5d39f709ec2a7a4abccc724d4753b962f3"
+    },
+    {
+      "path": ".agents/skills/gds-create-game-brief/SKILL.md",
+      "before_sha256": "ddd4405e68af48c2a2e21707790fb554c6d777dbf7ae67f37f016f5edac99419",
+      "after_sha256": "55669d95bbfe1f717c94d60b396be1341473ec5fdf7ec8cca4c2485b924b28d6"
+    },
+    {
+      "path": ".agents/skills/bmad-deep-recon/SKILL.md",
+      "before_sha256": "c8d772c57d08c90511a6fa6ef05d8a15c5c6e5c0e6a7aecbb938099c45c2a9da",
+      "after_sha256": "ab31b2a7b84b29feca7f69140ee08dfb7f41d761d762ab9d2de8e77847fbf16a"
+    },
+    {
+      "path": ".agents/skills/gds-quick-dev/step-01-clarify-and-route.md",
+      "before_sha256": "b5eb9f0cecf2a462885b8e7b4c21abbaec1e95c8abbd76bc410d9090fd8379f0",
+      "after_sha256": "de1b6100f25b5973f081fe03c6886fbcc3dc094996b956e7a71d303c67e005bb"
+    },
+    {
+      "path": ".agents/skills/gds-quick-dev/step-02-plan.md",
+      "before_sha256": "cd1a634c3adbc5b296344d55cead5aa0647d4ceeff95bc6a930715254503ad58",
+      "after_sha256": "f5c321a2364996f6ab8f95bc1f009ca9d34b181de342796f7440c847725c7aac"
+    },
+    {
+      "path": ".agents/skills/blender-core/SKILL.md",
+      "before_sha256": "92ab591e713d8b4cdd3ed591c813ad29df9f7ce3f90f6e84971719a6b1bdc51d",
+      "after_sha256": "72b60762e7cc19b60631da5049351f244d6dd6243f73b7e02de95ddc235d5391"
+    },
+    {
+      "path": ".agents/skills/create-toolset/SKILL.md",
+      "before_sha256": "e9d050087f36de51f7eeef49adb0ba9ebc603b65f74f475bc53a6debfc1f7b1c",
+      "after_sha256": "856c446bd44974c44168f9dc15cf43dd3f8bbc5441220de50e74d7e7e2e2deb7"
+    },
+    {
+      "path": ".agents/skills/unreal-skill/SKILL.md",
+      "before_sha256": "7a0af781c458c7d192d6b23c16b5737922dc482470e2e4ef617bcda80f435087",
+      "after_sha256": "76d6e81ca0a7a5d3700d0ab72008711ca66db193cb22d5df5c4d6087b2f45369"
+    }
+  ]
+}

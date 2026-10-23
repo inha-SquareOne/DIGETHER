@@ -1,0 +1,106 @@
+{
+  "date": "2026-10-23",
+  "source": "user-authorized local shinshi skills",
+  "entries": [
+    {
+      "name": "create-game-vfx",
+      "source_path": "D:\\shinshi\\.agents\\skills\\create-game-vfx\\SKILL.md",
+      "source_sha256": "79010b7c2fb51fd96094b792ddae92c304e91fe0531b389a4400c9719a848810",
+      "adaptation": "Unity/신시 전용 경로·판정 제거; Unreal과 실제 VFX 계약으로 이식",
+      "installed": [
+        {
+          "path": "skills/create-game-vfx/SKILL.md",
+          "sha256": "67efc32359783b827c50a9cff08765d037d76b1c7d0a3945cb12219d5c72fdeb"
+        },
+        {
+          "path": ".agents/skills/create-game-vfx/SKILL.md",
+          "sha256": "b9d9f8ed59500a95d39e7c95ccd20fcb238ae4e688d91ca49ad28f050030f4e6"
+        },
+        {
+          "path": ".claude/skills/create-game-vfx/SKILL.md",
+          "sha256": "b9d9f8ed59500a95d39e7c95ccd20fcb238ae4e688d91ca49ad28f050030f4e6"
+        }
+      ]
+    },
+    {
+      "name": "register-vfx-prewarming",
+      "source_path": "D:\\shinshi\\.agents\\skills\\register-vfx-prewarming\\SKILL.md",
+      "source_sha256": "c2c384e7c5a882e9813ef593789ff662f20d838765911d7f47ac485845f1a9ce",
+      "adaptation": "실제 Unreal 에셋·카탈로그 소비 확인으로 이식; 등록·시뮬레이션·PSO·성능 증거 분리",
+      "installed": [
+        {
+          "path": "skills/register-vfx-prewarming/SKILL.md",
+          "sha256": "deaa1f2eb11864e2b2e2d12a4453e47ed00e00ab4b000272f3c86f7aef48d6a3"
+        },
+        {
+          "path": ".agents/skills/register-vfx-prewarming/SKILL.md",
+          "sha256": "eb272b4c1e368aa17d35c06019a7ca91dafc8e136f6c4eda65ddaa6967d318bd"
+        },
+        {
+          "path": ".claude/skills/register-vfx-prewarming/SKILL.md",
+          "sha256": "eb272b4c1e368aa17d35c06019a7ca91dafc8e136f6c4eda65ddaa6967d318bd"
+        }
+      ]
+    },
+    {
+      "name": "guided-issue",
+      "source_path": "D:\\shinshi\\.agents\\skills\\guided-issue\\SKILL.md",
+      "source_sha256": "843f41b62c182ca0ba33334e5962aacf0ea92db47ac8d8a2ab7ec6f4999610a2",
+      "adaptation": "기존 공통본에 YAML 양식 변환 세부만 반영",
+      "installed": [
+        {
+          "path": "skills/guided-issue/SKILL.md",
+          "sha256": "7da5ef2a7eb8c2527b735258df9b197abdfead2f8b3e5a3a52bce24626fed5bd"
+        },
+        {
+          "path": ".agents/skills/guided-issue/SKILL.md",
+          "sha256": "a34ba4b26028f9616e4e405295d80dcedf56cee3131cbafb71fb2699eba7e304"
+        },
+        {
+          "path": ".claude/skills/guided-issue/SKILL.md",
+          "sha256": "a34ba4b26028f9616e4e405295d80dcedf56cee3131cbafb71fb2699eba7e304"
+        }
+      ]
+    },
+    {
+      "name": "write-handoff",
+      "source_path": "D:\\shinshi\\.agents\\skills\\write-handoff\\SKILL.md",
+      "source_sha256": "6b0c7a0d141270fba3f4caf2ba45eabc206feab58243bb665b11dc281a36b819",
+      "adaptation": "기존 공통본에 미확인 설정 재확인 방법만 반영",
+      "installed": [
+        {
+          "path": "skills/write-handoff/SKILL.md",
+          "sha256": "d811a7c6e4ca02f17ef51e74ec167b4123db5dbbe6504ea6829e03ce09a22792"
+        },
+        {
+          "path": ".agents/skills/write-handoff/SKILL.md",
+          "sha256": "a60bd70bdd7a660d83a725426b91cc51cb47e7b2cb06b24c547b6756a3f6ed70"
+        },
+        {
+          "path": ".claude/skills/write-handoff/SKILL.md",
+          "sha256": "a60bd70bdd7a660d83a725426b91cc51cb47e7b2cb06b24c547b6756a3f6ed70"
+        }
+      ]
+    },
+    {
+      "name": "meshy-model-production",
+      "source_path": "D:\\shinshi\\.claude\\skills\\meshy-model-production\\SKILL.md",
+      "source_sha256": "fcaec5e68cadaf35922fa4bedc64ba565fa4a0779d1c0c6f3ffb0e94c5c1cff4",
+      "adaptation": "기존 공통본에 AO 베이크·local/조립 AO·동일 카메라 비교만 반영",
+      "installed": [
+        {
+          "path": "skills/meshy-model-production/SKILL.md",
+          "sha256": "a241cddec57e52850adf73c25e8c3e325d7ff2a2c0a46a1c82720887f2ca4035"
+        },
+        {
+          "path": ".agents/skills/meshy-model-production/SKILL.md",
+          "sha256": "b3c001d54ea25675df60e0a04ce80ef16556cb1361349f2648c9c1ec55b676b2"
+        },
+        {
+          "path": ".claude/skills/meshy-model-production/SKILL.md",
+          "sha256": "b3c001d54ea25675df60e0a04ce80ef16556cb1361349f2648c9c1ec55b676b2"
+        }
+      ]
+    }
+  ]
+}

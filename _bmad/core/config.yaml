@@ -1,0 +1,10 @@
+# CORE Module Configuration
+# Generated for DIGETHER from local installed module schema
+# Version: 6.12.0
+# Prepared: 2026-10-23
+
+user_name: Project contributor
+project_name: DIGETHER
+communication_language: Korean
+document_output_language: Korean
+output_folder: _bmad-output

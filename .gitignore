@@ -73,3 +73,10 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+# Local Python caches and personal BMAD overrides
+**/__pycache__/
+_bmad/config.user.toml
+_bmad/custom/*.user.toml
+_bmad/core/config.user.yaml
+_bmad/gds/config.user.yaml

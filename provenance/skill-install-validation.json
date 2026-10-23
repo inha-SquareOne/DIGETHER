@@ -1,0 +1,81 @@
+{
+  "canonical_skills": 82,
+  "discovery_skill_files": 164,
+  "upstream_files_verified": 94,
+  "python_syntax_files": 68,
+  "markdown_links_examined": 101,
+  "frontmatter_and_mirrors": "passed",
+  "quick_validate": {
+    "create-game-vfx": [
+      true,
+      "Skill is valid!"
+    ],
+    "register-vfx-prewarming": [
+      true,
+      "Skill is valid!"
+    ],
+    "guided-issue": [
+      true,
+      "Skill is valid!"
+    ],
+    "write-handoff": [
+      true,
+      "Skill is valid!"
+    ],
+    "meshy-model-production": [
+      true,
+      "Skill is valid!"
+    ]
+  },
+  "unresolved_links": [
+    "skills\\gds-agent-tech-writer\\documentation-standards.md -> url",
+    "skills\\gds-document-project\\templates\\index-template.md -> ./project-overview.md",
+    "skills\\gds-document-project\\templates\\index-template.md -> ./source-tree-analysis.md",
+    "skills\\gds-document-project\\templates\\index-template.md -> ./architecture.md",
+    "skills\\gds-document-project\\templates\\index-template.md -> ./component-inventory.md",
+    "skills\\gds-document-project\\templates\\index-template.md -> ./development-guide.md",
+    "skills\\gds-document-project\\templates\\index-template.md -> ./api-contracts.md",
+    "skills\\gds-document-project\\templates\\index-template.md -> ./data-models.md",
+    "skills\\gds-document-project\\templates\\index-template.md -> ./integration-architecture.md",
+    "skills\\gds-document-project\\templates\\index-template.md -> ./project-parts.json",
+    "skills\\gds-document-project\\templates\\index-template.md -> ./deployment-guide.md",
+    "skills\\gds-document-project\\templates\\index-template.md -> ./contribution-guide.md",
+    "skills\\gds-document-project\\templates\\project-overview-template.md -> ./index.md",
+    "skills\\gds-document-project\\templates\\project-overview-template.md -> ./source-tree-analysis.md",
+    "skills\\gds-document-project\\workflows\\full-scan-instructions.md -> ./api-contracts-server.md",
+    "skills\\gds-document-project\\workflows\\full-scan-instructions.md -> ./project-overview.md",
+    "skills\\gds-document-project\\workflows\\full-scan-instructions.md -> ./source-tree-analysis.md",
+    "skills\\gds-document-project\\workflows\\full-scan-instructions.md -> ./deployment-guide.md",
+    "skills\\gds-document-project\\workflows\\full-scan-instructions.md -> ./contribution-guide.md",
+    "skills\\gds-document-project\\workflows\\full-scan-instructions.md -> ./integration-architecture.md",
+    "skills\\gds-document-project\\workflows\\full-scan-instructions.md -> ./architecture-server.md",
+    "skills\\gds-quick-dev\\step-05-present.md -> ../../path/to/file.ts#L42"
+  ],
+  "errors": [],
+  "unresolved_links_classification": "22 references reviewed: output-template/generated-document links and explicit examples; not missing installed dependencies",
+  "bmad": {
+    "central_config": "passed",
+    "customization_resolvers": 39,
+    "skill_copy_parity": 41,
+    "catalog_paths": "passed",
+    "workflow_execution": "not run",
+    "engine_execution": "not run"
+  },
+  "blender": {
+    "detected_version": "5.1.0",
+    "upstream_requirement": "5.2+",
+    "empty_background_env_report": "passed",
+    "full_workflow_compatibility": "not verified",
+    "user_blend_opened": false
+  },
+  "unreal_live_connection": "not configured or exercised",
+  "independent_forward_test": {
+    "skills": [
+      "create-game-vfx",
+      "register-vfx-prewarming"
+    ],
+    "mode": "read-only scenario evaluation",
+    "outcome": "no direct scope/conflict issue; contract-only verification clarification applied",
+    "actual_vfx_or_prewarm_execution": "not run"
+  }
+}

@@ -1,0 +1,423 @@
+{
+  "installed_at": "2026-10-23",
+  "scope": "D:/DIGETHER",
+  "sources": [
+    {
+      "repo": "EpicGames/unreal-engine-skills-for-claude-code-plugin",
+      "ref": "a6aa73ada02a9fb1f5415bec491f9942c519b297",
+      "skills": [
+        "skills/create-toolset",
+        "skills/unreal-mcp",
+        "skills/unreal-skill"
+      ],
+      "files": [
+        {
+          "path": "skills/create-toolset/SKILL.md",
+          "git_blob_sha1": "febf5d5a70739b8bb1d65215ef8272a67f0bbfdd"
+        },
+        {
+          "path": "skills/unreal-mcp/SKILL.md",
+          "git_blob_sha1": "9cd2cc2656d05a738f5814fb2945cc48daff66fc"
+        },
+        {
+          "path": "skills/unreal-mcp/references/operations.md",
+          "git_blob_sha1": "e02d8d0ef92063b11c5edb27956b2a25ce7edce3"
+        },
+        {
+          "path": "skills/unreal-mcp/references/setup.md",
+          "git_blob_sha1": "49a921a9ab818a8912e5d4781fa8d6869dd27dfa"
+        },
+        {
+          "path": "skills/unreal-skill/SKILL.md",
+          "git_blob_sha1": "a1513865cb7299fc4c76843f426352934bb7aa47"
+        }
+      ]
+    },
+    {
+      "repo": "EL4CTEO/blender-skills",
+      "ref": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "skills": [
+        "skills/blender-addon-development",
+        "skills/blender-animation",
+        "skills/blender-asset-qa",
+        "skills/blender-character-rigging",
+        "skills/blender-core",
+        "skills/blender-export-pipelines",
+        "skills/blender-facial-shapekeys",
+        "skills/blender-game-optimization",
+        "skills/blender-geometry-nodes",
+        "skills/blender-hardsurface-modeling",
+        "skills/blender-lighting-lookdev",
+        "skills/blender-pbr-materials",
+        "skills/blender-pipeline-automation",
+        "skills/blender-rendering",
+        "skills/blender-retopology-uv",
+        "skills/blender-scene-setup",
+        "skills/blender-sculpting",
+        "skills/blender-simulation",
+        "skills/blender-texture-baking",
+        "skills/blender-time-of-day",
+        "skills/blender-weather-fx",
+        "skills/blender-workflow-recipes"
+      ],
+      "files": [
+        {
+          "path": "skills/blender-addon-development/SKILL.md",
+          "git_blob_sha1": "e89ad6d35f0a04911443dbc26e470fcea07c0208"
+        },
+        {
+          "path": "skills/blender-addon-development/assets/addon_template/__init__.py",
+          "git_blob_sha1": "454b023d6db8f6508d9f6ca93cdd3797f92fd4b8"
+        },
+        {
+          "path": "skills/blender-addon-development/assets/addon_template/blender_manifest.toml",
+          "git_blob_sha1": "2e13d9776ddf5b8135e7a364fb0309f95d033020"
+        },
+        {
+          "path": "skills/blender-addon-development/assets/addon_template/operators.py",
+          "git_blob_sha1": "6df9fdcf0ecee737f40dc5b0ba04094ae0438d98"
+        },
+        {
+          "path": "skills/blender-addon-development/assets/addon_template/ui.py",
+          "git_blob_sha1": "4e86f0d47eabc8486aaa06088c05159d62d734ad"
+        },
+        {
+          "path": "skills/blender-animation/SKILL.md",
+          "git_blob_sha1": "2afcd11f0fba96ffa193c6c75ae449d655216899"
+        },
+        {
+          "path": "skills/blender-animation/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-animation/scripts/bake_action.py",
+          "git_blob_sha1": "92e0c969e9dc4aaa937620734398cf410fb5fe89"
+        },
+        {
+          "path": "skills/blender-asset-qa/SKILL.md",
+          "git_blob_sha1": "b0b9073540bdcf9bc8338bc98ea368e80cf46d27"
+        },
+        {
+          "path": "skills/blender-asset-qa/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-asset-qa/scripts/qa_check.py",
+          "git_blob_sha1": "8f14bb0c9571af70f075183607ab14d0f9acaeb6"
+        },
+        {
+          "path": "skills/blender-asset-qa/scripts/review_shots.py",
+          "git_blob_sha1": "b3575308560375375e4e86d4e6f9c26de2a4a08f"
+        },
+        {
+          "path": "skills/blender-character-rigging/SKILL.md",
+          "git_blob_sha1": "e7c4fea2c876aa5d4e048d2bd23097d50270417d"
+        },
+        {
+          "path": "skills/blender-character-rigging/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-character-rigging/scripts/bind_mesh.py",
+          "git_blob_sha1": "fc5cb8569efa5d5f8eaa20f7bf5057db331fb498"
+        },
+        {
+          "path": "skills/blender-character-rigging/scripts/rig_check.py",
+          "git_blob_sha1": "0f63aa5142cac5b4b5c8c0da655a9d341215c36c"
+        },
+        {
+          "path": "skills/blender-character-rigging/scripts/rigify_build.py",
+          "git_blob_sha1": "c447509a3fc60148dbb7c1be9737bc4a3ed1cd24"
+        },
+        {
+          "path": "skills/blender-character-rigging/scripts/stress_poses.py",
+          "git_blob_sha1": "df67d2904d4a80bf95f1f903fc10d58ba7207a2f"
+        },
+        {
+          "path": "skills/blender-core/SKILL.md",
+          "git_blob_sha1": "44128f8db1e4ac566236392e4bcf2fc19a87c78d"
+        },
+        {
+          "path": "skills/blender-core/references/api-changes-5x.md",
+          "git_blob_sha1": "dd6df3bbda6b7e971a5ba0ded5f764b697495d45"
+        },
+        {
+          "path": "skills/blender-core/references/bpy-patterns.md",
+          "git_blob_sha1": "9d5489d7af74513297a419ec82b86c48267d48eb"
+        },
+        {
+          "path": "skills/blender-core/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-core/scripts/env_report.py",
+          "git_blob_sha1": "36a95d3b9083ed3458af0b67b95f1906764aa322"
+        },
+        {
+          "path": "skills/blender-core/scripts/run_in_blender.py",
+          "git_blob_sha1": "6c4036ff1be01f009cd7eb062292baf09b0b0c09"
+        },
+        {
+          "path": "skills/blender-export-pipelines/SKILL.md",
+          "git_blob_sha1": "8172db7b715c0ce202bae2e8e3a17eca5f8d7fb0"
+        },
+        {
+          "path": "skills/blender-export-pipelines/references/godot-web.md",
+          "git_blob_sha1": "0368e44a83daca2cf41ab57df64d8691493e6621"
+        },
+        {
+          "path": "skills/blender-export-pipelines/references/roblox.md",
+          "git_blob_sha1": "d07843ba03047e829d9345496c6407ebb920c8a0"
+        },
+        {
+          "path": "skills/blender-export-pipelines/references/unity.md",
+          "git_blob_sha1": "80b5a87f478042bc8032808b86d05a31d3746357"
+        },
+        {
+          "path": "skills/blender-export-pipelines/references/unreal.md",
+          "git_blob_sha1": "02a19edaa21821c6b4e92b4408bdbab113da27b0"
+        },
+        {
+          "path": "skills/blender-export-pipelines/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-export-pipelines/scripts/export_asset.py",
+          "git_blob_sha1": "01fcb5bb49b4db040a5743833dc769b750f0dbc8"
+        },
+        {
+          "path": "skills/blender-facial-shapekeys/SKILL.md",
+          "git_blob_sha1": "2c7572228d9a412788fd50140e3c2ebebfb0c7ce"
+        },
+        {
+          "path": "skills/blender-facial-shapekeys/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-facial-shapekeys/scripts/shapekeys.py",
+          "git_blob_sha1": "39974192e93b17b939edb943a2ab18f6c35e1990"
+        },
+        {
+          "path": "skills/blender-game-optimization/SKILL.md",
+          "git_blob_sha1": "f648df33f1ced659b07667c293aa2bf52252767d"
+        },
+        {
+          "path": "skills/blender-game-optimization/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-game-optimization/scripts/make_lods.py",
+          "git_blob_sha1": "24b9662ad2d6d4a3deaff7182f96ae4f58cd90c5"
+        },
+        {
+          "path": "skills/blender-game-optimization/scripts/mesh_stats.py",
+          "git_blob_sha1": "d53b1730119a172e19b13974d8b54e8d6d19e7d4"
+        },
+        {
+          "path": "skills/blender-geometry-nodes/SKILL.md",
+          "git_blob_sha1": "f3b3feaf660eccebe12deb2517c1dcc65a46bd6a"
+        },
+        {
+          "path": "skills/blender-geometry-nodes/references/recipes.md",
+          "git_blob_sha1": "ca9097995d83fcfe6dd454c308f7aa7f7c532c22"
+        },
+        {
+          "path": "skills/blender-geometry-nodes/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-geometry-nodes/scripts/gn_builder.py",
+          "git_blob_sha1": "5ade425e198a6829eea40eb915d7dab18b2fd7f2"
+        },
+        {
+          "path": "skills/blender-hardsurface-modeling/SKILL.md",
+          "git_blob_sha1": "1838e20f46385a562926fc39033185c1b7c01f7e"
+        },
+        {
+          "path": "skills/blender-hardsurface-modeling/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-hardsurface-modeling/scripts/apply_stack.py",
+          "git_blob_sha1": "878c6c4c960fa7b9ca69e861e8e2b114817ff270"
+        },
+        {
+          "path": "skills/blender-lighting-lookdev/SKILL.md",
+          "git_blob_sha1": "b0c8447feb0c979c8f7f1f70961fabcfe8eb77b8"
+        },
+        {
+          "path": "skills/blender-lighting-lookdev/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-lighting-lookdev/scripts/turntable.py",
+          "git_blob_sha1": "8cb4f12ce6f752b8927a7f2255d812fc1fd021cf"
+        },
+        {
+          "path": "skills/blender-pbr-materials/SKILL.md",
+          "git_blob_sha1": "e8604b86c7c1b22dbf754ee6bf3587d55256d9d9"
+        },
+        {
+          "path": "skills/blender-pbr-materials/references/pbr-values.md",
+          "git_blob_sha1": "e2d750f4b099824590ed7b0c53c7ab315ac29f32"
+        },
+        {
+          "path": "skills/blender-pbr-materials/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-pbr-materials/scripts/build_pbr_material.py",
+          "git_blob_sha1": "a190a67c1de0422e06f83727ceec8fa5223ff6d4"
+        },
+        {
+          "path": "skills/blender-pipeline-automation/SKILL.md",
+          "git_blob_sha1": "7f9f1719dd6fc2543842d042db35af5b7004e106"
+        },
+        {
+          "path": "skills/blender-pipeline-automation/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-pipeline-automation/scripts/batch_process.py",
+          "git_blob_sha1": "a72ee25b333e7dfce40b6f6a7ff553a042c8e2a6"
+        },
+        {
+          "path": "skills/blender-rendering/SKILL.md",
+          "git_blob_sha1": "537fb8b2b60b63c3197d8eeb35c03dd87e1156c8"
+        },
+        {
+          "path": "skills/blender-rendering/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-rendering/scripts/render_batch.py",
+          "git_blob_sha1": "1254ed0a4e6df2c8cc951c12dff0840853788afb"
+        },
+        {
+          "path": "skills/blender-retopology-uv/SKILL.md",
+          "git_blob_sha1": "537246886a07301a835e155d637e9ccc0e179c36"
+        },
+        {
+          "path": "skills/blender-retopology-uv/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-retopology-uv/scripts/auto_retopo.py",
+          "git_blob_sha1": "6d12fd2c7f1dedd89148817bce3fa963a49a6d5f"
+        },
+        {
+          "path": "skills/blender-retopology-uv/scripts/texel_density.py",
+          "git_blob_sha1": "bf9056e104133b51d0294764d68611a8fe239d46"
+        },
+        {
+          "path": "skills/blender-retopology-uv/scripts/uv_pack.py",
+          "git_blob_sha1": "b48e6c2944bfe9d669c43f1188fcdd42c5e13715"
+        },
+        {
+          "path": "skills/blender-scene-setup/SKILL.md",
+          "git_blob_sha1": "15f1c2f0c06357005494290122fa1c79cc5e4d93"
+        },
+        {
+          "path": "skills/blender-scene-setup/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-scene-setup/scripts/scene_audit.py",
+          "git_blob_sha1": "b4c3d9000fa0eb4ea2b24277c5dc4f8b56bbf6a5"
+        },
+        {
+          "path": "skills/blender-sculpting/SKILL.md",
+          "git_blob_sha1": "301310a203c81634967b6245816dd2b40fe3bd5d"
+        },
+        {
+          "path": "skills/blender-sculpting/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-sculpting/scripts/sculpt_ops.py",
+          "git_blob_sha1": "0640d628f7ccd1f1497ab45e252013484c28767a"
+        },
+        {
+          "path": "skills/blender-simulation/SKILL.md",
+          "git_blob_sha1": "bcb0f0eb15d95467a10ef872da3df57b5c599220"
+        },
+        {
+          "path": "skills/blender-simulation/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-simulation/scripts/sim_setup.py",
+          "git_blob_sha1": "3b0abc85d63739689178d15ee1d1b00f7d7dea46"
+        },
+        {
+          "path": "skills/blender-texture-baking/SKILL.md",
+          "git_blob_sha1": "1685203a8e970c092a5a52369e93a8767e826f7f"
+        },
+        {
+          "path": "skills/blender-texture-baking/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-texture-baking/scripts/bake_maps.py",
+          "git_blob_sha1": "b96d63d35c07eb979990c872ec0530819a4fa1b6"
+        },
+        {
+          "path": "skills/blender-time-of-day/SKILL.md",
+          "git_blob_sha1": "d3c1835e2c1a3258ece49681784975d08a33c12b"
+        },
+        {
+          "path": "skills/blender-time-of-day/references/fog-volumetrics.md",
+          "git_blob_sha1": "8a015fb7177372046b4cc629cc57e98208f6c116"
+        },
+        {
+          "path": "skills/blender-time-of-day/references/light-values.md",
+          "git_blob_sha1": "03ec373ce3062e426690aa057910f04940efff60"
+        },
+        {
+          "path": "skills/blender-time-of-day/references/night-and-moods.md",
+          "git_blob_sha1": "436a8a26dd7f3de71e8df41788123865632d7242"
+        },
+        {
+          "path": "skills/blender-time-of-day/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-time-of-day/scripts/scene_mood.py",
+          "git_blob_sha1": "35b61896ca20d85df8a9c629f6b42fc371f03dc1"
+        },
+        {
+          "path": "skills/blender-weather-fx/SKILL.md",
+          "git_blob_sha1": "a7017876bc58a6f3b4461f4ea8279a1295d2e3a7"
+        },
+        {
+          "path": "skills/blender-weather-fx/references/realtime-engines.md",
+          "git_blob_sha1": "69a6aafc1bd816dea1f432d9a8fe26639170a60e"
+        },
+        {
+          "path": "skills/blender-weather-fx/references/weather-values.md",
+          "git_blob_sha1": "70238e0116918c0bd2196b80ac104f0d2cd9db9f"
+        },
+        {
+          "path": "skills/blender-weather-fx/scripts/_bpyx.py",
+          "git_blob_sha1": "9048f6909cdd95254e93a7d478785149beaa4b9a"
+        },
+        {
+          "path": "skills/blender-weather-fx/scripts/lightning.py",
+          "git_blob_sha1": "f163f939d11519947afb943b0fa2d3a172f44b0a"
+        },
+        {
+          "path": "skills/blender-weather-fx/scripts/precipitation.py",
+          "git_blob_sha1": "008ead6111ac8f066860302e6a4ca44c33c75b1b"
+        },
+        {
+          "path": "skills/blender-weather-fx/scripts/surface_weather.py",
+          "git_blob_sha1": "b1d2e9f697c67dc0cbcc4ebbcf1607f90507c7b5"
+        },
+        {
+          "path": "skills/blender-workflow-recipes/SKILL.md",
+          "git_blob_sha1": "aec155c641242e3bd04c61c22fb6cbcc51bf2c1b"
+        }
+      ]
+    }
+  ]
+}

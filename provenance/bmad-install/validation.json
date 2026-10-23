@@ -1,0 +1,8 @@
+{
+  "central_config": "passed",
+  "customization_resolvers": 39,
+  "skill_copy_parity": 41,
+  "catalog_paths": "passed",
+  "workflow_execution": "not run",
+  "engine_execution": "not run"
+}
