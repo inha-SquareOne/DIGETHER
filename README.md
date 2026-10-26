@@ -20,7 +20,7 @@
 - [Notion으로 가져올 기획 문서](docs/project/notion/README.md)
 - [환경과 온보딩](docs/project/ONBOARDING.md)
 - [GitHub 협업 흐름](docs/project/DEVELOPMENT_WORKFLOW.md)
-- [현재 상태와 다음 작업](docs/project/STATUS.md)
+- [기존 현황 기록](docs/project/STATUS.md)
 - [AI 작업 지침](AGENTS.md)
 
 저장소: [inha-SquareOne/DIGETHER](https://github.com/inha-SquareOne/DIGETHER)

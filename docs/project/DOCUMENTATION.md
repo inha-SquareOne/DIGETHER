@@ -9,7 +9,7 @@
 | 개발 작업 진행 | GitHub Issue/PR 사용 제안 | Notion에는 기획 승인 상태와 관련 링크; 개발 완료 상태를 별도로 수작업 복제하지 않음 |
 | 기획 변경 결정 | Notion 결정 DB | 관련 기술 ADR·Issue 연결 |
 | 기술·운영 선택 결정 | GitHub ADR, 채택 전 질문은 구조/운영 문서 | Notion에는 질문·연결 요구·ADR 링크만 두며 상태·결정 본문을 별도로 운영하지 않음 |
-| 현재 상태 요약 | GitHub Issue/PR 또는 해당 검증 기록을 참조하는 STATUS.md | STATUS는 판정 원본이 아닌 시점이 명시된 인계 요약 |
+| 작업 결과·인수인계 | 로컬 `.claude/docs/{날짜}/`와 `.claude/docs/pointer.md` | 공유 작업 상태와 검증 근거는 해당 GitHub Issue/PR 또는 검증 기록을 참조한다. 로컬 기록은 Git에서 제외된다 |
 | 제작 마일스톤 수용 | Notion | 완료 표시는 GitHub 구현·검증 증거 링크를 확인한 기획 수용 결과이며 개발 작업 상태를 대체하지 않음 |
 
 ## 초기 이관
