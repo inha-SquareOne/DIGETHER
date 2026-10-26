@@ -1,0 +1,26 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0",
+	"FriendlyName": "Development Workbench",
+	"Description": "범용 Unreal 개발 도구 통합 툴킷. 도구 설명자 등록, 공통 데이터 편집·검증 기반, 11개 도구 패널(T01~T11)의 도크 탭 통합을 제공한다. DIGETHER 게임 Runtime에 의존하지 않는다. 합성 예제 데이터 포함.",
+	"Category": "Editor",
+	"CreatedBy": "DIGETHER",
+	"EnabledByDefault": true,
+	"CanContainContent": true,
+	"IsBetaVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "WorkbenchEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "DataValidation",
+			"Enabled": true
+		}
+	]
+}

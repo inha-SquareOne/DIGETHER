@@ -1,0 +1,31 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0",
+	"FriendlyName": "Digether Workbench",
+	"Description": "DIGETHER 전용 Editor 어댑터. DevelopmentWorkbench Core 계약(IWorkbenchModule)에 'DIGETHER 연결 상태' 패널을 등록한다. 실게임 item/economy/spawn/room/runtime provider는 아직 연결되지 않은 합성 예제 패널이다.",
+	"Category": "DIGETHER",
+	"CreatedBy": "DIGETHER",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"EnabledByDefault": true,
+	"Modules": [
+		{
+			"Name": "DigetherWorkbenchEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "DevelopmentWorkbench",
+			"Enabled": true
+		}
+	]
+}
