@@ -47,14 +47,14 @@ chore: Unreal 생성물 제외와 에셋 LFS 설정
 |---|---|---|---|
 | `main` | 출시 기준 이력 | 기존 기준 브랜치 | release·hotfix 병합만 수용 |
 | `develop` | 다음 버전 개발 통합 | 최초 도입 시 현재 main | feature·release·hotfix 통합 |
-| `feature/<주제>` | 기능·일반 수정·문서·도구 작업 | develop | develop |
+| `feature/<사람 이름>` | 담당자별 기능·일반 수정·문서·도구 작업 | develop | develop |
 | `release/<버전>` | 출시 후보 안정화·검증 | develop | main과 develop |
 | `hotfix/<주제>` | 출시 버전의 긴급 수정 | main | main과 develop |
 
-브랜치 주제는 짧은 영문 소문자와 하이픈으로 쓴다. 실제 이슈가 있으면 `feature/123-item-loading`처럼 번호를 붙일 수 있다. 브랜치명과 코드 식별자가 영어인 것은 한국어 커밋 규칙의 예외다.
+feature 브랜치는 사람 이름으로 만들며 정확한 이름은 사용자가 지정한다. 현재 지정된 브랜치는 `feature/minsung`이다. AI는 작업 주제·이슈 번호를 붙여 feature 브랜치를 임의 생성하거나 이름을 추정하지 않는다. 이슈와 작업 구분은 커밋·PR에 기록한다. 브랜치명과 코드 식별자는 지정된 원래 표기를 유지한다.
 
 1. 현재 브랜치·변경 파일·기준 이력을 확인한다. 미커밋 작업을 자동 삭제하거나 다른 작업에 섞지 않는다.
-2. develop에서 목적별 feature 브랜치를 만든다. 문서 작업도 같은 흐름을 따른다. main과 develop에 직접 작업 커밋하지 않는다.
+2. develop에서 사용자가 지정한 사람 이름의 feature 브랜치를 만들거나 기존 담당자 브랜치를 사용한다. 새 브랜치 생성은 사용자 요청 범위를 확인하며 문서 작업도 같은 흐름을 따른다. main과 develop에 직접 작업 커밋하지 않는다.
 3. 해당 변경을 검증하고 한국어 메시지로 커밋한다. 푸시·PR·병합은 사용자가 승인한 작업 범위에서 수행한다.
 4. feature는 develop으로 PR을 보낸다. release는 안정화 후 main에 병합하고 같은 수정 사항을 develop에도 반영한다.
 5. hotfix는 main에서 시작해 main과 develop 양쪽에 반영한다. 진행 중인 release가 있으면 그 브랜치에도 수정 사항을 반영해 누락을 막는다.
@@ -64,6 +64,6 @@ PR 제목과 squash 메시지도 한국어 커밋 형식을 따른다. Git/GitHu
 
 ## 도입 상태
 
-2026-10-27 기존 main 이력을 보존한 채 로컬 develop과 `feature/commit-convention`을 만들었다. 기존 main의 커밋을 출시 검증 완료로 간주하지 않는다. 원격 develop 생성, 브랜치 보호, PR·병합·출시 태그는 미실행이다. 과거 영어 커밋은 이번 정책 도입에서 재작성하지 않는다.
+2026-10-27 로컬 develop이 있으며, 사용자 지정에 따라 작업 브랜치를 `feature/minsung`으로 정정했다. 같은 날 사용자가 기존 커밋 전체의 한국어 메시지 수정을 명시 요청했다. 파일 내용은 보존하고 로컬 이력의 메시지를 수정하며, 원격 이력 갱신은 별도 요청 없이 수행하지 않는다. 기존 main의 커밋을 출시 검증 완료로 간주하지 않는다. 원격 develop 생성, 브랜치 보호, PR·병합·출시 태그는 미실행이다.
 
-shinshi의 `docs/commit-convention.md`에서 메시지 형식·커밋 단위·AI 트레일러 제외 원칙을 참고했다. 사람별 브랜치와 Unity 전용 규칙은 가져오지 않고 DIGETHER의 Unreal·Gitflow 운영에 맞췄다.
+shinshi의 `docs/commit-convention.md`에서 메시지 형식·커밋 단위·AI 트레일러 제외 원칙을 참고했다. 사람별 feature 브랜치는 사용자 결정에 맞춰 적용하며 Unity 전용 규칙은 DIGETHER의 Unreal 운영에 맞췄다.
