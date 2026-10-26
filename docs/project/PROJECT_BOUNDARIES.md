@@ -16,8 +16,8 @@
 | Notion 기획 | 이관 전 초안 | 역할 참고, 최종 승인자 미정 | 문서별 소유자·개정 승인 |
 | docs/project | 이번 문서 세트 생성 | 장기 유지·리뷰 담당 미정 | 기획 변경의 기술 영향 반영 |
 | docs/ai·docs/unreal·.agents/skills·.claude/skills·역할 사본 | 공통 자료 도입 | 공통 기준 관리 담당 미정 | 원본·사본 동기화 |
-| Source·Config·Plugins·Build | 미생성 | 미정 | 실제 모듈·공유 계약·빌드 책임 |
-| Content 및 맵·외부 액터 | 미생성 | 미정 | 에셋별 작업자·잠금·통합 맵 책임 |
+| Source·Config·Plugins·Build | `DIGETHER/Source`·`Config` 존재, Plugins·Build 미생성 | 미정 | 실제 모듈·공유 계약·빌드 책임 |
+| Content 및 맵·외부 액터 | `DIGETHER/Content` 템플릿 에셋·맵 존재 | 미정 | 에셋별 작업자·잠금·통합 맵 책임 |
 | 초보 지원·파일 전달 | 역할 지정 전 | 기술 지원·기획 전달 담당 미정 | 권한 요청, 첫 파일 전달, 오류 보존과 전달 지원 |
 | .github 설정·CODEOWNERS | 미생성 | 미정 | 실제 계정·리뷰·보호 규칙 |
 
