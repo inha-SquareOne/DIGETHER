@@ -1,6 +1,6 @@
 # DIGETHER 작업 지침
 
-한국어로 소통한다. 프로젝트 기준은 [문서 지도](docs/project/README.md), 환경 값은 [프로필](docs/project/PROJECT_PROFILE.md), 진행 상태는 [현황](docs/project/STATUS.md)에 둔다.
+한국어로 결론부터 답한다. 질문·답변과 결과 보고는 [응답 방식](docs/ai/RESPONSE_STYLE_GUIDE.md)을 따른다. 사용자가 할 일·남은 작업을 물으면 로컬 `.claude/docs/pointer.md`와 관련 인수인계 본문을 확인하고 현재 상태와 대조한다. 프로젝트 기준은 [문서 지도](docs/project/README.md), 환경 값은 [프로필](docs/project/PROJECT_PROFILE.md), 진행 상태는 [현황](docs/project/STATUS.md)에 둔다.
 
 ## 시작과 근거
 
@@ -34,10 +34,14 @@
 
 추가 스킬의 선택·출처·실행 조건은 [프로젝트 스킬 목록](docs/project/SKILLS.md)을 따른다. BMAD 사용 시 `_bmad/PROJECT_INTEGRATION.md`를 읽고 Notion 원본과 작업용 초안을 구분한다. Blender 번들은 5.2 이상 기준이므로 실제 버전을 먼저 확인한다. Epic 스킬의 연결 설명만으로 Unreal MCP가 연결됐다고 가정하지 않는다.
 
+커밋 메시지와 브랜치 운영은 [커밋 규칙과 Gitflow](docs/commit-convention.md)를 따른다. 제목·본문은 한국어로 쓰고 `Co-authored-by` 트레일러를 넣지 않는다.
+
 커밋·푸시·원격 설정·외부 게시 여부는 현재 사용자가 요청한 범위를 따른다. 로컬 파일 작성은 외부 게시 완료를 뜻하지 않는다.
 
 Notion 기획을 조회할 때는 `notion-read-planning` 스킬로 원문과 개정·승인 상태를 확인한다.
 
-종료 시 변경 결과, 실제 검증, 미검증과 다음 작업을 구분하고 현황을 갱신한다.
+종료 시 변경 결과, 실제 검증, 미검증과 다음 작업을 구분하고 현황을 갱신한다. 작업 기록은 `.claude/docs/{날짜}/{제목}.md`, 다른 사람에게 전달할 문서는 같은 날짜의 `handover/{제목}.md`에 남기고 `.claude/docs/pointer.md`의 설명·링크·상태를 함께 갱신한다. Claude·Codex 공통 절차와 작성 시점은 [인수인계 기준](docs/ai/SESSION_HANDOFF.md)을 따른다.
 
 스킬 관리 원본은 `.agents/skills/`이며 변경 시 `.claude/skills/`의 동일 파일과 지원 파일을 함께 갱신한다. 루트 `skills/`는 별도로 만들지 않는다.
+
+작업 목표가 크게 달라지거나 확인된 현재 컨텍스트 사용량이 70% 이상이면 [세션 전환 스킬](.agents/skills/session-handoff/SKILL.md)을 적용한다. write-handoff로 인수인계를 남기고 새 세션 재개 여부를 질문하며, 동의한 경우 지원되는 기능으로 새 세션을 생성해 이어간다. 사용량을 확인할 수 없으면 추정하지 않는다.

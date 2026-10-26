@@ -2,7 +2,7 @@
 
 GitHub는 팀 파일과 변경 이력을 함께 보관하는 곳이다. **기획만 작성하거나 리뷰할 때는 웹 브라우저만으로 시작할 수 있다.** 파일을 직접 전달할 때는 버튼으로 작업하는 GitHub Desktop을 선택할 수 있다. 터미널 사용은 이 안내의 전제 조건이 아니다.
 
-현재 저장소는 [DIGETHER](https://github.com/inha-SquareOne/DIGETHER)다. 팀 초대·권한, 실제 기본 브랜치와 리뷰 담당은 기술 담당에게 확인한다. 아래 PR 흐름은 팀의 초기 운영안이며 원격 설정이 적용됐다는 뜻은 아니다.
+현재 저장소는 [DIGETHER](https://github.com/inha-SquareOne/DIGETHER)다. 팀 초대·권한, 실제 기본 브랜치와 리뷰 담당은 기술 담당에게 확인한다. 브랜치와 한국어 커밋은 [커밋 규칙과 Gitflow](../commit-convention.md)를 따른다. 원격 보호·권한 설정이 적용됐다는 뜻은 아니다.
 
 ## 여섯 단어
 
@@ -32,8 +32,8 @@ GitHub는 팀 파일과 변경 이력을 함께 보관하는 곳이다. **기획
 1. 처음 한 번은 GitHub Desktop에서 로그인하고 **File → Clone Repository → URL**에 저장소 주소를 입력한다. **Local Path**로 작업 폴더를 고른 뒤 **Clone**한다. 이미 작업 폴더가 있으면 중복 복제하기 전에 담당에게 확인한다. [공식 복제 안내](https://docs.github.com/en/desktop/adding-and-cloning-repositories/cloning-and-forking-repositories-from-github-desktop)
 2. 파일을 바꾸기 전, **Changes**에 보존해야 할 변경이 없는지 확인한다. 변경이 있으면 커밋·브랜치 전환·Discard 전에 현재 브랜치와 파일 목록을 담당에게 알려 보존 방법을 정한다. 작업 중인 에디터는 저장·종료한 뒤, **Current Branch**에서 팀 기준 브랜치를 선택한다.
 3. **Fetch origin**으로 새 변경을 확인하고 **Pull origin**이 표시되면 받아온다. 오류나 충돌이 나면 아래 복구 절차를 따른다. **Pull origin with rebase**만 보이거나 강제 작업을 요구하면 담당에게 확인한다. [공식 동기화 안내](https://docs.github.com/en/desktop/working-with-your-remote-repository-on-github-or-github-enterprise/syncing-your-branch-in-github-desktop)
-4. **Current Branch → New Branch**에서 팀 기준 브랜치를 바탕으로 새 작업 브랜치를 만든다. 이름은 팀 합의에 따르고 Issue와 연결한다. 기준 브랜치에서 바로 편집하지 않는 흐름을 권장한다. [공식 브랜치 안내](https://docs.github.com/en/desktop/making-changes-in-a-branch/managing-branches-in-github-desktop)
-5. 지정된 파일만 수정하고 저장한다. Desktop **Changes**에서 파일 목록·삭제 여부를 검토하고 이번 작업 파일만 체크한다. **Summary**에 변경 이유를 적고 현재 작업 브랜치로 **Commit**한다. 처음 보는 설정·생성 파일이 섞였으면 담당에게 확인한다. [공식 커밋 안내](https://docs.github.com/en/desktop/making-changes-in-a-branch/committing-and-reviewing-changes-to-your-project-in-github-desktop)
+4. **Current Branch → New Branch**에서 팀 기준 브랜치를 바탕으로 새 작업 브랜치를 만든다. 일반 작업은 develop에서 사용자가 지정한 `feature/<사람 이름>`를 만들고 실제 Issue가 있으면 연결한다. main·develop에 직접 커밋하지 않는다. [공식 브랜치 안내](https://docs.github.com/en/desktop/making-changes-in-a-branch/managing-branches-in-github-desktop)
+5. 지정된 파일만 수정하고 저장한다. Desktop **Changes**에서 파일 목록·삭제 여부를 검토하고 이번 작업 파일만 체크한다. **Summary**에 `docs: 한국어 커밋 규칙 정리`처럼 타입과 한국어 변경 결과를 적고, 필요한 이유는 **Description**에 한국어로 쓴다. 공동 작성자 트레일러 없이 현재 작업 브랜치로 **Commit**한다. 처음 보는 설정·생성 파일이 섞였으면 담당에게 확인한다. [공식 커밋 안내](https://docs.github.com/en/desktop/making-changes-in-a-branch/committing-and-reviewing-changes-to-your-project-in-github-desktop)
 6. 새 브랜치는 **Publish branch**, 이후 변경은 **Push origin**으로 전송한다. 업로드 오류가 없고 GitHub에서 해당 브랜치·커밋이 보이는지 확인한다. 저장소 전체를 새로 공개하는 **Publish repository**와 혼동하지 않는다. 전송 중 **fork(포크) 생성 안내**가 나오면 진행하지 말고 담당에게 팀 저장소 쓰기 권한을 확인한다. 개인 포크를 만드는 흐름은 이 안내의 팀 작업 흐름과 다르다.
 7. **Preview Pull Request**에서 변경과 **base**(합칠 대상)를 확인하고 **Create Pull Request**로 브라우저를 연다. 제목·목적·관련 Issue/Notion 개정·검사 결과·이미지를 작성한다. 검토자는 팀이 지정한 담당으로 요청한다. [공식 PR 생성 안내](https://docs.github.com/en/desktop/working-with-your-remote-repository-on-github-or-github-enterprise/creating-an-issue-or-pull-request-from-github-desktop)
 8. 수정 요청이 오면 같은 작업 브랜치에서 수정·커밋·전송하고 답글을 남긴다. 검토와 병합은 지정 담당이 수행한다. 병합 뒤 다음 작업을 시작할 때 저장·종료·변경 보존을 확인하고 기준 브랜치로 돌아와 새 변경을 받는다.

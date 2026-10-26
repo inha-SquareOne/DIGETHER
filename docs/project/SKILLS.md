@@ -1,6 +1,6 @@
 # DIGETHER 프로젝트 스킬
 
-2026-10-23 추가 요청을 반영했다. `.agents/skills/`가 관리 원본이자 Codex 발견 경로이고 `.claude/skills/`는 Claude Code용 동기화 사본이다. 총 **83종**이며, 전역 스킬·계정 설정은 바꾸지 않았다. 다음 턴부터 새 스킬을 사용할 수 있고, 목록이 갱신되지 않는 클라이언트에서는 새 프로젝트 세션을 연다.
+2026-10-23 추가 요청을 반영했다. `.agents/skills/`가 관리 원본이자 Codex 발견 경로이고 `.claude/skills/`는 Claude Code용 동기화 사본이다. 총 **84종**이며, 전역 스킬·계정 설정은 바꾸지 않았다. 다음 턴부터 새 스킬을 사용할 수 있고, 목록이 갱신되지 않는 클라이언트에서는 새 프로젝트 세션을 연다.
 
 ## 설치 목록
 
@@ -10,6 +10,7 @@
 | Epic Unreal | 3 | [공식 저장소](https://github.com/EpicGames/unreal-engine-skills-for-claude-code-plugin), 커밋 `a6aa73ada02a9fb1f5415bec491f9942c519b297` |
 | Blender 제작 | 22 | [blender-skills](https://github.com/EL4CTEO/blender-skills), 커밋 `71d031dab8bc6729504d11a78cbe91945401045f` |
 | BMAD Game Dev Studio·Core | 41 | 신시 설치본 재사용: GDS 33 + Core 의존 8, Core 6.12.0 / GDS v0.7.2 |
+| 세션 전환 | 1 | 프로젝트 전용 `session-handoff`: 목표 변경·컨텍스트 70%에서 인수인계와 동의 기반 새 세션 재개 |
 | Notion 기획 조회 | 1 | 프로젝트 전용 `notion-read-planning`: 원문·개정·승인 상태 조회 |
 | 신시 VFX 이식 | 2 | `create-game-vfx`, `register-vfx-prewarming`을 Unreal 기준으로 변환 |
 
@@ -19,6 +20,7 @@ Epic/Blender는 skill-installer의 GitHub 설치 스크립트로 커밋을 고�
 
 | 작업 | 진입 스킬 |
 |---|---|
+| 목표 변경·컨텍스트 70% 이상에서 세션 전환 | [session-handoff](../../.agents/skills/session-handoff/SKILL.md) → write-handoff |
 | Notion 기획·요구사항 가져오기 | [notion-read-planning](../../.agents/skills/notion-read-planning/SKILL.md) |
 | 실제 Unreal Editor 조회·조작 | `unreal-mcp` |
 | Unreal ToolsetRegistry 도구 제작 | `create-toolset` |
@@ -63,3 +65,5 @@ VFX 2종은 시간 변화·판정 경계·원본 보존·실제 게임 캡처·�
 Notion 읽기 스킬은 두 도구 경로에 배치했다. 실제 조회에는 Notion 연결과 대상 페이지 접근 권한이 필요하다. 현재 페이지 URL은 미등록이며 온라인 본문 조회는 수행하지 않았다.
 
 로컬 정책 보정의 변경 파일·해시는 [추가 변경 기록](../../provenance/skill-policy-adjustments.json)에 둔다. 외부 설치 영수증은 당시 기준이며 현재 파일 해시를 대신하지 않는다.
+
+2026-10-27 `session-handoff`를 두 발견 경로에 동일하게 추가했다. AGENTS.md와 Claude 진입점에서 적용 조건을 연결했다. 자동 컨텍스트 계측이나 세션 생성 기능이 없는 환경에서는 제한을 보고하며, 사용자 동의 전 새 세션을 만들지 않는다.

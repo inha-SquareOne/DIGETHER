@@ -25,6 +25,9 @@ DerivedDataCache/
 *.dmp
 
 # Local Python caches and personal BMAD overrides
+# Local work notes and handover index
+/.claude/docs/
+
 **/__pycache__/
 _bmad/config.user.toml
 _bmad/custom/*.user.toml
