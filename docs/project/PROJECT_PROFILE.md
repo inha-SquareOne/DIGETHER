@@ -20,6 +20,6 @@
 | 제작 방향 | Cartoon Rendering + Low Poly. 구체 예산·성능 목표·최소 사양 미정 |
 | 검사 | Git 제외 규칙·LFS·문서 링크 검사 수행. 엔진 빌드·에셋 로드·PIE·M2/M3는 이번 커밋 정리에서 미실행 |
 | 소유권 | 기획 역할은 기획 기준, 기술·리뷰·통합·계정 매핑은 [경계표](PROJECT_BOUNDARIES.md)에서 미정 관리 |
-| 도구 사본 | 총 스킬 83종(공통 14 + Epic 3 + Blender 22 + BMAD 41 + 신시 이식 2 + Notion 조회 1), 기존 Unreal 역할 7종. [스킬 목록·검증](SKILLS.md) 참조 |
+| 도구 사본 | 총 스킬 84종(공통 14 + Epic 3 + Blender 22 + BMAD 41 + 신시 이식 2 + Notion 조회 1 + 세션 전환 1), 기존 Unreal 역할 7종. [스킬 목록·검증](SKILLS.md) 참조 |
 
 개인 계정·키·PC 절대 경로는 팀 환경값으로 쓰지 않는다. [엔진 ADR](decisions/ADR-002-engine-version.md)과 [결정 대기](notion/DECISIONS.md)를 함께 갱신한다.
