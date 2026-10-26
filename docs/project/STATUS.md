@@ -1,5 +1,12 @@
 # 현재 상태와 인수인계
 
+## 2026-10-27 기본 브랜치와 PR
+
+- `develop`과 `feature/minsung`의 원격 생성·푸시·upstream 연결을 완료했다. GitHub 기본 브랜치, 현재 작업 사본의 `origin/HEAD`와 저장소 로컬 `init.defaultBranch`는 `develop`으로 재조회했다.
+- [PR #1](https://github.com/inha-SquareOne/DIGETHER/pull/1): `feature/minsung` → `develop`, 생성 후 OPEN·충돌 없음 확인. 병합과 브랜치 보호는 수행하지 않았다. 작업 브랜치는 `feature/minsung`을 유지한다.
+- LFS 객체 755개(약 141MB) 원격 업로드 완료. `git lfs fsck`, PR diff 공백 검사, 변경 Markdown 18개의 로컬 링크 136개(누락 0개), session-handoff 스킬 사본 일치 확인을 통과했다.
+- 기존 원격 main 이력은 유지했다. 이번 PR 준비에서 엔진 빌드·PIE·다인·패키징은 실행하지 않았다.
+
 ## 2026-10-27 Unreal MCP와 로컬 변경
 
 - [MCP 연결 안내](UNREAL_MCP_SETUP.md): Claude·Codex 프로젝트 설정, 실행 에디터 서버 시작 및 자동 시작 설정 저장·재조회 완료.
@@ -7,7 +14,7 @@
 - 기존 DX11·반사/조명/그림자 설정 변경과 Splash 이미지·에셋을 사용자 요청으로 커밋한다. SecurityToken은 공유 설정에서 제외했다.
 - 에디터 재시작·빌드·PIE·다인·패키징 미검증. 기존 GameFeatureData 등록 관련 로드 오류는 별도 진단 필요.
 
-기준일: 2026-10-27. 이번 문서 준비 상태이며 게임 기능 상태와 구분한다. 이 파일은 시점이 명시된 인계 요약이며 개발 완료 판정 원본이 아니다. 개발 상태는 해당 GitHub Issue/PR과 검증 증거를, 제작 단계 수용은 증거가 연결된 Notion 마일스톤을 참조한다. 온라인 항목이 아직 없으므로 이번 결과는 문서 검증 기록을 근거로 한다.
+기준일: 2026-10-27. 이번 문서 준비 상태이며 게임 기능 상태와 구분한다. 이 파일은 시점이 명시된 인계 요약이며 개발 완료 판정 원본이 아니다. 개발 상태는 해당 GitHub Issue/PR과 검증 증거를, 제작 단계 수용은 증거가 연결된 Notion 마일스톤을 참조한다. 이번 공유 변경은 [PR #1](https://github.com/inha-SquareOne/DIGETHER/pull/1)과 문서 검증 기록을 근거로 한다.
 
 | 영역 | 상태 | 근거·다음 행동 |
 |---|---|---|
@@ -15,11 +22,11 @@
 | 문서·정책 정리 | 중복·충돌 보정 | [통합 점검](reviews/2026-10-23-document-skill-audit.md). 확정/제안/미결·실제 실행 구분 |
 | Notion 기획 | 가져오기 초안 준비 | 워크스페이스·페이지 URL 등록 및 팀 검토 필요 |
 | Notion 조회 스킬 | 로컬 배치 | `notion-read-planning` 추가. 실제 연결·페이지 접근 후 본문 조회 필요 |
-| GitHub | 문서·스킬 버전 관리 | 공유 버전은 저장소 커밋 이력 참조. Issue·PR·보호 규칙 설정 미실행 |
+| GitHub | develop 기본 브랜치·PR 생성 완료 | [PR #1](https://github.com/inha-SquareOne/DIGETHER/pull/1), feature/minsung → develop. Issue·보호 규칙·병합 미실행 |
 | 엔진 | 조사 PC의 5.8.2 설치 메타데이터·관련 헤더 확인 | 팀 설치 방식·SDK·실행·플러그인 조합은 미검증 |
 | 개발반 설계 | 요구별 설계·엔진 재사용 안내 작성 | [시스템 설계](DEVELOPMENT_SYSTEM_DESIGN.md), [기능 경계](UNREAL_FEATURE_COVERAGE.md), [검증 기록](reviews/2026-10-25-development-design.md). 기획 승인·기술 채택·게임 실행은 별도 |
 | 게임 프로젝트 | 기존 로컬 Third Person 템플릿을 버전 관리에 추가 | `DIGETHER/DIGETHER.uproject`, Source·Config·Content. 게임 기능 구현·실행 검증과 구분 |
-| Git 파일 관리 | 중첩 Unreal 생성물 제외·에셋 LFS 적용 | `.gitignore`·`.gitattributes`. 로컬 검증 수행, 원격 업로드·잠금 미검증 |
+| Git 파일 관리 | 중첩 Unreal 생성물 제외·에셋 LFS 적용 | `.gitignore`·`.gitattributes`. 로컬 무결성 검사·LFS 755개 원격 업로드 완료, 잠금·다른 PC 다운로드 미검증 |
 | 게임 검증 | 미실행 | 빌드·Editor·다인·패키징 증거 없음 |
 | 스킬 | 총 84종, 두 도구 경로 동기화 | [관리 목록](SKILLS.md). 설치와 실제 게임 워크플로 실행 구분 |
 

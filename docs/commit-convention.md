@@ -64,6 +64,8 @@ PR 제목과 squash 메시지도 한국어 커밋 형식을 따른다. Git/GitHu
 
 ## 도입 상태
 
-2026-10-27 로컬 develop이 있으며, 사용자 지정에 따라 작업 브랜치를 `feature/minsung`으로 정정했다. 같은 날 사용자가 기존 커밋 전체의 한국어 메시지 수정을 명시 요청했다. 파일 내용은 보존하고 로컬 이력의 메시지를 수정하며, 원격 이력 갱신은 별도 요청 없이 수행하지 않는다. 기존 main의 커밋을 출시 검증 완료로 간주하지 않는다. 원격 develop 생성, 브랜치 보호, PR·병합·출시 태그는 미실행이다.
+2026-10-27 로컬 develop이 있으며, 사용자 지정에 따라 작업 브랜치를 `feature/minsung`으로 정정했다. 같은 날 사용자가 기존 커밋 전체의 한국어 메시지 수정을 명시 요청했다. 파일 내용은 보존하고 로컬 이력의 메시지를 수정했으며, 기존 main의 커밋을 출시 검증 완료로 간주하지 않는다.
+
+후속 사용자 요청으로 `develop`과 `feature/minsung`을 원격에 올리고 GitHub 기본 브랜치를 `develop`으로 설정했다. 현재 작업 사본의 `origin/HEAD`와 저장소 로컬 `init.defaultBranch`도 `develop`으로 맞췄으며 두 브랜치의 원격 추적을 연결했다. [PR #1](https://github.com/inha-SquareOne/DIGETHER/pull/1)은 `feature/minsung` → `develop`으로 열었다. 기존 원격 main 이력은 유지했다. 브랜치 보호·PR 병합·출시 태그는 미실행이다.
 
 shinshi의 `docs/commit-convention.md`에서 메시지 형식·커밋 단위·AI 트레일러 제외 원칙을 참고했다. 사람별 feature 브랜치는 사용자 결정에 맞춰 적용하며 Unity 전용 규칙은 DIGETHER의 Unreal 운영에 맞췄다.
