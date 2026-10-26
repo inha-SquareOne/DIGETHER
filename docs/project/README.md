@@ -17,6 +17,8 @@
 | [프로젝트 프로필](PROJECT_PROFILE.md) | 확정 환경·소스 관리·미정 설정 | GitHub |
 | [온보딩](ONBOARDING.md) | 신규 참여자의 환경 준비·첫 실행 | GitHub |
 | [기술 구조 초안](ARCHITECTURE.md) | 시스템·상태·네트워크 책임 제안 | GitHub |
+| [개발반 시스템 설계](DEVELOPMENT_SYSTEM_DESIGN.md) | DG-001~019 구현 책임·데이터 계약·실패 처리·구현 순서 제안 | GitHub |
+| [Unreal 제공 기능과 구현 범위](UNREAL_FEATURE_COVERAGE.md) | UE 5.8.2 근거·기본 기능 사용 가이드·직접 개발 경계 | GitHub |
 | [작업 경계](PROJECT_BOUNDARIES.md) | 작성·리뷰·통합·동시 편집 범위 | GitHub |
 | [개발 흐름](DEVELOPMENT_WORKFLOW.md) | Notion 요구 → 구현 → PR → 검증 | GitHub |
 | [문서 관리](DOCUMENTATION.md) | Notion/GitHub 단일 원본·충돌 해결 | GitHub |

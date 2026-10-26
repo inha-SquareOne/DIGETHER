@@ -8,6 +8,7 @@
 2. [문서 운영](../../project/DOCUMENTATION.md) → [작업 경계](../../project/PROJECT_BOUNDARIES.md): 승인 요구와 담당.
 3. [개발 흐름](../../project/DEVELOPMENT_WORKFLOW.md) → [검증 계획](../../project/VERIFICATION_PLAN.md).
 4. [Unreal 기준](../../unreal/README.md), AI와 작업할 때 [실행 정책](../../ai/EXECUTION_POLICY.md)와 [스킬 목록](../../project/SKILLS.md).
+5. [개발반 시스템 설계](../../project/DEVELOPMENT_SYSTEM_DESIGN.md)에서 맡을 기능·계약·검증을 찾고, [Unreal 제공 기능](../../project/UNREAL_FEATURE_COVERAGE.md)에서 엔진 재사용 범위와 최소 적용 순서를 확인한다. 두 문서는 구현·채택 전 제안이다.
 
 ## 작업 한 건을 마치는 흐름
 
