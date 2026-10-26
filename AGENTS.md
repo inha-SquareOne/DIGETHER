@@ -34,6 +34,8 @@
 
 추가 스킬의 선택·출처·실행 조건은 [프로젝트 스킬 목록](docs/project/SKILLS.md)을 따른다. BMAD 사용 시 `_bmad/PROJECT_INTEGRATION.md`를 읽고 Notion 원본과 작업용 초안을 구분한다. Blender 번들은 5.2 이상 기준이므로 실제 버전을 먼저 확인한다. Epic 스킬의 연결 설명만으로 Unreal MCP가 연결됐다고 가정하지 않는다.
 
+커밋 메시지와 브랜치 운영은 [커밋 규칙과 Gitflow](docs/commit-convention.md)를 따른다. 제목·본문은 한국어로 쓰고 `Co-authored-by` 트레일러를 넣지 않는다.
+
 커밋·푸시·원격 설정·외부 게시 여부는 현재 사용자가 요청한 범위를 따른다. 로컬 파일 작성은 외부 게시 완료를 뜻하지 않는다.
 
 Notion 기획을 조회할 때는 `notion-read-planning` 스킬로 원문과 개정·승인 상태를 확인한다.

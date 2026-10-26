@@ -1,12 +1,12 @@
 # GitHub 개발·파일 관리 흐름
 
-GitHub 사용은 확정, 브랜치·PR·LFS 세부 절차는 초기 운영 제안이다. 현재 origin은 [프로필](PROJECT_PROFILE.md)을 따른다.
+GitHub 사용과 Gitflow 전략은 확정이다. 한국어 커밋·공동 작성자 트레일러 제외·브랜치별 반영 경로는 [커밋 규칙과 Gitflow](../commit-convention.md)가 단일 기준이다. 원격 보호·리뷰·잠금 세부 설정은 별도 확인한다. 현재 origin은 [프로필](PROJECT_PROFILE.md)을 따른다.
 
 ## 작업 한 건의 흐름
 
 1. Notion 요구 ID·페이지 URL·승인 개정 번호·승인자/승인일·수용 조건을 확인한다. 이관 전이면 기획 초안의 출처와 미결을 명시한다.
 2. GitHub Issue에 목적, 제외 범위, 담당, 쓰기 경로, 수용 조건, 검증 수준, 관련 기획·결정을 적는다.
-3. 기준 브랜치 상태를 확인하고 `feature/<issue>-<topic>`, `fix/<issue>-<topic>`, `docs/<topic>` 등 작업 브랜치를 사용한다는 안을 팀에서 채택한다.
+3. 기준 브랜치 상태를 확인하고 [Gitflow 규칙](../commit-convention.md)에 따라 develop에서 `feature/<주제>`를 만든다. 출시 준비는 release, 출시 긴급 수정은 hotfix 흐름을 따른다.
 4. 작은 단위로 변경하고 에셋 편집 예약/잠금을 확인한다. 공통 계약 변경은 소비 영역과 함께 검토한다.
 5. [검증 계획](VERIFICATION_PLAN.md)의 필요한 검사를 수행한다. 미실행을 구분한다.
 6. PR에 문제·동작 변화·기획 개정·실제 검사·미검증·스크린샷 필요 여부를 기록한다. 지정 리뷰어와 통합 담당 확인 후 병합한다.
