@@ -16,6 +16,7 @@
 | [결정 대기](notion/DECISIONS.md) | 기획·환경·기술 미결 결정 추적 | 이관 후 Notion, 채택 기술 결정은 ADR 연결 |
 | [프로젝트 프로필](PROJECT_PROFILE.md) | 확정 환경·소스 관리·미정 설정 | GitHub |
 | [온보딩](ONBOARDING.md) | 신규 참여자의 환경 준비·첫 실행 | GitHub |
+| [Unreal MCP 연결](UNREAL_MCP_SETUP.md) | Claude·Codex 설정·승인·실제 연결 검증 | GitHub |
 | [기술 구조 초안](ARCHITECTURE.md) | 시스템·상태·네트워크 책임 제안 | GitHub |
 | [개발반 시스템 설계](DEVELOPMENT_SYSTEM_DESIGN.md) | DG-001~019 구현 책임·데이터 계약·실패 처리·구현 순서 제안 | GitHub |
 | [Unreal 제공 기능과 구현 범위](UNREAL_FEATURE_COVERAGE.md) | UE 5.8.2 근거·기본 기능 사용 가이드·직접 개발 경계 | GitHub |
