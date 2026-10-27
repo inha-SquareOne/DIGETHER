@@ -26,7 +26,7 @@
 | [문서 관리](DOCUMENTATION.md) | Notion/GitHub 단일 원본·충돌 해결 | GitHub |
 | [검증 계획](VERIFICATION_PLAN.md) | 변경별 검사와 출시 전 확인 | GitHub |
 | [자산·의존성 대장](ASSET_REGISTER.md) | 외부 패키지·에셋 출처와 사용권 | GitHub |
-| [현재 상태·인계](STATUS.md) | 현재 구현·검증·다음 작업 | GitHub |
+| [기존 현황 기록](STATUS.md) | 기존 상태 기록 참고 | GitHub |
 | [도구 분담 결정](decisions/ADR-001-document-ownership.md) | 사용자 결정과 영향 | GitHub |
 | [엔진 결정](decisions/ADR-002-engine-version.md) | UE 5.8.2 채택 근거 | GitHub |
 | [출처와 도입 범위](SOURCES.md) | 외부 안내·도구 출처 | GitHub |

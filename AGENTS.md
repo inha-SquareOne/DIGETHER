@@ -1,6 +1,6 @@
 # DIGETHER 작업 지침
 
-한국어로 결론부터 답한다. 질문·답변과 결과 보고는 [응답 방식](docs/ai/RESPONSE_STYLE_GUIDE.md)을 따른다. 사용자가 할 일·남은 작업을 물으면 로컬 `.claude/docs/pointer.md`와 관련 인수인계 본문을 확인하고 현재 상태와 대조한다. 프로젝트 기준은 [문서 지도](docs/project/README.md), 환경 값은 [프로필](docs/project/PROJECT_PROFILE.md), 진행 상태는 [현황](docs/project/STATUS.md)에 둔다.
+한국어로 결론부터 답한다. 질문·답변과 결과 보고는 [응답 방식](docs/ai/RESPONSE_STYLE_GUIDE.md)을 따른다. 사용자가 할 일·남은 작업을 물으면 로컬 `.claude/docs/pointer.md`와 관련 인수인계 본문을 확인하고 현재 상태와 대조한다. 프로젝트 기준은 [문서 지도](docs/project/README.md), 환경 값은 [프로필](docs/project/PROJECT_PROFILE.md)을 따른다.
 
 ## 시작과 근거
 
@@ -40,7 +40,7 @@
 
 Notion 기획을 조회할 때는 `notion-read-planning` 스킬로 원문과 개정·승인 상태를 확인한다.
 
-종료 시 변경 결과, 실제 검증, 미검증과 다음 작업을 구분하고 현황을 갱신한다. 작업 기록은 `.claude/docs/{날짜}/{제목}.md`, 다른 사람에게 전달할 문서는 같은 날짜의 `handover/{제목}.md`에 남기고 `.claude/docs/pointer.md`의 설명·링크·상태를 함께 갱신한다. Claude·Codex 공통 절차와 작성 시점은 [인수인계 기준](docs/ai/SESSION_HANDOFF.md)을 따른다.
+종료 시 변경 결과, 실제 검증, 미검증과 다음 작업을 구분해 기록한다. 작업 기록은 `.claude/docs/{날짜}/{제목}.md`, 다른 사람에게 전달할 문서는 같은 날짜의 `handover/{제목}.md`에 남기고 `.claude/docs/pointer.md`의 설명·링크·상태를 함께 갱신한다. Claude·Codex 공통 절차와 작성 시점은 [인수인계 기준](docs/ai/SESSION_HANDOFF.md)을 따른다.
 
 스킬 관리 원본은 `.agents/skills/`이며 변경 시 `.claude/skills/`의 동일 파일과 지원 파일을 함께 갱신한다. 루트 `skills/`는 별도로 만들지 않는다.
 
