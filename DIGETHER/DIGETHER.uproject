@@ -16,8 +16,59 @@
 		}
 	],
 	"Plugins": [
-		{"Name": "ProceduralMeshComponent", "Enabled": true},
-		{"Name": "SteamSockets", "Enabled": true},
+		{
+			"Name": "ProceduralMeshComponent",
+			"Enabled": true
+		},
+		{
+			"Name": "SteamSockets",
+			"Enabled": true
+		},
+		{
+			"Name": "AssetSearch",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
+		{
+			"Name": "ActorPalette",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
+		{
+			"Name": "GameplayInsights",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
+		{
+			"Name": "UVEditor",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
+		{
+			"Name": "DataValidation",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
+		{
+			"Name": "EditorScriptingUtilities",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
+		{
+			"Name": "AssetManagerEditor",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
+		{
+			"Name": "LevelSnapshots",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
+		{
+			"Name": "BlueprintHeaderView",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
 		{
 			"Name": "ModelingToolsEditorMode",
 			"Enabled": true,

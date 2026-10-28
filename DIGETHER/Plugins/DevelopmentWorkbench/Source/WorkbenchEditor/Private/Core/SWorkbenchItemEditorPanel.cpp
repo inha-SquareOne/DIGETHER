@@ -22,10 +22,10 @@
 
 namespace
 {
-	const FLinearColor ErrorColor(1.f, 0.4f, 0.4f);
-	const FLinearColor WarningColor(1.f, 0.85f, 0.3f);
-	const FLinearColor OkColor(0.5f, 0.9f, 0.5f);
-	const FLinearColor InfoColor(0.75f, 0.75f, 0.75f);
+	const FLinearColor ItemEditorErrorColor(1.f, 0.4f, 0.4f);
+	const FLinearColor ItemEditorWarningColor(1.f, 0.85f, 0.3f);
+	const FLinearColor ItemEditorOkColor(0.5f, 0.9f, 0.5f);
+	const FLinearColor ItemEditorInfoColor(0.75f, 0.75f, 0.75f);
 }
 
 class SWorkbenchItemEditorPanel::SItemRowWidget : public SMultiColumnTableRow<TSharedPtr<FItemRow>>
@@ -70,17 +70,17 @@ public:
 			if (Item->bHasError)
 			{
 				Text = LOCTEXT("RowError", "오류");
-				Color = ErrorColor;
+				Color = ItemEditorErrorColor;
 			}
 			else if (Item->bHasWarning)
 			{
 				Text = LOCTEXT("RowWarning", "경고/결정 대기");
-				Color = WarningColor;
+				Color = ItemEditorWarningColor;
 			}
 			else
 			{
 				Text = LOCTEXT("RowOk", "구조 정상");
-				Color = OkColor;
+				Color = ItemEditorOkColor;
 			}
 		}
 		return SNew(STextBlock).Text(Text).ColorAndOpacity(Color);
@@ -151,7 +151,7 @@ void SWorkbenchItemEditorPanel::Construct(const FArguments& InArgs)
 		[
 			SNew(STextBlock)
 			.Text(this, &SWorkbenchItemEditorPanel::GetSummaryText)
-			.ColorAndOpacity(InfoColor)
+			.ColorAndOpacity(ItemEditorInfoColor)
 		]
 		+ SVerticalBox::Slot().FillHeight(1.f).Padding(4.f)
 		[
@@ -190,7 +190,7 @@ void SWorkbenchItemEditorPanel::Construct(const FArguments& InArgs)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("DraftHeader", "초안 변경과 검증 (원본은 '적용'을 누르기 전까지 바뀌지 않습니다)"))
-					.ColorAndOpacity(InfoColor)
+					.ColorAndOpacity(ItemEditorInfoColor)
 				]
 				+ SVerticalBox::Slot().FillHeight(0.5f)
 				[
@@ -291,7 +291,7 @@ void SWorkbenchItemEditorPanel::ReloadSnapshot()
 	FText Error;
 	if (!WorkbenchDataTableEditAdapter::TakeSnapshot(Target, Snapshot, Error))
 	{
-		AddResultLine(FText::Format(LOCTEXT("SnapshotFail", "조회 실패: {0}"), Error), ErrorColor);
+		AddResultLine(FText::Format(LOCTEXT("SnapshotFail", "조회 실패: {0}"), Error), ItemEditorErrorColor);
 		RebuildVisibleRows();
 		return;
 	}
@@ -441,12 +441,12 @@ void SWorkbenchItemEditorPanel::OnSelectionChanged(TSharedPtr<FItemRow> Item, ES
 	{
 		AddResultLine(
 			FText::Format(LOCTEXT("DraftDiscarded", "선택을 바꿔 '{0}'의 미적용 초안을 버렸습니다."), FText::FromName(Session->GetRowName())),
-			WarningColor);
+			ItemEditorWarningColor);
 	}
 
 	Session = MakeShared<FWorkbenchItemDraftSession>(Table.Get(), Item->RowName);	if (!Session->IsValid())
 	{
-		AddResultLine(FText::Format(LOCTEXT("RowReadFail", "행 '{0}'을 읽지 못했습니다. 재조회하세요."), FText::FromName(Item->RowName)), ErrorColor);
+		AddResultLine(FText::Format(LOCTEXT("RowReadFail", "행 '{0}'을 읽지 못했습니다. 재조회하세요."), FText::FromName(Item->RowName)), ItemEditorErrorColor);
 		Session.Reset();
 	}
 	DetailsView->SetObject(Session.IsValid() ? Session->GetDraftObject() : nullptr);
@@ -476,7 +476,7 @@ void SWorkbenchItemEditorPanel::RefreshDraftMessages()
 		DraftChangeCount = Changes.Num();
 		if (Changes.IsEmpty())
 		{
-			DraftLines.Add(WorkbenchCoreUi::MakeLine(LOCTEXT("NoChanges", "초안에 변경이 없습니다."), InfoColor));
+			DraftLines.Add(WorkbenchCoreUi::MakeLine(LOCTEXT("NoChanges", "초안에 변경이 없습니다."), ItemEditorInfoColor));
 		}
 		for (const FWorkbenchFieldChange& Change : Changes)
 		{
@@ -493,7 +493,7 @@ void SWorkbenchItemEditorPanel::RefreshDraftMessages()
 	}
 	else
 	{
-		DraftLines.Add(WorkbenchCoreUi::MakeLine(LOCTEXT("SelectRow", "목록에서 행을 선택하면 초안이 만들어집니다. 아래는 테이블 단위 검증 결과입니다."), InfoColor));
+		DraftLines.Add(WorkbenchCoreUi::MakeLine(LOCTEXT("SelectRow", "목록에서 행을 선택하면 초안이 만들어집니다. 아래는 테이블 단위 검증 결과입니다."), ItemEditorInfoColor));
 		for (const FWorkbenchValidationMessage& Message : TableMessages)
 		{
 			if (Message.TargetId.IsNone())
@@ -532,7 +532,7 @@ FReply SWorkbenchItemEditorPanel::OnRevert()
 		{
 			DetailsView->ForceRefresh();
 		}
-		AddResultLine(LOCTEXT("Reverted", "초안을 조회 시점 값으로 되돌렸습니다."), InfoColor);
+		AddResultLine(LOCTEXT("Reverted", "초안을 조회 시점 값으로 되돌렸습니다."), ItemEditorInfoColor);
 	}
 	return FReply::Handled();
 }
@@ -543,7 +543,7 @@ FReply SWorkbenchItemEditorPanel::OnRequery()
 	{
 		if (!Session->Requery())
 		{
-			AddResultLine(FText::Format(LOCTEXT("RequeryMissing", "행 '{0}'이 더 이상 없습니다."), FText::FromName(Session->GetRowName())), ErrorColor);
+			AddResultLine(FText::Format(LOCTEXT("RequeryMissing", "행 '{0}'이 더 이상 없습니다."), FText::FromName(Session->GetRowName())), ItemEditorErrorColor);
 			Session.Reset();
 			DetailsView->SetObject(nullptr);
 		}
@@ -554,7 +554,7 @@ FReply SWorkbenchItemEditorPanel::OnRequery()
 	{
 		DetailsView->ForceRefresh();
 	}
-	AddResultLine(LOCTEXT("Requeried", "원본을 다시 조회했습니다."), InfoColor);
+	AddResultLine(LOCTEXT("Requeried", "원본을 다시 조회했습니다."), ItemEditorInfoColor);
 	return FReply::Handled();
 }
 
@@ -569,13 +569,13 @@ FReply SWorkbenchItemEditorPanel::OnApply()
 	{
 		AddResultLine(
 			FText::Format(LOCTEXT("Applied", "적용했습니다(행 {0}개). 아직 디스크에 저장되지 않았습니다."), FText::AsNumber(Result.AppliedRows.Num())),
-			OkColor);
+			ItemEditorOkColor);
 	}
 	else
 	{
 		for (const FText& Error : Result.Errors)
 		{
-			AddResultLine(FText::Format(LOCTEXT("ApplyFail", "적용 실패: {0}"), Error), ErrorColor);
+			AddResultLine(FText::Format(LOCTEXT("ApplyFail", "적용 실패: {0}"), Error), ItemEditorErrorColor);
 		}
 	}
 	ReloadSnapshot();
@@ -595,22 +595,22 @@ FReply SWorkbenchItemEditorPanel::OnSave()
 		return FReply::Handled();
 	}
 	const FWorkbenchSaveResult Result = WorkbenchDataTableEditAdapter::SaveTablePackage(Target);
-	AddResultLine(Result.Message, Result.bSaved ? OkColor : ErrorColor);
+	AddResultLine(Result.Message, Result.bSaved ? ItemEditorOkColor : ItemEditorErrorColor);
 	if (!Result.JobId.IsEmpty())
 	{
-		AddResultLine(FText::Format(LOCTEXT("SaveJob", "저장 작업 ID: {0}"), FText::FromString(Result.JobId)), InfoColor);
+		AddResultLine(FText::Format(LOCTEXT("SaveJob", "저장 작업 ID: {0}"), FText::FromString(Result.JobId)), ItemEditorInfoColor);
 	}
 	if (!Result.BackupPath.IsEmpty())
 	{
-		AddResultLine(FText::Format(LOCTEXT("SaveBackup", "백업: {0}"), FText::FromString(Result.BackupPath)), InfoColor);
+		AddResultLine(FText::Format(LOCTEXT("SaveBackup", "백업: {0}"), FText::FromString(Result.BackupPath)), ItemEditorInfoColor);
 	}
 	if (!Result.JournalPath.IsEmpty() && (Result.bSaved || !Result.JobId.IsEmpty()))
 	{
-		AddResultLine(FText::Format(LOCTEXT("SaveJournal", "저널: {0}"), FText::FromString(Result.JournalPath)), InfoColor);
+		AddResultLine(FText::Format(LOCTEXT("SaveJournal", "저널: {0}"), FText::FromString(Result.JournalPath)), ItemEditorInfoColor);
 	}
 	if (!Result.bJournalOk)
 	{
-		AddResultLine(FText::Format(LOCTEXT("SaveJournalWarn", "저널 경고: {0}"), Result.JournalWarning), ErrorColor);
+		AddResultLine(FText::Format(LOCTEXT("SaveJournalWarn", "저널 경고: {0}"), Result.JournalWarning), ItemEditorErrorColor);
 	}
 	ReloadSnapshot();
 	RefreshDraftMessages();
@@ -624,15 +624,15 @@ FReply SWorkbenchItemEditorPanel::OnUndo()
 		const bool bUndone = GEditor->UndoTransaction();
 		if (!bUndone)
 		{
-			AddResultLine(LOCTEXT("NothingToUndo", "되돌릴 트랜잭션이 없습니다."), InfoColor);
+			AddResultLine(LOCTEXT("NothingToUndo", "되돌릴 트랜잭션이 없습니다."), ItemEditorInfoColor);
 		}
 		else if (WorkbenchDataTableEditAdapter::GetOwnership(Table.Get()) == EWorkbenchOwnership::Broken)
 		{
-			AddResultLine(LOCTEXT("UndoBroken", "되돌린 결과가 Workbench가 적용한 어떤 상태와도 달라(다른 트랜잭션이 되돌려졌을 수 있음) 적용·저장을 차단했습니다. '소유권 해제'로 복구하세요."), ErrorColor);
+			AddResultLine(LOCTEXT("UndoBroken", "되돌린 결과가 Workbench가 적용한 어떤 상태와도 달라(다른 트랜잭션이 되돌려졌을 수 있음) 적용·저장을 차단했습니다. '소유권 해제'로 복구하세요."), ItemEditorErrorColor);
 		}
 		else
 		{
-			AddResultLine(LOCTEXT("Undone", "마지막 트랜잭션을 되돌렸습니다. 이 상태는 Workbench가 적용한 이력과 일치해 그대로 이어서 작업·저장할 수 있습니다. 초안은 새로 조회한 값으로 바뀝니다."), WarningColor);
+			AddResultLine(LOCTEXT("Undone", "마지막 트랜잭션을 되돌렸습니다. 이 상태는 Workbench가 적용한 이력과 일치해 그대로 이어서 작업·저장할 수 있습니다. 초안은 새로 조회한 값으로 바뀝니다."), ItemEditorWarningColor);
 		}
 		if (Session.IsValid())
 		{
@@ -655,7 +655,7 @@ FReply SWorkbenchItemEditorPanel::OnReleaseOwnership()
 	{
 		FText Message;
 		const bool bReleased = WorkbenchDataTableEditAdapter::ReleaseWorkbenchOwnership(Target, Message);
-		AddResultLine(Message, bReleased ? WarningColor : InfoColor);
+		AddResultLine(Message, bReleased ? ItemEditorWarningColor : ItemEditorInfoColor);
 		ReloadSnapshot();
 		RefreshDraftMessages();
 	}
@@ -722,11 +722,11 @@ FSlateColor SWorkbenchItemEditorPanel::GetBannerColor() const
 {
 	if (!Table.IsValid())
 	{
-		return FSlateColor(InfoColor);
+		return FSlateColor(ItemEditorInfoColor);
 	}
 	if (!bEditable || bTableStale || (Session.IsValid() && Session->IsStale()))
 	{
-		return FSlateColor(WarningColor);
+		return FSlateColor(ItemEditorWarningColor);
 	}
 	return FSlateColor(FLinearColor::White);
 }

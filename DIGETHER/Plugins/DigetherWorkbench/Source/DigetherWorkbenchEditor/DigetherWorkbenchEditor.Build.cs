@@ -12,6 +12,12 @@ public class DigetherWorkbenchEditor : ModuleRules
 			"CoreUObject",
 			"Slate",
 			"SlateCore",
+			"Projects",
+			"Engine",
+			"UnrealEd",
+			"Settings",
+			"DeveloperSettings",
+			"LevelEditor",
 			// DevelopmentWorkbench 플러그인의 Editor 모듈. IWorkbenchModule / FWorkbenchToolDescriptor 제공.
 			"WorkbenchEditor"
 		});
