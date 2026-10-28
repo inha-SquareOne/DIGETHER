@@ -5,8 +5,8 @@
 ## 작성 범위와 근거
 
 - 요청: 기획 기반으로 개발반 기능 설계와 Unreal 제공 범위·추가 개발 안내 작성.
-- 기획: `docs/project/notion/GAME_DESIGN.md`의 DG-001~019, 2026-10-23 이관 전 초안. 온라인 Notion 승인 개정은 조회하지 않았다.
-- 신규 문서: [개발반 시스템 설계](../DEVELOPMENT_SYSTEM_DESIGN.md), [Unreal 기능 경계](../UNREAL_FEATURE_COVERAGE.md).
+- 기획: `docs/GAME_DESIGN.md`의 DG-001~019, 2026-10-23 이관 전 초안. 온라인 Notion 승인 개정은 조회하지 않았다.
+- 신규 문서: [개발반 시스템 설계](../../design/DEVELOPMENT_SYSTEM_DESIGN.md), [Unreal 기능 경계](../../design/UNREAL_FEATURE_COVERAGE.md).
 - 연결 문서: 프로젝트 README·ARCHITECTURE·PROJECT_PROFILE·STATUS와 개발자 가이드. 검토 후 DECISIONS에 미결 질문, VERIFICATION_PLAN에 검사 관찰을 보완했다.
 - 실제 담당자·게임 수치·서버 방식·저장 정책은 새로 확정하지 않았다.
 

@@ -1,7 +1,7 @@
 # DigetherWorkbench — DIGETHER 전용 Editor 어댑터
 
 - 상태: **합성 예제 패널**. 실게임 item/economy/spawn/room/runtime provider는 연결되지 않았고, 승인된 기획 개정도 등록되지 않았다.
-- 설계 기준: [`docs/project/DEVELOPMENT_SYSTEM_DESIGN.md`](../../../docs/project/DEVELOPMENT_SYSTEM_DESIGN.md)
+- 설계 기준: [`docs/design/DEVELOPMENT_SYSTEM_DESIGN.md`](../../../docs/design/DEVELOPMENT_SYSTEM_DESIGN.md)
 - 의존: `DevelopmentWorkbench` 플러그인의 `WorkbenchEditor` 모듈(`Public/WorkbenchModule.h`의 `IWorkbenchModule`, `FWorkbenchToolDescriptor`).
 
 ## 의존 방향

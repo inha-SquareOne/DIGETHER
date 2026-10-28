@@ -19,7 +19,7 @@
 
 ## 역할과 권한
 
-역할별 범위는 [에이전트 목록](../AGENTS_OVERVIEW.md)을 따른다. Claude의 도구 허용 목록과 Codex의 샌드박스는 서로 다른 통제다. 쉘·MCP·부모 실행 옵션으로 인한 실제 권한 차이는 [도구 적용 안내](../INTEGRATION.md)에서 확인한다.
+역할별 범위는 [에이전트 목록](../common/AGENTS_OVERVIEW.md)을 따른다. Claude의 도구 허용 목록과 Codex의 샌드박스는 서로 다른 통제다. 쉘·MCP·부모 실행 옵션으로 인한 실제 권한 차이는 [도구 적용 안내](../common/INTEGRATION.md)에서 확인한다.
 
 역할이 막히면 원인·경로·필요한 입력만 보고한다. 검증 실패를 없애려고 테스트를 지우거나 권한을 우회하지 않는다. 복구와 프로세스 정리는 [실행 정책](EXECUTION_POLICY.md), 세션 인계는 [인수인계](SESSION_HANDOFF.md)를 따른다.
 

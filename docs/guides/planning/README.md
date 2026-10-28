@@ -5,7 +5,7 @@
 ## 처음 읽을 순서
 
 1. [문서 운영](../../project/DOCUMENTATION.md): 기획 원본·개정·승인과 구현 수용의 차이.
-2. [기획 이관 안내](../../project/notion/README.md): 실제 Notion 주소가 등록됐는지 확인. 아직 없다면 초기 이관 절차로 초안을 Notion에 가져와 검토한 뒤 Notion에서 작성한다. 이관 전 저장소 초안을 고쳐야 하면 전달 담당에게 요청한다. 두 곳을 동시에 편집하지 않는다.
+2. [기획 이관 안내](../../planning/README.md): 실제 Notion 주소가 등록됐는지 확인. 아직 없다면 초기 이관 절차로 초안을 Notion에 가져와 검토한 뒤 Notion에서 작성한다. 이관 전 저장소 초안을 고쳐야 하면 전달 담당에게 요청한다. 두 곳을 동시에 편집하지 않는다.
 3. [담당과 경계](../../project/PROJECT_BOUNDARIES.md): 승인자와 개발 전달 담당 확인.
 4. [GitHub 초보 안내](../GITHUB_BEGINNER.md)의 웹 요청·리뷰 부분.
 

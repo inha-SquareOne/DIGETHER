@@ -31,4 +31,4 @@ description: "Unreal C++ 작성·리뷰·리팩터링에서 타입·수명·리�
 
 ## 출처
 
-[ECC cpp-coding-standards](https://github.com/affaan-m/ECC/blob/4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2/skills/cpp-coding-standards/SKILL.md)의 절차를 Unreal 환경에 맞게 수정했다. 기준 커밋은 4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2. Copyright (c) 2026 Affaan Mustafa. [MIT 라이선스](../../../provenance/ECC_LICENSE.txt)와 [변경·제외 기록](../../../docs/SOURCES.md)을 함께 유지한다.
+[ECC cpp-coding-standards](https://github.com/affaan-m/ECC/blob/4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2/skills/cpp-coding-standards/SKILL.md)의 절차를 Unreal 환경에 맞게 수정했다. 기준 커밋은 4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2. Copyright (c) 2026 Affaan Mustafa. [MIT 라이선스](../../../provenance/ECC_LICENSE.txt)와 [변경·제외 기록](../../../docs/common/SOURCES.md)을 함께 유지한다.

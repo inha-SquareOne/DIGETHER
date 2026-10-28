@@ -22,4 +22,4 @@ description: "Unreal 성능 개선 요청을 기준선·한 가설씩 변경·�
 
 ## 출처
 
-[ECC benchmark-optimization-loop](https://github.com/affaan-m/ECC/blob/4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2/skills/benchmark-optimization-loop/SKILL.md)을 Unreal의 측정 조건·역할 범위에 맞춰 수정했다. 기준 커밋 4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2. Copyright (c) 2026 Affaan Mustafa. [MIT 라이선스](../../../provenance/ECC_LICENSE.txt)와 [출처 기록](../../../docs/SOURCES.md)을 유지한다.
+[ECC benchmark-optimization-loop](https://github.com/affaan-m/ECC/blob/4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2/skills/benchmark-optimization-loop/SKILL.md)을 Unreal의 측정 조건·역할 범위에 맞춰 수정했다. 기준 커밋 4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2. Copyright (c) 2026 Affaan Mustafa. [MIT 라이선스](../../../provenance/ECC_LICENSE.txt)와 [출처 기록](../../../docs/common/SOURCES.md)을 유지한다.

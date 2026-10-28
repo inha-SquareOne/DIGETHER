@@ -4,6 +4,7 @@
 
 | 변경 | 기준 |
 | --- | --- |
+| GameplayTag·Asset Manager·입력·Subsystem 등 표준 기능 | [표준 엔진 기능](STANDARD_FEATURES.md) |
 | C++·Blueprint 구조와 수명 | [개발 패턴](ENGINEERING_PATTERNS.md) |
 | authority·RPC·복제·합류 | [네트워크 권한](NETWORK_AUTHORITY.md) |
 | 맵·패키지·참조·소스 관리 | [에셋 안전](ASSET_SAFETY.md) |

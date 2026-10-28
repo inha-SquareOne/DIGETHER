@@ -27,7 +27,7 @@ description: "중요한 설계 결정의 배경·대안·근거·영향을 ADR�
 - 영향·비용·위험·검증·복구:
 - 재검토 조건·대체 기록 링크:
 
-가벼운 변수명 선택까지 별도 ADR로 늘리지 않는다. [문서 유지](../../../docs/DOCUMENTATION_POLICY.md)와 [인계](../../../docs/ai/SESSION_HANDOFF.md)의 역할을 대신하는 작업 일지로 사용하지 않는다.
+가벼운 변수명 선택까지 별도 ADR로 늘리지 않는다. [문서 유지](../../../docs/common/DOCUMENTATION_POLICY.md)와 [인계](../../../docs/ai/SESSION_HANDOFF.md)의 역할을 대신하는 작업 일지로 사용하지 않는다.
 
 ## 작업 경계와 근거
 
@@ -35,4 +35,4 @@ description: "중요한 설계 결정의 배경·대안·근거·영향을 ADR�
 
 ## 출처
 
-[ECC architecture-decision-records](https://github.com/affaan-m/ECC/blob/4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2/skills/architecture-decision-records/SKILL.md)의 절차를 Unreal 환경에 맞게 수정했다. 기준 커밋은 4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2. Copyright (c) 2026 Affaan Mustafa. [MIT 라이선스](../../../provenance/ECC_LICENSE.txt)와 [변경·제외 기록](../../../docs/SOURCES.md)을 함께 유지한다.
+[ECC architecture-decision-records](https://github.com/affaan-m/ECC/blob/4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2/skills/architecture-decision-records/SKILL.md)의 절차를 Unreal 환경에 맞게 수정했다. 기준 커밋은 4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2. Copyright (c) 2026 Affaan Mustafa. [MIT 라이선스](../../../provenance/ECC_LICENSE.txt)와 [변경·제외 기록](../../../docs/common/SOURCES.md)을 함께 유지한다.
