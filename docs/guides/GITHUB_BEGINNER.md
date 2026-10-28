@@ -2,7 +2,7 @@
 
 GitHub는 팀 파일과 변경 이력을 함께 보관하는 곳이다. **기획만 작성하거나 리뷰할 때는 웹 브라우저만으로 시작할 수 있다.** 파일을 직접 전달할 때는 버튼으로 작업하는 GitHub Desktop을 선택할 수 있다. 터미널 사용은 이 안내의 전제 조건이 아니다.
 
-현재 저장소는 [DIGETHER](https://github.com/inha-SquareOne/DIGETHER)다. 팀 초대·권한, 실제 기본 브랜치와 리뷰 담당은 기술 담당에게 확인한다. 브랜치와 한국어 커밋은 [커밋 규칙과 Gitflow](../commit-convention.md)를 따른다. 원격 보호·권한 설정이 적용됐다는 뜻은 아니다.
+현재 저장소는 [DIGETHER](https://github.com/inha-SquareOne/DIGETHER)다. 팀 초대·권한, 실제 기본 브랜치와 리뷰 담당은 기술 담당에게 확인한다. 브랜치와 한국어 커밋은 [커밋 규칙과 Gitflow](../COMMIT_CONVENTION.md)를 따른다. 원격 보호·권한 설정이 적용됐다는 뜻은 아니다.
 
 ## 여섯 단어
 

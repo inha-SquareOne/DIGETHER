@@ -4,11 +4,12 @@
 
 ## 처음 읽을 순서
 
-1. [프로필](../../project/PROJECT_PROFILE.md) → [온보딩](../../project/ONBOARDING.md): 실제 엔진·프로젝트·도구 상태.
+1. [프로필](../../project/PROJECT_PROFILE.md) → [온보딩](../../ONBOARDING.md) → [개발 도구 안내](../../tools/DEVELOPER_TOOLS.md): 실제 엔진·프로젝트·플러그인 상태와 Workbench·검사 실행기 사용법.
 2. [문서 운영](../../project/DOCUMENTATION.md) → [작업 경계](../../project/PROJECT_BOUNDARIES.md): 승인 요구와 담당.
-3. [개발 흐름](../../project/DEVELOPMENT_WORKFLOW.md) → [검증 계획](../../project/VERIFICATION_PLAN.md).
-4. [Unreal 기준](../../unreal/README.md), AI와 작업할 때 [실행 정책](../../ai/EXECUTION_POLICY.md)와 [스킬 목록](../../project/SKILLS.md).
-5. [개발반 시스템 설계](../../project/DEVELOPMENT_SYSTEM_DESIGN.md)에서 맡을 기능·계약·검증을 찾고, [Unreal 제공 기능](../../project/UNREAL_FEATURE_COVERAGE.md)에서 엔진 재사용 범위와 최소 적용 순서를 확인한다. 두 문서는 구현·채택 전 제안이다.
+3. [개발 흐름](../../project/DEVELOPMENT_WORKFLOW.md) → [검증 계획](../../verification/VERIFICATION_PLAN.md).
+4. [Unreal 기준](../../unreal/README.md), AI와 작업할 때 [실행 정책](../../ai/EXECUTION_POLICY.md)와 [스킬 목록](../../tools/SKILLS.md).
+5. [전체 시스템 설계](../../SYSTEM_DESIGN.md)에서 전체 흐름과 경계를 보고, [개발반 시스템 설계](../../design/DEVELOPMENT_SYSTEM_DESIGN.md)에서 맡을 기능·계약·검증을 찾는다. [Unreal 제공 기능](../../design/UNREAL_FEATURE_COVERAGE.md)에서 엔진 재사용 범위와 최소 적용 순서를 확인한다. 이 설계 문서들은 구현·채택 전 제안이다.
+6. [에디터 개발 편의 설계](../../design/EDITOR_PRODUCTIVITY_DESIGN.md)는 Details·자동 저장·에셋 조사·개발 도구 허브의 범위와 검증 기준이다. 사용 시에는 개발 도구 안내의 현재 적용·미검증 상태를 함께 확인한다.
 
 ## 작업 한 건을 마치는 흐름
 
@@ -26,7 +27,7 @@
 - 저장소 접근 권한, 기준 브랜치, PR 대상과 리뷰/병합 담당을 알려준다.
 - 최초 아트 커밋 전에 `.gitattributes`의 LFS 패턴·용량 정책·다운로드·잠금 동작과 ignore 누락을 검증한다. 설치됐다는 사실만으로 준비 완료라 하지 않는다. Desktop만 사용하는 팀원이 잠금·해제를 어떻게 요청하고 확인할지 실제로 시험한다. 지원 UI가 없으면 기술 담당의 잠금 대행·확인 절차를 정하고 검증하기 전에는 해당 파일 전달을 시작하지 않는다.
 - 제작 원본·내보내기·Unreal 경로와 편집 예약 방법을 정하고 첫 전달을 함께 해 본다.
-- `.uproject`·엔진 배포·플러그인이 정해지면 첫 실행 절차를 실제로 검증하고 온보딩에 남긴다.
+- 현재 `DIGETHER/DIGETHER.uproject`와 Editor/Game 타깃을 기준으로 새 PC의 엔진·컴파일 도구·플러그인·첫 실행을 검증한다. 기존 PC의 통과 기록을 복사하지 않고 온보딩과 검증 기록에 실제 결과를 남긴다.
 - 오류가 오면 현재 변경을 먼저 보존하고 원인을 조사한다. 초보자에게 강제 전송이나 전체 초기화를 해결책으로 안내하지 않는다.
 
 ```text

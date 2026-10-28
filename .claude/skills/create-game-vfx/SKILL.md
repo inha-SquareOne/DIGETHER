@@ -9,7 +9,7 @@ description: Unreal 게임 VFX를 신규 제작하거나 개선할 때 레퍼런
 
 ## 시작 조건
 
-- 프로젝트 AGENTS와 [아트 기준](../../../docs/unreal/ART_PRODUCTION.md), [에셋 안전](../../../docs/unreal/ASSET_SAFETY.md), [검증 계획](../../../docs/project/VERIFICATION_PLAN.md)을 읽는다.
+- 프로젝트 AGENTS와 [아트 기준](../../../docs/unreal/ART_PRODUCTION.md), [에셋 안전](../../../docs/unreal/ASSET_SAFETY.md), [검증 계획](../../../docs/verification/VERIFICATION_PLAN.md)을 읽는다.
 - 기획 원본에서 효과 목적, 실제 크기·원점·진행 방향, 예고/타격 시점과 안전구역을 확인한다. 자료의 표시 번호를 코드 enum이나 판정 ID로 추측하지 않는다.
 - 실제 프로젝트의 재생기·풀·데이터 설정·Niagara 사용 여부부터 조사한다. 없는 게임 코드나 에셋을 이미 있는 것으로 가정하지 않는다. 표현 효과에 피해 판정을 새로 넣지 않는다.
 

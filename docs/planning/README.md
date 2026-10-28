@@ -11,10 +11,13 @@
 
 ## 가져올 문서
 
+게임 기획서와 로드맵은 사람이 먼저 읽도록 `docs/` 바로 아래에 두고, 결정 목록과 기능별 기획은 이 폴더에 둔다.
+
 | 문서 | 용도 |
 | --- | --- |
-| [GAME_DESIGN.md](GAME_DESIGN.md) | 게임 기획·요구사항·관찰 가능한 수용 조건 |
-| [ROADMAP.md](ROADMAP.md) | M1~M3 범위와 단계별 검토 제안 |
+| [GAME_DESIGN.md](../GAME_DESIGN.md) | 게임 기획·요구사항·관찰 가능한 수용 조건 |
+| [BASE_FEATURE_DESIGN.md](BASE_FEATURE_DESIGN.md) | 기지 준비·귀환 기능의 기획 검토용 설계 제안 |
+| [ROADMAP.md](../ROADMAP.md) | M1~M3 범위와 단계별 검토 제안 |
 | [DECISIONS.md](DECISIONS.md) | 사용자 확정과 미결 결정 목록 |
 
 Notion에 DIGETHER 루트 페이지를 만든 뒤 Markdown 파일을 가져오거나 본문을 붙여 넣는다. 실제 가져오기 기능과 권한은 사용 시 확인한다. 기획 파일 링크는 이관된 Notion 페이지 링크로 교체한다. GitHub 소관 ADR·기술 문서는 push 후 실제 커밋이 고정된 GitHub URL로 교체하고, 그 전에는 외부 링크 등록 보류로 표시한다. 이어서 요구 ID·표·페이지 근거·미정 표시가 보존되는지 점검한다. 아래 DB는 필요 시 팀이 생성할 **구조 제안**이며 이미 생성된 DB가 아니다.
@@ -43,4 +46,4 @@ Notion에 변경 이유·영향 요구를 기록 → 미결 결정을 팀이 승
 
 ## Notion에서 기획 읽기
 
-이관 뒤 페이지 내용을 가져오거나 구현 전 요구사항을 확인할 때 [notion-read-planning](../../../.agents/skills/notion-read-planning/SKILL.md)을 사용한다. Notion 연결과 페이지 접근 권한을 확인하고 원문 링크·개정·승인 상태를 함께 읽는다. 현재는 온라인 본문을 조회하지 않았으며 위 문서는 이관 전 초안이다.
+이관 뒤 페이지 내용을 가져오거나 구현 전 요구사항을 확인할 때 [notion-read-planning](../../.agents/skills/notion-read-planning/SKILL.md)을 사용한다. Notion 연결과 페이지 접근 권한을 확인하고 원문 링크·개정·승인 상태를 함께 읽는다. 현재는 온라인 본문을 조회하지 않았으며 위 문서는 이관 전 초안이다.

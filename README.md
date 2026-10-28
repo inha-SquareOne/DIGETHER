@@ -17,8 +17,8 @@
 
 - [전체 가이드](docs/guides/README.md)
 - [프로젝트 문서 지도](docs/project/README.md)
-- [Notion으로 가져올 기획 문서](docs/project/notion/README.md)
-- [환경과 온보딩](docs/project/ONBOARDING.md)
+- [Notion으로 가져올 기획 문서](docs/planning/README.md)
+- [환경과 온보딩](docs/ONBOARDING.md)
 - [GitHub 협업 흐름](docs/project/DEVELOPMENT_WORKFLOW.md)
 - [기존 현황 기록](docs/project/STATUS.md)
 - [AI 작업 지침](AGENTS.md)

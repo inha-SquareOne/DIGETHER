@@ -35,4 +35,4 @@
 - 남은 불확실성과 재검토 계기:
 - 대체한/대체된 기록:
 
-[ADR 스킬](../../.agents/skills/architecture-decision-records/SKILL.md)과 [문서 관리](../DOCUMENTATION_POLICY.md)를 따른다. 사용자나 팀이 결정하지 않은 정책은 accepted로 쓰지 않는다. 상태·이유·영향·연결이 명확하면 기록 작성 완료이며, 구현 완료는 별도 증거로 판단한다.
+[ADR 스킬](../../.agents/skills/architecture-decision-records/SKILL.md)과 [문서 관리](../common/DOCUMENTATION_POLICY.md)를 따른다. 사용자나 팀이 결정하지 않은 정책은 accepted로 쓰지 않는다. 상태·이유·영향·연결이 명확하면 기록 작성 완료이며, 구현 완료는 별도 증거로 판단한다.

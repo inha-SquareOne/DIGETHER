@@ -41,7 +41,7 @@ BMAD 전체 목록은 [41종 목록](../../provenance/bmad-install/skills.json)�
 
 ## 실행 조건과 프로젝트 경계
 
-- **Unreal:** 프로젝트 기준은 5.8.2. Epic 문서가 설명하는 ModelContextProtocol·AllToolsets 플러그인의 설치·활성화와 실제 도구 노출은 아직 확인하지 않았다. 현재 `.uproject`도 없으므로 연결/게임 실행 완료를 주장하지 않는다. 스킬의 연결 전제는 실제 도구 조회로 확인한다.
+- **Unreal:** 프로젝트 기준은 5.8.2이며 `DIGETHER/DIGETHER.uproject`가 존재한다. ModelContextProtocol·AllToolsets는 프로젝트에 활성화되어 있고 과거 연결 확인 범위는 [MCP 안내](UNREAL_MCP_SETUP.md)에 기록했다. 설치·설정·클라이언트 도구 노출·현재 Editor 연결은 별개이므로 작업 때 실제 도구 조회로 재확인한다. 게임 기능 완료를 뜻하지 않는다.
 - **Blender:** 번들은 5.2 LTS 이상 기준이다. 현재 자동 탐지·버전 조회 결과는 **5.1.0**이며 빈 백그라운드 프로세스의 환경 보고만 성공했다. 5.2 전용 API·리깅·내보내기 전체 호환은 검증하지 않았다. 작업 시 버전별 지원을 확인하며 설치 Blender를 자동 업그레이드하지 않는다.
 - **기존 blend 보호:** upstream `run_in_blender.py`는 기본적으로 `--factory-startup`을 사용한다. 기존 `.blend`를 입력하는 작업은 인자 순서와 실제 로드된 `bpy.data.filepath`·내용을 확인한 뒤 작업 사본에서 실행한다. 이번 환경 보고에는 사용자 파일을 열지 않았다.
 - **BMAD:** `_bmad/`의 resolver와 `uv`, Python 3.11 이상이 필요하다. `primary_platform: unreal`은 BMAD의 엔진 분류이며 출시 플랫폼 확정이 아니다. 프로젝트 설정은 Unreal·DIGETHER·한국어로 생성했고 `game_dev_experience: intermediate`는 설치 기본값이지 사용자 숙련도를 확인한 결과가 아니다. 현재 프로젝트에서 검증된 설정과 실제 도구를 우선한다.
@@ -60,7 +60,7 @@ VFX 2종은 시간 변화·판정 경계·원본 보존·실제 게임 캡처·�
 
 외부 스킬은 [커밋·파일 해시](../../provenance/external-skills-lock.json)와 함께 갱신한다. BMAD는 [설치 근거](../../provenance/bmad-install/README.md), 신시 이식은 [변경 근거](../../provenance/shinshi-skills.json)를 따른다. `.agents/skills/`를 수정하면 같은 작업에서 `.claude/skills/`의 본문과 지원 파일도 맞춘다. 두 경로는 깊이가 같으므로 상대 링크를 포함해 동일하게 유지한다.
 
-도입 당시 검사는 [설치 검증](reviews/2026-10-23-skills.md), 이후 정책 정리와 역할별 가이드 검토는 [통합 점검](reviews/2026-10-23-document-skill-audit.md)에 있다. upstream가 자신의 테스트 통과를 적었다는 이유로 이 PC의 엔진·Blender·게임 동작 검증을 대신하지 않는다.
+도입 당시 검사는 [설치 검증](../verification/reviews/2026-10-23-skills.md), 이후 정책 정리와 역할별 가이드 검토는 [통합 점검](../verification/reviews/2026-10-23-document-skill-audit.md)에 있다. upstream가 자신의 테스트 통과를 적었다는 이유로 이 PC의 엔진·Blender·게임 동작 검증을 대신하지 않는다.
 
 Notion 읽기 스킬은 두 도구 경로에 배치했다. 실제 조회에는 Notion 연결과 대상 페이지 접근 권한이 필요하다. 현재 페이지 URL은 미등록이며 온라인 본문 조회는 수행하지 않았다.
 
