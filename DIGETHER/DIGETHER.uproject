@@ -16,6 +16,8 @@
 		}
 	],
 	"Plugins": [
+		{"Name": "ProceduralMeshComponent", "Enabled": true},
+		{"Name": "SteamSockets", "Enabled": true},
 		{
 			"Name": "ModelingToolsEditorMode",
 			"Enabled": true,
