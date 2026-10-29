@@ -57,6 +57,8 @@
 | DynamicMesh + Geometry Scripting | `ApplyMeshBoolean`, `UDynamicMeshComponent::UpdateCollision` | 연산 비용·비동기 결과 수명·버전·충돌/내비 반영·네트워크 전송 | 연속 절삭의 메시 품질, 충돌 갱신 지연, 동일 수정 복원·패키지 실행 |
 | 외부 지형 플러그인 | 후보 선정 후 조사 | 버전·라이선스·멀티플레이·플랫폼·유지 비용 | 위 실험과 같은 조건. 현재 제품 선정/도입 없음 |
 
+초도 구현은 첫 행(셀/청크 상태 + 메시 표현)을 `UProceduralMeshComponent`(ProceduralMeshComponent 플러그인)로 채택했다([굴착 구현 설계](EXCAVATION_IMPLEMENTATION.md)). 나머지 행은 넓은 갱도로 확장할 때의 비교 후보로 남긴다.
+
 `ApplyMeshBoolean`은 GeometryScriptingCore의 BlueprintCallable 선언, `UpdateCollision`과 `bUseAsyncCooking`은 GeometryFramework 헤더에서 확인했다. 이 API들은 안전한 작업 큐·충돌 준비 완료·복제를 자동 구성하지 않는다. Geometry Scripting에는 Editor 전용 기능도 있으므로 실제 사용하는 함수마다 runtime 모듈과 패키징 가능 여부를 확인한다.[E06]
 
 실험 순서는 작은 파괴 구간 → 충돌/통행 → 서버 수정 번호와 클라이언트 적용 → 보강/붕괴 → AI 재탐색 → 4인 지연·손실 → 패키지다. 화면에 구멍만 생긴 상태를 통행 가능한 굴착으로 판정하지 않는다. 클라이언트마다 메시/물리 연산이 같을 것이라 가정하지 말고 권위 결과 또는 재구성 명세와 복구 경로를 정한다. 큰 메시 전체를 매번 Reliable RPC로 보내는 구조는 채택 전에 대역폭을 측정한다.

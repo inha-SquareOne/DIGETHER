@@ -25,7 +25,7 @@ DIGETHER의 C++·Blueprint·에셋 작성 규칙이다. 기본은 Epic의 [Unrea
 | 템플릿 | `T` | `TArray`, `TObjectPtr` |
 | bool 변수 | `b` | `bRunFinalized` |
 
-- 새 프로젝트 타입은 접두사 뒤에 `Digether`를 붙인다(`ADigetherRunCoordinator`). 기존 `FPrototypeItem`·`EPrototypeLife`처럼 `Digether`가 없는 프로토타입 타입은 이전 대상이다. 새 정식 코드에는 `DigetherPrototype`를 쓰지 않는다.
+- 새 프로젝트 타입은 접두사 뒤에 `Digether`를 붙인다(`UDigetherRunCoordinatorComponent`). 기존 `FPrototypeItem`·`EPrototypeLife`처럼 `Digether`가 없는 프로토타입 타입은 이전 대상이다. 새 정식 코드에는 `DigetherPrototype`를 쓰지 않는다.
 - 이름은 PascalCase다. 지역 변수·매개변수도 PascalCase(`DeltaSeconds`)를 쓴다.
 - 출력 매개변수는 `Out`을 붙인다(`FString& OutMessage`). bool 출력은 `bOut`으로 시작한다(`bool& bOutSucceeded`).
 - 약어는 단어처럼 쓴다(`RunId`, `HudText`). 의미 없는 축약(`Mgr`, `Tmp`)은 쓰지 않는다.
