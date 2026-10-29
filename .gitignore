@@ -3,6 +3,9 @@ Binaries/
 Intermediate/
 Saved/
 DerivedDataCache/
+# Packaging-generated open-order logs (rest of Build stays tracked)
+/DIGETHER/Build/Windows/FileOpenOrder/CookerOpenOrder.log
+/DIGETHER/Build/Windows/FileOpenOrder/EditorOpenOrder.log
 
 # IDE caches and generated project files
 .vs/
