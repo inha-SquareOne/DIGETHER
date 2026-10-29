@@ -47,7 +47,12 @@ Game/
   Interaction/ 상호작용 인터페이스와 장치 컴포넌트
   Save/        저장·불러오기·스키마 버전·변환
   Input/       Enhanced Input 연결
+  Terrain/     굴착 밀도 지형·메시·복제(현재 `Prototype/World/DigetherExcavation*`)
+  Online/      세션 생성·검색·참가(현재 `Prototype/Online/`)
+  UI/          HUD·위젯(문구는 String Table)
 ```
+
+현재 프로토타입 기능의 이전 위치: 시체(`Corpse`)는 `Life/`, 포탈·광산 장면(`Portal`·`MineScene`)은 `Interaction/`과 월드 배치, 달리기·헤드램프 요청은 Character와 `Input/`, 납부 입력 위젯은 `UI/`로 옮긴다.
 
 ### 배치
 
@@ -73,6 +78,7 @@ Game/
 
 - PlayerState 컴포넌트마다 값 구조체로 상태를 꺼내고 넣는 함수 쌍(`CaptureState`/`RestoreState`)을 둔다. 엔진 기본 `APlayerState::CopyProperties`는 사용자 컴포넌트 상태를 복사하지 않는다.
 - 재접속: 세션 레지스트리가 연결 해제 시 각 컴포넌트의 상태를 받아 보관하고, 같은 ID가 돌아오면 새 PlayerState의 컴포넌트에 복원한다(현재 GameMode의 보관·복원 경로를 이 계약으로 옮긴다).
+- 연결이 끊긴 동안의 변경: 사망 손실·정산 반영 같은 도메인 규칙은 컴포넌트가 아니라 값 구조체를 받는 순수 함수로 둔다. 조율자는 플레이어가 접속 중이면 컴포넌트의 값에, 끊긴 상태면 세션 레지스트리가 보관한 값에 같은 함수를 적용한다. 그래서 보관 값은 끊긴 시점 스냅샷이 아니라 최신 상태로 유지되고, 재접속 때 그대로 복원한다. 보관 값에 대한 명령도 아래 검사 → 변경 → 알림 순서를 따른다.
 - **월드 이동은 이 계획 범위 밖이다.** 거점·탐사를 다른 맵으로 나누기로 하면, 먼저 게임·기간·런 상태, 회수 건, 정산 완료 기록, 세션 레지스트리, PlayerState 컴포넌트 상태 전체를 값 스냅샷으로 서버 GameInstanceSubsystem에 넘기는 설계를 따로 만든다([전체 설계의 인계 계약](../SYSTEM_DESIGN.md#세션게임런월드-인계)). 엔진 기본 보존 범위는 seamless travel 여부에 따라 다르므로, 두 경로별 복원과 `CopyProperties` 재정의를 그 설계에서 정하고 검증한다. 이전 월드의 Pawn·Controller 포인터는 넘기지 않는다.
 - 초기화 범위는 사건별로 따로 정한다. 지갑 컴포넌트 자체는 항상 유지되며, 아래 "잔고"는 그 안의 값이다. 수치는 [전체 설계](../SYSTEM_DESIGN.md)와 D25 시험값을 따른다.
 
@@ -88,22 +94,24 @@ Game/
 
 - 명령은 위에서 아래로만 간다. 런 조율자(GameMode 컴포넌트)가 엘리베이터·경제·인벤토리·생존에 명령하고 확정 결과를 GameState 공개 상태에 쓴다. 하위 도메인은 서로를 직접 호출하지 않는다.
 - 결과 통지는 아래에서 위로 간다. 하위 도메인은 확정된 결과를 타입 있는 델리게이트로 알린다. 공용 데이터는 `Core`의 값 타입만 공유한다.
-- 여러 도메인을 바꾸는 서버 처리(구매, 정산 등)는 조율자의 한 함수에서 **모든 검사 → 모든 변경 → 알림** 순서로 실행한다. 검사가 하나라도 실패하면 아무것도 바꾸지 않는다. 알림을 받은 쪽은 같은 호출 안에서 다른 도메인 상태를 바꾸지 않는다. 필요하면 다음 처리로 미룬다.
+- 여러 도메인을 바꾸는 서버 처리(구매, 정산 등)는 조율자의 한 함수에서 **모든 검사 → 모든 변경 → 알림** 순서로 실행한다. 검사가 하나라도 실패하면 아무것도 바꾸지 않는다. 규칙상 이어지는 연쇄 결과(예: 사망 → 소지품 드롭 → 잔고 손실)는 알림을 받은 쪽이 아니라 조율자가 같은 함수 안에서 이어서 명령해, 중간 상태가 복제·저장되지 않게 한다([전체 설계](../SYSTEM_DESIGN.md)의 같은 실행 안 반영 기준). 알림을 받은 쪽(공개 상태·UI·로그)은 표현만 갱신하고 다른 도메인 상태를 바꾸지 않는다.
 - 경제 산식, 슬롯 판정, 엘리베이터 상태 전이, 저장 변환은 월드 없이 검사할 수 있는 순수 함수로 둔다.
 
 ## 3. 단계별 적용 계획
+
+단계 이름 P0~P7은 이 계획의 구조 이전 단계이며, 전체 설계의 기능 우선순위 표기(S34·S35의 P2)와 다른 구분이다. 기능 개발 순서 ①~⑦과는 병행하되, 같은 도메인의 새 기능은 그 도메인의 추출(P4) 뒤에 얹는다.
 
 각 단계는 따로 빌드·검증할 수 있게 나눈다. 동작을 바꾸지 않는 이전을 먼저 하고, 새 기능은 이전 뒤에 얹는다. 단계 사이에는 기존 구조로 값을 복사하는 연결 함수를 남겨 이전 단계와 함께 동작하게 한다.
 
 | 단계 | 내용 | 바뀌는 파일·에셋 | 완료 조건 |
 |---|---|---|---|
-| P0 기반 | `GameplayTags` 모듈 의존, 네이티브 태그(`Item.*`·`Station.*`·`Result.*`·`Player.State.*`), 결과 코드(`Result.Fail.*` 태그 + `FText`), `LogTemp` 정리 | Build.cs, `Game/Core/`, `Config/Tags/` | 기존 동작 동일, 빌드·기존 테스트 통과 |
-| P1 정의 데이터 | `UDigetherItemDefinition`(값·무게·특성 태그·소프트 메시), `UDigetherTuningProfile`(런 시작 시 고정할 값: 제한 시간·용량·운행 횟수·사망/복구 비율 등). Asset Manager 타입 등록(`AlwaysCook`), `IsDataValid`. 픽업(`DigetherPrototypeWorld.cpp`)이 정의를 읽어 기존 아이템 구조로 복사, GameMode 런 초기화가 프로필 스냅샷을 사용, Rules 산식이 비율을 인자로 받음. 기존 BP·맵의 GameMode 기본값과 픽업 편집값을 DA로 옮김 | `Game/Data/`, `DefaultGame.ini`, World·GameMode·Rules, 새 `DA_` 에셋, BP·맵 | 옮긴 값이 이전 값과 일치, 런 시작 시 스냅샷, 패키지에서 정의 로드 |
+| P0 기반 | `GameplayTags` 모듈 의존, 네이티브 태그(최상위는 [태그 기준](DEVELOPMENT_SYSTEM_DESIGN.md#정의-데이터와-태그)의 `Item.*`·`Interact.*`·`Terrain.*`·`Player.State.*`·`Result.*`), 결과 코드(`Result.Fail.*` 태그 + `FText`), `LogTemp` 정리 | Build.cs, `Game/Core/`, `Config/Tags/` | 기존 동작 동일, 빌드·기존 테스트 통과 |
+| P1 정의 데이터 | `UDigetherItemDefinition`(값·무게·특성 태그·소프트 메시), `UDigetherTuningProfile`(런 시작 시 고정할 값: 제한 시간·용량·운행 횟수·사망/복구 비율 등). Asset Manager 타입 등록(`AlwaysCook`), `IsDataValid`. 픽업(`DigetherPrototypeWorld.cpp`)이 정의를 읽어 기존 아이템 구조로 복사, GameMode 런 초기화가 프로필 스냅샷을 사용, Rules 산식이 비율을 인자로 받음. 기존 BP·맵의 GameMode 기본값과 픽업 편집값을 DA로 옮김. 프로필에 정의 버전 필드를 둔다. 튜닝 원본은 DA로 시작하고, 텍스트 원본(CSV/JSON, R14) 비교는 P7에서 한다 | `Game/Data/`, `DefaultGame.ini`, World·GameMode·Rules, 새 `DA_` 에셋, BP·맵 | 옮긴 값이 이전 값과 일치, 런 시작 시 버전과 함께 스냅샷, 패키지에서 정의 로드 |
 | P2 아이템 인스턴스·저장 변환 | 인스턴스 = `InstanceId`(기존 `Id` 보존) + `DefinitionId` + 슬롯 상태. 히든 여부는 정의 특성이 아니라 **슬롯 상태**로 둔다. 저장 스키마 v3, 구버전 구조체를 읽기용으로 유지. **v2 읽기 → 검증 → 명시적 변환 → 전체 반영** 순서. 정의를 찾을 수 없는 항목은 레거시 정의로 매핑하고 경고, 미래 버전·손상 파일은 덮어쓰지 않고 오류. 변환 전 원본 보존 | Types, SaveGame, Save, 인벤토리·HUD, 아이템 생성 경로(픽업·시작 도구·구매·긴급 장치·사망 드롭) | v2 불러오기 후 값 일치, v3 재저장 → 프로세스 재시작 → 재로드 후에도 일치, 모든 생성 경로가 `DefinitionId`를 채움, 손상·미래 버전 거부, 원본 보존. 위험도 중상 |
 | P3 Enhanced Input | `IA_`·`IMC_` 에셋(탐사·거점·관전·UI), Character 바인딩 교체 | `Game/Input/`, Character, 새 입력 에셋 | 실제 입력 경로로 모든 조작 동작, UI 진입·종료, 누르던 행동 취소, 관전·재빙의 뒤 Context 복원 |
 | P4 GameMode 분해 | 아래 추출 순서와 계약 | `Game/*`, GameMode 축소 | 추출마다 1인·4인 회귀, 상태 보존, 비공개 데이터 비전달 확인 |
-| P5 요청 경로 | RPC `Server_`·`Client_` 접두사. 구매·납부·해금·출발·**회수·승강** 요청에 클라이언트가 본 `PeriodId`/`RunId`를 담고 서버가 현재 값과 비교. 불러오기 후 클라이언트 ID 갱신. 서버 빈도 제한, 거절은 결과 코드로 | PlayerController, 관련 Component | 이전 런·기간의 늦은 최초 요청 거절, 진행 중 행동의 늦은 완료 거절, 연타 차단 |
-| P6 장치·문구 | `EPrototypeStationKind` 분기를 장치 Component로, 화면 문구를 String Table로 | World, HUD, 새 String Table | 새 장치를 GameMode·Station 수정 없이 추가 |
+| P5 요청 경로 | RPC `Server_`·`Client_` 접두사. 구매·납부·해금·출발·**회수·승강** 요청에 클라이언트가 본 `PeriodId`/`RunId`를 담고 서버가 현재 값과 비교. 불러오기 후 클라이언트 ID 갱신. 서버 빈도 제한, 거절은 결과 코드로. 납부 입력 세션(서버 발급 세션 ID·납부대·기간 세대, [미로·폐교 흐름](../prototype/MAZE_SCHOOL_FLOW.md))은 화면 입력의 수명 관리로 유지하며 일반 요청의 준비/확정 단계로 보지 않는다 | PlayerController, 관련 Component | 이전 런·기간의 늦은 최초 요청 거절, 진행 중 행동의 늦은 완료 거절, 연타 차단 |
+| P6 장치·문구 | `EPrototypeStationKind` 분기를 장치 Component로, 화면 문구를 String Table로, 새 위젯은 CommonUI 기준([표준 엔진 기능](../unreal/STANDARD_FEATURES.md))으로 만들고 `CommonUI`·`CommonInput` 모듈 의존 추가 | World, HUD, Build.cs, 새 String Table | 새 장치를 GameMode·Station 수정 없이 추가 |
 | P7 튜닝 레지스트리(후속) | 파라미터 레지스트리(단위·범위·런타임 변경 여부·버전, R09~R10), 호스트 런타임 변경과 클라이언트 동기화(R04) | 별도 설계 | 이 계획 범위 밖. P1은 정의 분리와 런 고정값까지만 다룬다 |
 
 ### P4 추출 순서와 연결 계약
