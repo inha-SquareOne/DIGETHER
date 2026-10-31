@@ -11,6 +11,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "DIGETHER.h"
+#include "Game/Settings/DigetherGameUserSettings.h"
 
 ADIGETHERCharacter::ADIGETHERCharacter()
 {
@@ -114,9 +115,12 @@ void ADIGETHERCharacter::DoLook(float Yaw, float Pitch)
 {
 	if (GetController() != nullptr)
 	{
-		// add yaw and pitch input to controller
-		AddControllerYawInput(Yaw);
-		AddControllerPitchInput(Pitch);
+		// 설정 화면의 감도·상하 반전을 적용한다.
+		const UDigetherGameUserSettings* Settings = UDigetherGameUserSettings::Get();
+		const float Sensitivity = Settings ? Settings->GetMouseSensitivity() : 1.f;
+		const float PitchDirection = Settings && Settings->IsMouseYInverted() ? -1.f : 1.f;
+		AddControllerYawInput(Yaw * Sensitivity);
+		AddControllerPitchInput(Pitch * Sensitivity * PitchDirection);
 	}
 }
 

@@ -66,6 +66,7 @@
 ## UI·AI·디버깅 도구
 
 - UI 화면 쌓기·뒤로 가기·게임패드 포커스는 CommonUI의 Activatable Widget과 스택을 쓴다. UI는 표시만 하고 게임 상태를 직접 바꾸지 않는다.
+- C++은 위젯의 동작만 담은 부모 클래스로 두고 `BindWidget`으로 필요한 자식 위젯을 요구한다. 배치는 위젯 블루프린트(`WBP_`), 모양은 CommonUI 스타일 에셋과 텍스처·머티리얼로 만든다. 위젯 트리나 버튼 모양을 C++ 코드로 그리지 않는다.
 - AI·흐름 로직은 StateTree 또는 Behavior Tree로 만든다. 어느 것을 쓸지는 프로젝트 결정을 따른다.
 - 실행 중 상태 확인은 Gameplay Debugger, 시간축 기록은 Visual Logger, 성능은 Unreal Insights를 쓴다([성능](PERFORMANCE.md)).
 
