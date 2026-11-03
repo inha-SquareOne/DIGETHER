@@ -1,6 +1,8 @@
 # 코드 구조 평가와 표준 기능 적용 계획
 
-기준일: 2026-10-29 · **계획, 미구현** · 대상: `prototype` 브랜치 `DIGETHER/Source/DIGETHER/Prototype/`
+기준일: 2026-10-29 · **계획** · 대상: `prototype` 브랜치 `DIGETHER/Source/DIGETHER/Prototype/`
+
+진행 상태(2026-11-03): **P0·P1 적용**(미커밋, `feature/minsung`). 네이티브 태그 4개(`Game/Core/DigetherGameplayTags`), 정의 자산 `UDigetherItemDefinition`·`UDigetherTuningProfile`(`Game/Data/`), DA `DA_Tuning_Prototype`·`DA_Item_PrototypeCargo`, 런 시작 스냅샷, Asset Manager 등록을 넣었다. P0의 결과 코드(`Result.*`)와 나머지 태그 분류는 쓰는 단계(P4·P5)로 미뤘다. 시작 지급·구매·긴급 장치 수치는 P2에서 정의 자산으로 옮긴다. 검증 결과는 로컬 작업 기록에 둔다. P2~P7은 미구현이다.
 
 이 문서는 [전체 시스템 설계](../SYSTEM_DESIGN.md)와 [개발반 구현 설계](DEVELOPMENT_SYSTEM_DESIGN.md)를 코드로 옮길 때의 물리 구조와 단계별 적용 순서다. 공통 기능 규칙은 [표준 엔진 기능](../unreal/STANDARD_FEATURES.md)을 따른다. 아래 클래스 이름은 후보이며 구현·빌드·검증 전이다.
 

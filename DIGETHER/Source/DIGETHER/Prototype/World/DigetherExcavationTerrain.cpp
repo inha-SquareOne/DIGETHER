@@ -213,7 +213,7 @@ void ADigetherExcavationTerrain::CheckTremor()
 	ADigetherPrototypeGameState* State = GetWorld()->GetGameState<ADigetherPrototypeGameState>();
 	ADigetherPrototypeGameMode* Mode = GetWorld()->GetAuthGameMode<ADigetherPrototypeGameMode>();
 	if (!State || !Mode || State->PublicState.Phase != EPrototypePhase::Expedition) { return; }
-	const float RemainingFraction = FMath::Clamp(State->PublicState.RemainingSeconds / FMath::Max(1.f, Mode->RunSeconds), 0.f, 1.f);
+	const float RemainingFraction = FMath::Clamp(State->PublicState.RemainingSeconds / FMath::Max(1.f, Mode->GetTuning().RunSeconds), 0.f, 1.f);
 	const float Interval = FMath::Max(1.f, 25.f * FMath::Lerp(.3f, 1.f, RemainingFraction) * (State->PublicState.ElevatorTrips > 0 ? .7f : 1.f));
 	SecondsSinceTremor += 1.f;
 	if (SecondsSinceTremor < Interval) { return; }

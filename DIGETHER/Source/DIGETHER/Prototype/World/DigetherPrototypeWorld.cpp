@@ -7,6 +7,9 @@
 #include "Prototype/DigetherPrototypeGameState.h"
 #include "Prototype/DigetherPrototypePlayerState.h"
 #include "Prototype/DigetherPrototypeCorpse.h"
+#include "Prototype/DigetherPrototypeDataBridge.h"
+#include "Game/Data/DigetherItemDefinition.h"
+#include "Game/Data/DigetherTuningProfile.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/TextRenderComponent.h"
@@ -19,6 +22,8 @@
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogDigetherPrototypeWorld, Log, All);
 
 namespace
 {
@@ -314,7 +319,8 @@ void ADigetherPrototypeDigCell::CheckTremor()
 	}
 	if (!bExcavated) { return; }
 	const ADigetherPrototypeGameMode* ModeForTiming = GetWorld()->GetAuthGameMode<ADigetherPrototypeGameMode>();
-	const float Duration = ModeForTiming ? FMath::Max(1.f, ModeForTiming->RunSeconds) : 180.f;
+	if (!ModeForTiming) { return; }
+	const float Duration = FMath::Max(1.f, ModeForTiming->GetTuning().RunSeconds);
 	const float RemainingFraction = FMath::Clamp(State->PublicState.RemainingSeconds / Duration, 0.f, 1.f);
 	const float AscentFactor = State->PublicState.ElevatorTrips > 0 ? .7f : 1.f;
 	const float Interval = FMath::Max(1.f, TremorSeconds * FMath::Lerp(.3f, 1.f, RemainingFraction) * AscentFactor);
@@ -366,12 +372,10 @@ ADigetherPrototypePickup::ADigetherPrototypePickup()
 void ADigetherPrototypePickup::BeginPlay()
 {
 	Super::BeginPlay();
-	if (HasAuthority() && !StoredItem.Id.IsValid())
+	// 정의가 없는 픽업은 생성 직후 호출자가 StoredItem을 채운다(사망 드롭·승강 복원·불러오기).
+	if (HasAuthority() && !StoredItem.Id.IsValid() && ItemDefinition)
 	{
-		StoredItem.Id = FGuid::NewGuid();
-		StoredItem.Value = Value;
-		StoredItem.WeightKg = WeightKg;
-		StoredItem.bTwoHanded = bTwoHanded;
+		StoredItem = DigetherPrototypeData::MakeItem(*ItemDefinition, FGuid::NewGuid());
 	}
 }
 
@@ -385,6 +389,13 @@ bool ADigetherPrototypePickup::InteractPrototype(APlayerController* Caller, bool
 {
 	if (!ValidateInteraction(this, Caller, Mesh->GetComponentLocation(), OutMessage)) { return false; }
 	if (bReserved) { OutMessage = TEXT("승강 중인 화물은 조작할 수 없습니다."); return false; }
+	if (!StoredItem.Id.IsValid())
+	{
+		// 정의 자산이 지정되지 않은 픽업이다. 빈 아이템을 인벤토리에 넣지 않는다.
+		UE_LOG(LogDigetherPrototypeWorld, Error, TEXT("Pickup %s has no item; set ItemDefinition on its class."), *GetName());
+		OutMessage = TEXT("물품 정보가 없어 주울 수 없습니다.");
+		return false;
+	}
 	ADigetherPrototypeGameMode* Mode = GetWorld()->GetAuthGameMode<ADigetherPrototypeGameMode>();
 	if (!Mode->RequestPickupItem(Caller, this, StoredItem, bAlternate, OutMessage)) { return false; }
 	Destroy();
@@ -577,7 +588,7 @@ bool ADigetherPrototypeWorldBuilder::ApplyLayout()
 		const float UpperStart = DoorY + HalfDoor;
 		if (LowerEnd <= -HalfWidth || UpperStart >= HalfWidth || HalfDoor * 2.f < 100.f)
 		{
-			UE_LOG(LogTemp, Error, TEXT("Prototype room connection is invalid; seed %d"), TestSeed);
+			UE_LOG(LogDigetherPrototypeWorld, Error, TEXT("Prototype room connection is invalid; seed %d"), TestSeed);
 			return false;
 		}
 		const float X = 4600.f + Room * 600.f;
@@ -607,7 +618,7 @@ void ADigetherPrototypeWorldBuilder::BeginPlay()
 		LocalScene = GetWorld()->SpawnActor<ADigetherPrototypeMineScene>(MineSceneClass ? MineSceneClass.Get() : ADigetherPrototypeMineScene::StaticClass(), GetActorLocation(), GetActorRotation(), SceneParams);
 	}
 	if (!HasAuthority()) { return; }
-	if (!ApplyLayout()) { UE_LOG(LogTemp, Error, TEXT("Prototype world was not spawned: invalid room layout.")); return; }
+	if (!ApplyLayout()) { UE_LOG(LogDigetherPrototypeWorld, Error, TEXT("Prototype world was not spawned: invalid room layout.")); return; }
 	const FVector Origin = GetActorLocation();
 	FActorSpawnParameters Params; Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	ADigetherPrototypeElevatorCab* Cab = GetWorld()->SpawnActor<ADigetherPrototypeElevatorCab>(ElevatorCabClass ? ElevatorCabClass.Get() : ADigetherPrototypeElevatorCab::StaticClass(), Origin + FVector(3000.f, 220.f, 0.f), FRotator::ZeroRotator, Params);
@@ -666,7 +677,7 @@ void ADigetherPrototypeWorldBuilder::RefreshRun()
 	LastRunId = State->PublicState.RunId;
 	for (TActorIterator<ADigetherExcavationTerrain> It(GetWorld()); It; ++It)
 	{
-		if (!It->ResetTerrain()) UE_LOG(LogTemp, Error, TEXT("Excavation terrain reset failed"));
+		if (!It->ResetTerrain()) UE_LOG(LogDigetherPrototypeWorld, Error, TEXT("Excavation terrain reset failed"));
 	}
 	for (const TWeakObjectPtr<ADigetherPrototypePickup>& Existing : RunPickups)
 	{

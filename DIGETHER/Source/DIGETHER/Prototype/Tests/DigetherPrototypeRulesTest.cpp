@@ -18,7 +18,13 @@ bool FDigetherPrototypeSettlementTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Q08: 먼저 긴급 탈출한 사람만 생존"), DigetherPrototypeRules::GeneralShare(600, 4, 1), 150);
 	TestEqual(TEXT("Q09: 정수 나머지는 소멸"), DigetherPrototypeRules::GeneralShare(100, 3, 3), 33);
 	TestEqual(TEXT("출발 인원 0은 지급 없음"), DigetherPrototypeRules::GeneralShare(100, 0, 1), 0);
-	TestEqual(TEXT("시체 복구는 내림"), DigetherPrototypeRules::CorpseRefund(101), 50);
+	TestEqual(TEXT("시체 복구는 내림"), DigetherPrototypeRules::CorpseRefund(101, 50), 50);
+	TestEqual(TEXT("시체 복구 0%"), DigetherPrototypeRules::CorpseRefund(101, 0), 0);
+	TestEqual(TEXT("음수 잔고는 복구 없음"), DigetherPrototypeRules::CorpseRefund(-10, 50), 0);
+	TestEqual(TEXT("사망 손실 100%"), DigetherPrototypeRules::DeathLoss(101, 100), 101);
+	TestEqual(TEXT("사망 손실 30%는 내림"), DigetherPrototypeRules::DeathLoss(10, 30), 3);
+	TestEqual(TEXT("범위를 넘는 비율은 100%로 제한"), DigetherPrototypeRules::DeathLoss(10, 150), 10);
+	TestEqual(TEXT("큰 잔고도 넘치지 않음"), DigetherPrototypeRules::DeathLoss(MAX_int32, 100), MAX_int32);
 	return true;
 }
 

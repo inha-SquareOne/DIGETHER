@@ -79,12 +79,12 @@ GameMode 계열은 호스트의 월드 규칙, GameState 계열은 허용된 공
 
 | 기능 | 현재 | 다음 조치(범위 확인 후) |
 |---|---|---|
-| GameplayTag | 미사용 | 태그 계층·네이티브 태그 선언, `GameplayTags` 의존 추가 |
-| Primary Data Asset + Asset Manager | 정의 자산 없음. `GameFeatureData` 기본 규칙만 | 아이템·장비·몬스터·튜닝 정의 타입 등록 |
+| GameplayTag | 2026-11-03 `Item.Type.*`·`Item.Trait.*` 네이티브 태그 4개 사용(P0) | 나머지 분류는 사용하는 단계에서 선언 |
+| Primary Data Asset + Asset Manager | 2026-11-03 아이템 정의·튜닝 프로필 타입과 DA 2개, `AlwaysCook` 등록(P1). GameMode 튜닝 9개·사망/복구 비율이 DA로 이동 | 장비·시작 지급(P2), 몬스터 정의, cook 로드 확인 |
 | 소프트 레퍼런스 | 미사용 | 정의 자산의 메시·사운드 참조부터 적용 |
 | Enhanced Input | 모듈·기본 입력 클래스는 설정됨. 프로토타입 캐릭터는 `BindKey`·`BindAxisKey` 사용 | Input Action·Mapping Context로 이전 |
 | Subsystem | 프로토타입은 `UGameInstance` 하위 클래스로 세션 처리 | 세션·저장을 GameInstance Subsystem으로 분리 검토 |
-| 로그 카테고리 | 기능별 카테고리 사용, 일부 `LogTemp` 남음 | `LogTemp` 정리 |
+| 로그 카테고리 | 기능별 카테고리 사용. 프로토타입 `LogTemp`는 2026-11-03 정리 | 새 코드에 `LogTemp`를 쓰지 않음 |
 | Data Validation·CommonUI·StateTree | 플러그인 활성 | 정의 자산 `IsDataValid`, 화면 스택 적용 |
 
 아래는 **제안**이며 클래스 이름은 후보다. GameplayTags·Asset Manager·Primary Data Asset은 UE 엔진 기본 기능이지만 이 프로젝트의 적용·빌드·cook은 검증하지 않았다.

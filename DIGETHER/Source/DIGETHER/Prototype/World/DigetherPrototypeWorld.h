@@ -12,6 +12,7 @@ class ADigetherExcavationTerrain;
 class ADigetherPrototypeMineScene;
 class ADigetherPrototypePortal;
 class UMaterialInterface;
+class UDigetherItemDefinition;
 
 UENUM(BlueprintType)
 enum class EPrototypeStationKind : uint8
@@ -107,7 +108,7 @@ private:
 	void ApplyAppearance();
 };
 
-// 값과 무게는 서버 설정으로만 제공되는 시험용 회수품이다.
+// 회수품 픽업. 값과 무게는 정의 자산에서 오며 서버만 인스턴스를 가진다.
 UCLASS()
 class DIGETHER_API ADigetherPrototypePickup : public AActor, public IDigetherPrototypeInteractable
 {
@@ -121,12 +122,10 @@ public:
 	bool bReserved = false;
 	// 서버 전용 인스턴스. 사망 드롭은 원래 ID와 장비 유형을 유지한다.
 	FPrototypeItem StoredItem;
-	UPROPERTY(EditAnywhere, Category="Prototype|Fixture", meta=(ClampMin="0"))
-	int32 Value = 40;
-	UPROPERTY(EditAnywhere, Category="Prototype|Fixture", meta=(ClampMin="0"))
-	float WeightKg = 5.f;
-	UPROPERTY(EditAnywhere, Category="Prototype|Fixture")
-	bool bTwoHanded = false;
+	// 이 픽업이 처음 만들 아이템 종류. BP_PrototypePickup에서 지정한다.
+	// 사망 드롭·승강 복원·불러오기처럼 StoredItem을 직접 채우는 경로는 비워 둔 C++ 클래스를 쓴다.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Digether|Item")
+	TObjectPtr<UDigetherItemDefinition> ItemDefinition;
 private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> Mesh;

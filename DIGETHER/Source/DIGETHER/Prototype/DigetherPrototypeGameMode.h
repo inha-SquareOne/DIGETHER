@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "DigetherPrototypeTypes.h"
+#include "Game/Data/DigetherTuningProfile.h"
 #include "DigetherPrototypeGameMode.generated.h"
 
 class ADigetherPrototypePlayerState;
@@ -18,6 +19,7 @@ class DIGETHER_API ADigetherPrototypeGameMode : public AGameModeBase
 
 public:
 	ADigetherPrototypeGameMode();
+	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
@@ -57,35 +59,20 @@ public:
 	void CancelInteraction(APlayerController* Caller);
 	bool HandleControllerDisconnect(APlayerController* Caller);
 
-	// 테스트 픽스처이며 최종 기획 값이 아니다.
-	UPROPERTY(EditDefaultsOnly, Category="Prototype|Fixture", meta=(ClampMin="1"))
-	int32 InitialQuota = 100;
+	// 현재 적용 중인 튜닝. 탐사 중에는 그 런을 시작할 때 고정한 값이다.
+	const FDigetherRunTuning& GetTuning() const { return Tuning; }
 
-	UPROPERTY(EditDefaultsOnly, Category="Prototype|Fixture", meta=(ClampMin="1"))
-	float RunSeconds = 180.f;
-
-	UPROPERTY(EditDefaultsOnly, Category="Prototype|Fixture", meta=(ClampMin="1"))
-	float InteractionDistance = 350.f;
-
-	UPROPERTY(EditDefaultsOnly, Category="Prototype|Fixture", meta=(ClampMin="1"))
-	float ElevatorCapacityKg = 40.f;
-
-	UPROPERTY(EditDefaultsOnly, Category="Prototype|Fixture", meta=(ClampMin="1", ClampMax="2"))
-	int32 FixtureElevatorTrips = 2;
-
-	UPROPERTY(EditDefaultsOnly, Category="Prototype|Fixture", meta=(ClampMin="0"))
-	float FixtureAscentPenaltySeconds = 10.f;
-
-	UPROPERTY(EditDefaultsOnly, Category="Prototype|Fixture", meta=(ClampMin="0.1"))
-	float FixtureElevatorTravelSeconds = 4.f;
-
-	UPROPERTY(EditDefaultsOnly, Category="Prototype|Fixture", meta=(ClampMin="0.1"))
-	float FixtureDepositInterval = 0.25f;
-
-	UPROPERTY(EditDefaultsOnly, Category="Prototype|Fixture", meta=(ClampMin="0"))
-	float FixtureEmergencyWeightKg = 5.f;
+	// 튜닝 원본. BP_PrototypeGameMode에서 DA를 지정하며, 값을 고치면 다음 출발부터 적용된다.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Data")
+	TObjectPtr<UDigetherTuningProfile> TuningProfile;
 
 private:
+	// 프로필을 검사하고 Tuning에 복사한다. 없거나 값이 잘못되면 false이며 Tuning은 바꾸지 않는다.
+	bool RefreshTuning();
+
+	FDigetherRunTuning Tuning;
+	bool bTuningReady = false;
+
 	ADigetherPrototypeGameState* PrototypeState() const;
 	ADigetherPrototypePlayerState* PrototypePlayer(APlayerController* Controller) const;
 	float GetBoardingWeight(AActor* Elevator) const;

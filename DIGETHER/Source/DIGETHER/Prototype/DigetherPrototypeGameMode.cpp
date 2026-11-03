@@ -21,6 +21,8 @@
 #include "Engine/World.h"
 #include "OnlineSubsystem.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogDigetherPrototypeGameMode, Log, All);
+
 namespace
 {
 // Prototype-only starting kit: a visible shovel must be usable on the first run.
@@ -43,6 +45,35 @@ ADigetherPrototypeGameMode::ADigetherPrototypeGameMode()
 	PlayerControllerClass = ADigetherPrototypePlayerController::StaticClass();
 	DefaultPawnClass = ADigetherPrototypeCharacter::StaticClass();
 	HUDClass = ADigetherPrototypeHUD::StaticClass();
+}
+
+void ADigetherPrototypeGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
+{
+	Super::InitGame(MapName, Options, ErrorMessage);
+	// 호스트의 첫 로그인보다 먼저 실행되므로 첫 목표액과 상호작용 거리가 여기서 정해진다.
+	RefreshTuning();
+}
+
+bool ADigetherPrototypeGameMode::RefreshTuning()
+{
+	if (!TuningProfile)
+	{
+		UE_LOG(LogDigetherPrototypeGameMode, Error, TEXT("%s has no TuningProfile; set it on the GameMode Blueprint."), *GetClass()->GetName());
+		return false;
+	}
+	FDigetherRunTuning Snapshot = TuningProfile->MakeSnapshot();
+	TArray<FText> Problems;
+	if (!Snapshot.CollectProblems(Problems))
+	{
+		for (const FText& Problem : Problems)
+		{
+			UE_LOG(LogDigetherPrototypeGameMode, Error, TEXT("Tuning %s: %s"), *Snapshot.SourceProfile.ToString(), *Problem.ToString());
+		}
+		return false;
+	}
+	Tuning = MoveTemp(Snapshot);
+	bTuningReady = true;
+	return true;
 }
 
 ADigetherPrototypeGameState* ADigetherPrototypeGameMode::PrototypeState() const
@@ -153,8 +184,10 @@ void ADigetherPrototypeGameMode::PostLogin(APlayerController* NewPlayer)
 	{
 		if (State->PublicState.RunNumber == 0)
 		{
-			State->PublicState.QuotaTarget = FMath::Max(1, InitialQuota);
-			State->PublicState.Message = TEXT("시험용: 거점에서 출발 장치를 사용하세요.");
+			State->PublicState.QuotaTarget = FMath::Max(1, Tuning.InitialQuotaCredits);
+			State->PublicState.Message = bTuningReady
+				? TEXT("시험용: 거점에서 출발 장치를 사용하세요.")
+				: TEXT("튜닝 프로필을 불러오지 못해 출발할 수 없습니다. 호스트 로그를 확인하세요.");
 			State->ForceNetUpdate();
 		}
 	}
@@ -246,7 +279,7 @@ bool ADigetherPrototypeGameMode::CanInteract(APlayerController* Caller, AActor* 
 		OutMessage = TEXT("현재 행동할 수 없습니다.");
 		return false;
 	}
-	if (FVector::DistSquared(Caller->GetPawn()->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(InteractionDistance))
+	if (FVector::DistSquared(Caller->GetPawn()->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(Tuning.InteractionDistanceCm))
 	{
 		OutMessage = TEXT("대상에 더 가까이 다가가세요.");
 		return false;
@@ -268,6 +301,12 @@ bool ADigetherPrototypeGameMode::RequestStartRun(APlayerController* Caller, FStr
 	if (!HasAuthority() || !State || !PrototypePlayer(Caller) || State->PublicState.Phase != EPrototypePhase::Base)
 	{
 		OutMessage = TEXT("지금은 출발할 수 없습니다.");
+		return false;
+	}
+	// 프로필을 다시 읽어 이번 런 값으로 고정한다. DA에서 고친 값은 다음 출발부터 적용된다(T65).
+	if (!RefreshTuning())
+	{
+		OutMessage = TEXT("튜닝 프로필이 없거나 값이 잘못돼 출발할 수 없습니다.");
 		return false;
 	}
 	if (!bCompletingHold)
@@ -346,10 +385,12 @@ bool ADigetherPrototypeGameMode::RequestStartRun(APlayerController* Caller, FStr
 	}
 	++State->PublicState.RunNumber;
 	State->PublicState.RunId = FGuid::NewGuid();
+	UE_LOG(LogDigetherPrototypeGameMode, Log, TEXT("Run %s starts with tuning %s v%d"),
+		*State->PublicState.RunId.ToString(), *Tuning.SourceProfile.ToString(), Tuning.ProfileVersion);
 	State->PublicState.Phase = EPrototypePhase::Expedition;
-	State->PublicState.RemainingSeconds = FMath::Max(1.f, RunSeconds);
+	State->PublicState.RemainingSeconds = FMath::Max(1.f, Tuning.RunSeconds);
 	State->PublicState.ElevatorTrips = 0;
-	State->PublicState.MaxElevatorTrips = FMath::Clamp(FixtureElevatorTrips, 1, 2);
+	State->PublicState.MaxElevatorTrips = FMath::Clamp(Tuning.ElevatorTripLimit, 1, 2);
 	State->PublicState.ElevatorState = EPrototypeElevatorState::Ground;
 	State->PublicState.ElevatorProgress = 0.f;
 	bTimeoutPending = false;
@@ -437,7 +478,7 @@ bool ADigetherPrototypeGameMode::RequestElevator(APlayerController* Caller, AAct
 	if (!HasAuthority() || !State || State->PublicState.Phase != EPrototypePhase::Expedition ||
 		State->PublicState.ElevatorState != EPrototypeElevatorState::Ground || !Cab ||
 		(!bAutomaticTimeout && !CanInteract(Caller, Elevator, OutMessage))) return false;
-	if (GetBoardingWeight(Elevator) > ElevatorCapacityKg)
+	if (GetBoardingWeight(Elevator) > Tuning.ElevatorCapacityKg)
 	{
 		OutMessage = TEXT("시험 중량 한도를 초과했습니다. 물품을 내려놓으세요.");
 		return false;
@@ -569,7 +610,7 @@ bool ADigetherPrototypeGameMode::RequestElevator(APlayerController* Caller, AAct
 	TransitRemainingBeforePenalty = State->PublicState.RemainingSeconds;
 	TransitElapsedSeconds = 0.f;
 	bTransitPenaltyApplied = true;
-	State->PublicState.RemainingSeconds = FMath::Max(0.f, State->PublicState.RemainingSeconds - FMath::Max(0.f, FixtureAscentPenaltySeconds));
+	State->PublicState.RemainingSeconds = FMath::Max(0.f, State->PublicState.RemainingSeconds - FMath::Max(0.f, Tuning.AscentPenaltySeconds));
 	bTimeoutPending = State->PublicState.RemainingSeconds <= 0.f;
 	State->PublicState.Message = TEXT("시험 승강 중: 도착 후 회수 결과가 확정됩니다.");
 	State->ForceNetUpdate();
@@ -848,7 +889,7 @@ void ADigetherPrototypeGameMode::UpdateElevator(float DeltaSeconds)
 		}
 	}
 	ElevatorElapsed += DeltaSeconds;
-	const float Fraction = FMath::Clamp(ElevatorElapsed / FMath::Max(0.1f, FixtureElevatorTravelSeconds), 0.f, 1.f);
+	const float Fraction = FMath::Clamp(ElevatorElapsed / FMath::Max(0.1f, Tuning.ElevatorTravelSeconds), 0.f, 1.f);
 	State->PublicState.ElevatorProgress = ElevatorState == EPrototypeElevatorState::Descending ? 1.f - Fraction : Fraction;
 	Cab->SetTravelProgress(State->PublicState.ElevatorProgress);
 	if (Fraction < 1.f) return;
@@ -901,8 +942,9 @@ void ADigetherPrototypeGameMode::KillPlayer(ADigetherPrototypePlayerState* Playe
 			Corpse->ForceNetUpdate();
 		}
 	}
+	// 복구 기준인 사망 직전 잔고를 남기고, 손실 비율만큼 차감한다.
 	DeathLoss.Add(Player, Player->PrivateState.Money);
-	Player->PrivateState.Money = 0;
+	Player->PrivateState.Money -= DigetherPrototypeRules::DeathLoss(Player->PrivateState.Money, Tuning.DeathLossPercent);
 	Player->PrivateState.Health = 0.f;
 	Player->PrivateState.Life = EPrototypeLife::Dead;
 	Player->PrivateState.BurialLevel = 0;
@@ -933,7 +975,7 @@ void ADigetherPrototypeGameMode::KillDisconnectedPlayer(const FString& FixtureId
 		}
 	}
 	Record->Death = Record->State.Money;
-	Record->State.Money = 0;
+	Record->State.Money -= DigetherPrototypeRules::DeathLoss(Record->State.Money, Tuning.DeathLossPercent);
 	Record->State.Health = 0.f;
 	Record->State.Life = EPrototypeLife::Dead;
 	Record->State.BurialLevel = 0;
@@ -974,7 +1016,9 @@ void ADigetherPrototypeGameMode::FinishRun()
 		if (!Player) continue;
 		const bool bSurvived = Player->PrivateState.Life == EPrototypeLife::Escaped;
 		if (!bSurvived && Survivors > 0 && RecoveredBodies.Contains(Player))
-			Player->PrivateState.Money = DigetherPrototypeRules::CorpseRefund(DeathLoss.FindRef(Player));
+			// 손실 비율이 100% 미만이면 남은 잔고가 있으므로 덮어쓰지 않고 더한다.
+			Player->PrivateState.Money = static_cast<int32>(FMath::Min<int64>(MAX_int32, static_cast<int64>(Player->PrivateState.Money) +
+				DigetherPrototypeRules::CorpseRefund(DeathLoss.FindRef(Player), Tuning.CorpseRefundPercent)));
 		const int32 Hidden = bSurvived ? HiddenPayout.FindRef(Player) : 0;
 		Player->PrivateState.LastPayout = bSurvived ? static_cast<int32>(FMath::Min<int64>(MAX_int32, static_cast<int64>(Share) + Hidden)) : 0;
 		Player->PrivateState.Money = static_cast<int32>(FMath::Min<int64>(MAX_int32, static_cast<int64>(Player->PrivateState.Money) + Player->PrivateState.LastPayout));
@@ -999,7 +1043,8 @@ void ADigetherPrototypeGameMode::FinishRun()
 		if (!RunParticipants.Contains(Entry.Key)) continue;
 		const bool bSurvived = Record.State.Life == EPrototypeLife::Escaped;
 		if (!bSurvived && Survivors > 0 && Record.bBodyRecovered)
-			Record.State.Money = DigetherPrototypeRules::CorpseRefund(Record.Death);
+			Record.State.Money = static_cast<int32>(FMath::Min<int64>(MAX_int32, static_cast<int64>(Record.State.Money) +
+				DigetherPrototypeRules::CorpseRefund(Record.Death, Tuning.CorpseRefundPercent)));
 		Record.State.LastPayout = bSurvived ? static_cast<int32>(FMath::Min<int64>(MAX_int32, static_cast<int64>(Share) + Record.Hidden)) : 0;
 		Record.State.Money = static_cast<int32>(FMath::Min<int64>(MAX_int32, static_cast<int64>(Record.State.Money) + Record.State.LastPayout));
 		Record.State.Life = EPrototypeLife::Active;
@@ -1086,7 +1131,7 @@ void ADigetherPrototypeGameMode::Tick(float DeltaSeconds)
 		{
 			DepositElapsed += DeltaSeconds;
 			int32 Ticks = 0;
-			const float Interval = FMath::Max(0.1f, FixtureDepositInterval);
+			const float Interval = FMath::Max(0.1f, Tuning.DepositIntervalSeconds);
 			while (DepositElapsed >= Interval && DepositHolder.Get() == Depositor && Ticks++ < 10)
 			{
 				DepositElapsed -= Interval;
@@ -1156,7 +1201,7 @@ void ADigetherPrototypeGameMode::Tick(float DeltaSeconds)
 			HoldRunId != State->PublicState.RunId ||
 			!HoldTarget || !CanInteract(Holder, HoldTarget, HoldMessage) ||
 			FVector::DistSquared(Holder->GetPawn()->GetActorLocation(), HoldStartLocation) > FMath::Square(150.f) ||
-			(bHoldElevator && (!HoldingElevator.IsValid() || GetBoardingWeight(HoldingElevator.Get()) > ElevatorCapacityKg)) ||
+			(bHoldElevator && (!HoldingElevator.IsValid() || GetBoardingWeight(HoldingElevator.Get()) > Tuning.ElevatorCapacityKg)) ||
 			(bHoldEmergency && !CanUseEmergency(Holder, HoldMessage)))
 		{
 			CancelInteraction(Holder);
@@ -1198,7 +1243,7 @@ void ADigetherPrototypeGameMode::Tick(float DeltaSeconds)
 		{
 			if (It->Kind != EPrototypeStationKind::Elevator) continue;
 			const float Weight = GetBoardingWeight(*It);
-			const float Capacity = FMath::Max(1.f, ElevatorCapacityKg);
+			const float Capacity = FMath::Max(1.f, Tuning.ElevatorCapacityKg);
 			State->PublicState.ElevatorWeightStage = Weight > Capacity ? 3 : Weight >= Capacity * .75f ? 2 : Weight > 0.f ? 1 : 0;
 			break;
 		}
@@ -1228,7 +1273,7 @@ void ADigetherPrototypeGameMode::Tick(float DeltaSeconds)
 		if (State->PublicState.ElevatorState == EPrototypeElevatorState::Descending)
 		{
 			bEmptyReturn = true;
-			ElevatorElapsed = State->PublicState.ElevatorProgress * FMath::Max(0.1f, FixtureElevatorTravelSeconds);
+			ElevatorElapsed = State->PublicState.ElevatorProgress * FMath::Max(0.1f, Tuning.ElevatorTravelSeconds);
 			State->PublicState.ElevatorState = EPrototypeElevatorState::Ascending;
 			State->PublicState.Message = TEXT("시간 종료: 빈 시험 승강기가 거점으로 복귀합니다.");
 			State->ForceNetUpdate();
@@ -1238,7 +1283,7 @@ void ADigetherPrototypeGameMode::Tick(float DeltaSeconds)
 		for (TActorIterator<ADigetherPrototypeStation> It(GetWorld()); It; ++It)
 		{
 			ADigetherPrototypeStation* Elevator = *It;
-			if (Elevator->Kind != EPrototypeStationKind::Elevator || GetBoardingWeight(Elevator) > ElevatorCapacityKg) continue;
+			if (Elevator->Kind != EPrototypeStationKind::Elevator || GetBoardingWeight(Elevator) > Tuning.ElevatorCapacityKg) continue;
 			FString Ignored;
 			bCompletingHold = true;
 			bStartedAutomatic = RequestElevator(nullptr, Elevator, Ignored);
@@ -1319,7 +1364,7 @@ bool ADigetherPrototypeGameMode::RequestDeposit(APlayerController* Caller, int32
 		State->PublicState.Day = 1;
 		++PeriodGeneration;
 		State->PublicState.QuotaProgress = 0;
-		State->PublicState.QuotaTarget = static_cast<int32>(FMath::Min<int64>(MAX_int32, static_cast<int64>(State->PublicState.QuotaTarget) + InitialQuota));
+		State->PublicState.QuotaTarget = static_cast<int32>(FMath::Min<int64>(MAX_int32, static_cast<int64>(State->PublicState.QuotaTarget) + Tuning.InitialQuotaCredits));
 		State->PublicState.Message = TEXT("시험 목표 달성: 새 목표와 1일차가 시작됩니다.");
 		FString SaveMessage;
 		if (!SaveFixture(SaveMessage)) State->PublicState.Message += TEXT(" (시험 자동 저장 실패)");
@@ -1494,7 +1539,7 @@ bool ADigetherPrototypeGameMode::CanUseEmergency(APlayerController* Caller, FStr
 		WeightKg += Item.WeightKg;
 	}
 	if (!bHasDevice) { OutMessage = TEXT("시험 긴급 탈출 장치가 필요합니다."); return false; }
-	if (WeightKg > FixtureEmergencyWeightKg) { OutMessage = TEXT("시험 긴급 탈출 중량 한도를 초과했습니다."); return false; }
+	if (WeightKg > Tuning.EmergencyWeightLimitKg) { OutMessage = TEXT("시험 긴급 탈출 중량 한도를 초과했습니다."); return false; }
 	return true;
 }
 
@@ -1634,7 +1679,7 @@ bool ADigetherPrototypeGameMode::RequestRestartGame(APlayerController* Caller, F
 	{
 		if (It->ActorHasTag(TEXT("PrototypeReturnedEquipment"))) It->Destroy();
 	}
-	State->PublicState.QuotaTarget = FMath::Max(1, InitialQuota);
+	State->PublicState.QuotaTarget = FMath::Max(1, Tuning.InitialQuotaCredits);
 	State->PublicState.Message = FString::Printf(TEXT("새 시험 게임: 거점에서 출발할 수 있습니다. 저장 슬롯: %s"), *ActiveGameSaveSlot);
 	for (APlayerState* BasePlayer : State->PlayerArray)
 	{
