@@ -42,11 +42,11 @@ try {
     $engine = Join-Path $testRoot 'engine with spaces'
     New-Item -ItemType Directory -Path (Join-Path $engine 'Engine/Build') -Force | Out-Null
     $versionFile = Join-Path $engine 'Engine/Build/Build.version'
-    @{ MajorVersion = 5; MinorVersion = 8; PatchVersion = 2 } | ConvertTo-Json | Set-Content $versionFile -Encoding UTF8
-    Assert-True ((Assert-UnrealEngineVersion $engine) -eq $engine) '5.8.2 must be accepted.'
+    @{ MajorVersion = 5; MinorVersion = 8; PatchVersion = 4 } | ConvertTo-Json | Set-Content $versionFile -Encoding UTF8
+    Assert-True ((Assert-UnrealEngineVersion $engine) -eq $engine) '5.8.4 must be accepted.'
     $passed++
-    @{ MajorVersion = 5; MinorVersion = 8; PatchVersion = 1 } | ConvertTo-Json | Set-Content $versionFile -Encoding UTF8
-    Assert-Rejected { Assert-UnrealEngineVersion $engine } 'wrong patch'
+    @{ MajorVersion = 5; MinorVersion = 8; PatchVersion = 2 } | ConvertTo-Json | Set-Content $versionFile -Encoding UTF8
+    Assert-Rejected { Assert-UnrealEngineVersion $engine } 'previous 5.8.2 patch'
     Assert-Rejected { Assert-UnrealEngineVersion '' } 'no engine selected'
 
     $project = Join-Path $testRoot 'project'

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-UE 5.8.2 그레이박스 호스트 또는 참가자 창을 실행합니다.
+UE 5.8.4 그레이박스 호스트 또는 참가자 창을 실행합니다.
 .EXAMPLE
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Launch-Prototype.ps1 -EngineRoot 'C:/Program Files/Epic Games/UE_5.8' -Mode Host
 .EXAMPLE
@@ -8,7 +8,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Launch-Prototype.ps1
 .DESCRIPTION
 -GameExe를 생략하면 현재 프로젝트를 UnrealEditor.exe -game으로 실행합니다. 지정하면 패키지의 Binaries/Win64 실제 exe를 실행합니다.
 시험 ID는 인증이 아닙니다. 동일 SaveSlot과 PlayerId는 동일한 별도 UserDir을 사용합니다.
-다른 프로세스는 종료하지 않습니다. 패키지의 맵은 5.8.2 UnrealPak IoStore 목록으로 사전에 확인합니다.
+다른 프로세스는 종료하지 않습니다. 패키지의 맵은 5.8.4 UnrealPak IoStore 목록으로 사전에 확인합니다.
 #>
 [CmdletBinding()]
 param(
@@ -23,12 +23,12 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference='Stop'
 try {
-    if (-not [IO.Path]::IsPathRooted($EngineRoot)) { throw 'EngineRoot는 UE 5.8.2 설치 폴더의 절대 경로여야 합니다.' }
+    if (-not [IO.Path]::IsPathRooted($EngineRoot)) { throw 'EngineRoot는 UE 5.8.4 설치 폴더의 절대 경로여야 합니다.' }
     $engine=[IO.Path]::GetFullPath($EngineRoot)
     $versionPath=Join-Path $engine 'Engine/Build/Build.version'
     if (-not (Test-Path -LiteralPath $versionPath -PathType Leaf)) { throw "엔진 버전 파일을 찾을 수 없습니다: $versionPath" }
     $version=Get-Content -LiteralPath $versionPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ([int]$version.MajorVersion -ne 5 -or [int]$version.MinorVersion -ne 8 -or [int]$version.PatchVersion -ne 2) { throw "UE 5.8.2가 필요합니다. 확인된 버전: $($version.MajorVersion).$($version.MinorVersion).$($version.PatchVersion)" }
+    if ([int]$version.MajorVersion -ne 5 -or [int]$version.MinorVersion -ne 8 -or [int]$version.PatchVersion -ne 4) { throw "UE 5.8.4가 필요합니다. 확인된 버전: $($version.MajorVersion).$($version.MinorVersion).$($version.PatchVersion)" }
     if (-not $PlayerId) { $PlayerId=$(if($Mode -eq 'Host'){'Host'}else{'Client1'}) }
     if ($PlayerId -notmatch '^[A-Za-z0-9_-]{1,48}$' -or $SaveSlot -notmatch '^[A-Za-z0-9_-]{1,48}$') { throw 'PlayerId와 SaveSlot은 영문·숫자·밑줄·하이픈 1~48자로 지정하세요.' }
     if ($Mode -eq 'Client' -and $Address -notmatch '^[A-Za-z0-9.-]+:[0-9]{1,5}$') { throw 'Client Address는 호스트이름:포트 또는 IPv4:포트 형식이어야 합니다.' }
@@ -70,7 +70,7 @@ try {
         foreach($file in @($exe,$project,$mapFile,$dll)){if(-not (Test-Path -LiteralPath $file -PathType Leaf)){throw "실행 전 필요한 엔진·프로젝트·맵·빌드 파일이 없습니다: $file"}}
         $sources=@(Get-ChildItem -LiteralPath (Join-Path $repo 'DIGETHER/Source/DIGETHER') -Recurse -File | Where-Object { $_.Extension -in '.cpp','.h','.cs' })
         $newest=$sources | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
-        if($newest -and $newest.LastWriteTimeUtc -gt (Get-Item -LiteralPath $dll).LastWriteTimeUtc){throw "Editor 모듈보다 변경된 소스가 있습니다. UE 5.8.2 Editor 타깃 빌드를 먼저 실행하세요: $($newest.FullName)"}
+        if($newest -and $newest.LastWriteTimeUtc -gt (Get-Item -LiteralPath $dll).LastWriteTimeUtc){throw "Editor 모듈보다 변경된 소스가 있습니다. UE 5.8.4 Editor 타깃 빌드를 먼저 실행하세요: $($newest.FullName)"}
         $launchArgs += "`"$project`""
         Write-Host "Editor 맵 및 모듈 확인: $mapFile / $dll"
     }

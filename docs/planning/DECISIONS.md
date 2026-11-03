@@ -1,6 +1,6 @@
 # DIGETHER 결정과 미결 사항
 
-기준일: 2026-10-28 · **Notion 이관 전 초안**. 사용자 확정인 엔진 버전과 문서 운영은 각각 [ADR-002](../decisions/ADR-002-engine-version.md), [ADR-001](../decisions/ADR-001-document-ownership.md)을 따른다. 아래 D15~D40은 제공된 개발팀 작업리스트의 식별자이며 이전 문서의 D-003~D-013과 다른 체계다. 자료 내 확정·잠정·미정을 실제 Notion 승인으로 격상하지 않는다. 담당자와 기한은 별도 확인한다.
+기준일: 2026-10-28 · **Notion 이관 전 초안**. 사용자 확정인 엔진 버전과 문서 운영은 각각 [ADR-003](../decisions/ADR-003-engine-version-5.8.4.md), [ADR-001](../decisions/ADR-001-document-ownership.md)을 따른다. 아래 D15~D40은 제공된 개발팀 작업리스트의 식별자이며 이전 문서의 D-003~D-013과 다른 체계다. 자료 내 확정·잠정·미정을 실제 Notion 승인으로 격상하지 않는다. 담당자와 기한은 별도 확인한다.
 
 ## 사용자 추가 결정과 시험값
 

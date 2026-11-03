@@ -18,7 +18,7 @@
 
 ## 로컬 도구 검사
 
-저장소 루트의 [Invoke-UnrealChecks.ps1](../../scripts/Invoke-UnrealChecks.ps1)은 `BuildEditor`·`BuildGame`·`Automation`·`ValidateData` 모드를 제공한다. PowerShell 5.1 이상에서 `-EngineRoot` 또는 `UE_ENGINE_ROOT`로 UE 5.8.2를 지정한다. 실행 예·로그 위치·판정 규칙은 [개발 도구 안내](../tools/DEVELOPER_TOOLS.md#로컬-검사-실행)를 단일 사용법으로 유지한다.
+저장소 루트의 [Invoke-UnrealChecks.ps1](../../scripts/Invoke-UnrealChecks.ps1)은 `BuildEditor`·`BuildGame`·`Automation`·`ValidateData` 모드를 제공한다. PowerShell 5.1 이상에서 `-EngineRoot` 또는 `UE_ENGINE_ROOT`로 UE 5.8.4를 지정한다. 실행 예·로그 위치·판정 규칙은 [개발 도구 안내](../tools/DEVELOPER_TOOLS.md#로컬-검사-실행)를 단일 사용법으로 유지한다.
 
 - C++ 테스트 변경 후 BuildEditor를 먼저 실행한다. Automation은 소스의 `Workbench.` 기대 목록과 보고서의 이름·상태·개수를 대조한다. 과거 60개 통과를 현재 기대 개수로 고정하지 않는다.
 - ValidateData의 기본 대상은 DataTable이며 전체 프로젝트 검사가 아니다. commandlet 전체 대상 수와 사용자 검증기별 대상 수를 구분한다. 의도적 오류를 포함한 기본 합성 예제는 Workbench 사용자 검증기에서 제외된다.

@@ -31,7 +31,7 @@ Steam App ID480으로 다른 네트워크에서 테스트하려면 [Steam 외부
 새 Steam 호스트는 DG-452D6C78 방의 SteamSockets listen/SDR OK까지 확인했고, 새 ZIP은 [Steam 안내](PROTOTYPE_STEAM.md)에 기재했다. 굴착 위치는 승강기 너머 노란 난간 안 갈색 흙이며 좌클릭 유지, L 헤드램프, F 보강, F1 도움말을 사용한다. 아래 기존 큐브 검증은 과거 기록으로 유지한다.
 ## 기준과 구성
 
-- 엔진: UE 5.8.2.
+- 엔진: UE 5.8.4(2026-11-03 변경, 아래 10-28 기록은 5.8.2 실행).
 - 기준: [시스템 기획](../SYSTEM_DESIGN.md), [기본 기능 기획](../planning/BASE_FEATURE_DESIGN.md), [미결 결정](../planning/DECISIONS.md).
 - 코드: `DIGETHER/Source/DIGETHER/Prototype/`. 서버 GameMode가 규칙과 거래를 처리하고 GameState는 공개 상태, PlayerState는 소유자 개인 상태를 전달한다.
 - 시험 접속 ID: `?PrototypePlayerId=Player1`. 동일 ID 재접속을 시험하기 위한 문자열이며 실제 사용자 인증이 아니다.

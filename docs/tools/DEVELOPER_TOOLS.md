@@ -1,6 +1,6 @@
 # DIGETHER 개발 도구 안내
 
-기준일: 2026-10-28 · 상태: **편의 플러그인·허브 UI·전체 Development 패키징·로컬 템플릿 다인·스냅샷 디스크 복원 확인**. UE 5.8.2를 사용한다. 구조와 완료 기준은 [에디터 개발 편의 설계](../design/EDITOR_PRODUCTIVITY_DESIGN.md), 게임 기능의 구현 경계는 [Unreal 제공 기능](../design/UNREAL_FEATURE_COVERAGE.md)을 따른다. 실행 환경과 한계는 [후속 실기 검증](#후속-실기-검증)을 확인한다.
+기준일: 2026-10-28 · 상태: **편의 플러그인·허브 UI·전체 Development 패키징·로컬 템플릿 다인·스냅샷 디스크 복원 확인**. UE 5.8.4를 사용한다(2026-11-03 변경, 아래 10-28 결과는 5.8.2 실행). 구조와 완료 기준은 [에디터 개발 편의 설계](../design/EDITOR_PRODUCTIVITY_DESIGN.md), 게임 기능의 구현 경계는 [Unreal 제공 기능](../design/UNREAL_FEATURE_COVERAGE.md)을 따른다. 실행 환경과 한계는 [후속 실기 검증](#후속-실기-검증)을 확인한다.
 
 ## 사용할 도구 고르기
 
@@ -48,7 +48,7 @@
 
 ## 로컬 검사 실행
 
-저장소 루트에서 [Invoke-UnrealChecks.ps1](../../scripts/Invoke-UnrealChecks.ps1)을 실행한다. Windows PowerShell 5.1 이상이 필요하다. 엔진 루트는 자신의 UE 5.8.2 설치 위치를 `-EngineRoot` 또는 `UE_ENGINE_ROOT`로 지정한다. 자동으로 다른 엔진을 고르지 않는다.
+저장소 루트에서 [Invoke-UnrealChecks.ps1](../../scripts/Invoke-UnrealChecks.ps1)을 실행한다. Windows PowerShell 5.1 이상이 필요하다. 엔진 루트는 자신의 UE 5.8.4 설치 위치를 `-EngineRoot` 또는 `UE_ENGINE_ROOT`로 지정한다. 자동으로 다른 엔진을 고르지 않는다.
 
 다음 명령은 `UE_ENGINE_ROOT`를 지정한 후 실행한다. 각 명령에 `-EngineRoot '자신의 엔진 설치 경로'`를 붙여도 된다.
 

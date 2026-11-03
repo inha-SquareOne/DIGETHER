@@ -182,9 +182,11 @@ bool FDigetherDeveloperToolsSettingsSeverityTest::RunTest(const FString& Paramet
 		DescribeDigetherPlugin(FName(TEXT("AssetSearch")), EDigetherPluginState::Enabled).Severity, EDigetherDevToolsSeverity::Neutral);
 
 	TestEqual(TEXT("프로젝트 기준과 같은 엔진 버전은 중립 등급"),
-		DescribeDigetherEngineVersion(5, 8, 2).Severity, EDigetherDevToolsSeverity::Neutral);
+		DescribeDigetherEngineVersion(5, 8, 4).Severity, EDigetherDevToolsSeverity::Neutral);
 	TestEqual(TEXT("패치 버전만 달라도 문제"),
 		DescribeDigetherEngineVersion(5, 8, 1).Severity, EDigetherDevToolsSeverity::Problem);
+	TestEqual(TEXT("이전 기준 5.8.2도 문제"),
+		DescribeDigetherEngineVersion(5, 8, 2).Severity, EDigetherDevToolsSeverity::Problem);
 
 	return true;
 }

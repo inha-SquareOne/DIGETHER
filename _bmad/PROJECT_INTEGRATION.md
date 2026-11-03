@@ -1,6 +1,6 @@
 # DIGETHER BMAD 적용 경계
 
-Unreal Engine **5.8.2**, 한국어, 프로젝트 파일 관리 **GitHub**를 따른다. 플랫폼 선택은 `unreal`이다. 사용자 이름은 신원을 추측하지 않는 `Project contributor` 기본값이다.
+Unreal Engine **5.8.4**, 한국어, 프로젝트 파일 관리 **GitHub**를 따른다. 플랫폼 선택은 `unreal`이다. 사용자 이름은 신원을 추측하지 않는 `Project contributor` 기본값이다.
 
 기획 운영 원본은 **Notion**이며 이관 전 기준은 `docs/GAME_DESIGN.md`다. BMAD의 “GDD canonical source”는 이 프로젝트에서 승인된 Notion 기획과 동기화된 작업용 사본을 뜻한다. 새 출력은 `_bmad-output/planning-drafts/`의 미승인 초안으로 분류하며 기존 기획을 자동 대체하지 않는다. 기술·실행 산출물은 `_bmad-output/implementation-artifacts/`로 분리한다. 기획 동기화·외부 게시·커밋·푸시는 현재 사용자 요청에 따른다.
 

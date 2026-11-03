@@ -1,6 +1,6 @@
 # DevelopmentWorkbench
 
-UE **5.8.2**용 Editor 플러그인이다. `WorkbenchEditor`는 게임 Runtime과 PCG에 의존하지 않는다. 게임별 연결은 별도 `DigetherWorkbench` 플러그인에서 담당한다.
+UE **5.8.4**용 Editor 플러그인이다. `WorkbenchEditor`는 게임 Runtime과 PCG에 의존하지 않는다. 게임별 연결은 별도 `DigetherWorkbench` 플러그인에서 담당한다.
 
 11종 도구를 구현했다. 2026-10-28 Editor 기본/강제 Unity·Game 빌드와 설정 격리 후 최종 자동검사 64개 성공을 확인했다. 이 중 경고가 있는 테스트는 2개다. DIGETHER 개발 도구 허브 표시·상태 조회·새로고침·바로가기 7종의 실제 UI도 확인했다. 2026-10-27 Core 독립 빌드·자동검사 60개와 멀티 실행의 4인 재검증 등은 아래 과거 기록으로 보존한다. 합성 예제의 가격·중량·확률·룸 규격은 게임의 확정 수치가 아니다.
 
@@ -48,7 +48,7 @@ T01/T08 초안은 원본에 즉시 쓰지 않는다. 적용과 저장은 별도 
 
 ## 빌드
 
-저장소 루트에서 실행한다. 자신의 UE 5.8.2 설치 루트를 `UE_ENGINE_ROOT` 또는 `-EngineRoot`로 지정한다. 실행기 요구 사항·로그·결과 판정은 [개발 도구 안내](../../../docs/tools/DEVELOPER_TOOLS.md#로컬-검사-실행)를 따른다.
+저장소 루트에서 실행한다. 자신의 UE 5.8.4 설치 루트를 `UE_ENGINE_ROOT` 또는 `-EngineRoot`로 지정한다. 실행기 요구 사항·로그·결과 판정은 [개발 도구 안내](../../../docs/tools/DEVELOPER_TOOLS.md#로컬-검사-실행)를 따른다.
 
 ```powershell
 .\scripts\Invoke-UnrealChecks.ps1 BuildEditor

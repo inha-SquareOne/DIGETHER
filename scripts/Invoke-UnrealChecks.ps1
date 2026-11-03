@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Runs DIGETHER builds, Workbench automation, or DataTable validation with UE 5.8.2.
+Runs DIGETHER builds, Workbench automation, or DataTable validation with UE 5.8.4.
 .EXAMPLE
 .\scripts\Invoke-UnrealChecks.ps1 BuildEditor -EngineRoot 'C:\Program Files\Epic Games\UE_5.8' -DryRun
 .EXAMPLE
@@ -37,8 +37,8 @@ function Assert-UnrealEngineVersion {
     }
     $resolved = (Resolve-Path -LiteralPath $Root).Path
     $version = Get-Content -LiteralPath (Join-Path $resolved 'Engine/Build/Build.version') -Raw | ConvertFrom-Json
-    if ($version.MajorVersion -ne 5 -or $version.MinorVersion -ne 8 -or $version.PatchVersion -ne 2) {
-        throw "UE 5.8.2 is required; found $($version.MajorVersion).$($version.MinorVersion).$($version.PatchVersion)."
+    if ($version.MajorVersion -ne 5 -or $version.MinorVersion -ne 8 -or $version.PatchVersion -ne 4) {
+        throw "UE 5.8.4 is required; found $($version.MajorVersion).$($version.MinorVersion).$($version.PatchVersion)."
     }
     return $resolved
 }
@@ -110,7 +110,7 @@ function Read-UnrealDataValidationResult {
     $valid = [regex]::Matches($content, '(?m)^.*AssetCheck:.* contains valid data(?:, but has warnings)?\.[\r]?$').Count
     $invalid = [regex]::Matches($content, '(?m)^.*AssetCheck:.* contains invalid data\.[\r]?$').Count
     $unable = [regex]::Matches($content, '(?m)^.*AssetCheck:.* has no data validation\.[\r]?$').Count
-    # UE 5.8.2's stock commandlet returns 0 even for invalid assets. Check its per-asset results.
+    # The stock commandlet returned 0 even for invalid assets (observed on UE 5.8.2). Check its per-asset results.
     if ($requested -eq 0 -or $invalid -gt 0 -or $unable -gt 0 -or $valid -ne $requested) {
         throw "Data validation incomplete or failed: requested=$requested, valid=$valid, invalid=$invalid, unable=$unable."
     }
@@ -229,7 +229,7 @@ try {
     }
     if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { throw "Executable missing: $executable" }
     $run = [ordered]@{
-        Mode = $Mode; EngineVersion = '5.8.2'; EngineRoot = $EngineRoot; Project = $project.FullName
+        Mode = $Mode; EngineVersion = '5.8.4'; EngineRoot = $EngineRoot; Project = $project.FullName
         StartedUtc = [DateTime]::UtcNow.ToString('o'); CompletedUtc = $null; TimeoutSeconds = $TimeoutSeconds
         OutputDirectory = $runDirectory; Executable = $executable; Arguments = $arguments; NativeArguments = $argumentLine
         ExpectedTests = $expectedTests; ProcessId = $null; ProcessExitCode = $null; State = 'Planned'; Result = $null; Error = $null

@@ -6,7 +6,7 @@
 |---|---|
 | 프로젝트·팀 | DIGETHER / Team Square One |
 | 목적 | 1~4인 협동 굴착 호러. 상세 요구는 [기획](../GAME_DESIGN.md) |
-| 엔진 | **Unreal Engine 5.8.2**, 사용자 명시 결정. 조사 PC의 Build.version에서 5.8.2 / CL 56702186 확인. 로컬 실행 증거와 팀 전체 환경·호환성은 구분한다. [조사 범위](../design/UNREAL_FEATURE_COVERAGE.md) |
+| 엔진 | **Unreal Engine 5.8.4**, 사용자 명시 결정(2026-11-03, [ADR-003](../decisions/ADR-003-engine-version-5.8.4.md)). 작업 PC의 Build.version에서 5.8.4 / CL 58902052 확인. 이전 기준 5.8.2(CL 56702186)의 조사·검증 기록은 그 시점 사실로 보존한다. 로컬 실행 증거와 팀 전체 환경·호환성은 구분한다. [조사 범위](../design/UNREAL_FEATURE_COVERAGE.md) |
 | 엔진 배포 방식 | Launcher / 소스 빌드 중 미결 |
 | 프로젝트 파일·모듈 | `DIGETHER/DIGETHER.uproject`, 런타임 모듈 `DIGETHER`, `DIGETHER`/`DIGETHEREditor` 타깃. Source·Config·Content 존재. Third Person 템플릿 및 Combat/Platforming/SideScrolling 변형 포함 |
 | 개발·출시 환경 | 이번 문서 작업은 Windows에서 수행. 출시 방향은 **Steam 판매**(2026-10-29 사용자 결정). 지원 OS·SDK·컴파일러와 다른 플랫폼 출시는 미정 |
@@ -22,4 +22,4 @@
 | 소유권 | 기획 역할은 기획 기준, 기술·리뷰·통합·계정 매핑은 [경계표](PROJECT_BOUNDARIES.md)에서 미정 관리 |
 | 도구 사본 | 총 스킬 84종(공통 14 + Epic 3 + Blender 22 + BMAD 41 + 신시 이식 2 + Notion 조회 1 + 세션 전환 1), 기존 Unreal 역할 7종. [스킬 목록·검증](../tools/SKILLS.md) 참조 |
 
-개인 계정·키·PC 절대 경로는 팀 환경값으로 쓰지 않는다. [엔진 ADR](../decisions/ADR-002-engine-version.md)과 [결정 대기](../planning/DECISIONS.md)를 함께 갱신한다.
+개인 계정·키·PC 절대 경로는 팀 환경값으로 쓰지 않는다. [엔진 ADR](../decisions/ADR-003-engine-version-5.8.4.md)과 [결정 대기](../planning/DECISIONS.md)를 함께 갱신한다.

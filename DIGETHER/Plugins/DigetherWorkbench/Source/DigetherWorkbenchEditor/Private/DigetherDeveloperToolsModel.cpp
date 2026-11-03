@@ -21,7 +21,7 @@ FDigetherDevToolsRow DescribeDigetherEngineVersion(uint32 Major, uint32 Minor, u
 {
 	constexpr uint32 ExpectedMajor = 5;
 	constexpr uint32 ExpectedMinor = 8;
-	constexpr uint32 ExpectedPatch = 2;
+	constexpr uint32 ExpectedPatch = 4;
 
 	FDigetherDevToolsRow Row;
 	Row.Label = LOCTEXT("EngineVersionLabel", "엔진 버전");
@@ -29,12 +29,12 @@ FDigetherDevToolsRow DescribeDigetherEngineVersion(uint32 Major, uint32 Minor, u
 
 	if (Major == ExpectedMajor && Minor == ExpectedMinor && Patch == ExpectedPatch)
 	{
-		Row.Detail = LOCTEXT("EngineVersionMatch", "프로젝트 기준 5.8.2와 같습니다.");
+		Row.Detail = LOCTEXT("EngineVersionMatch", "프로젝트 기준 5.8.4와 같습니다.");
 	}
 	else
 	{
 		Row.Severity = EDigetherDevToolsSeverity::Problem;
-		Row.Detail = LOCTEXT("EngineVersionMismatch", "프로젝트 기준 5.8.2와 다릅니다. 다른 버전으로 자동 전환하지 마세요.");
+		Row.Detail = LOCTEXT("EngineVersionMismatch", "프로젝트 기준 5.8.4와 다릅니다. 다른 버전으로 자동 전환하지 마세요.");
 	}
 	return Row;
 }
