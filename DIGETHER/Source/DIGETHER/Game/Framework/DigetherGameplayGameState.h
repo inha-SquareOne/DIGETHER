@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/GameStateBase.h"
+#include "GameFramework/GameState.h"
 #include "DigetherGameplayGameState.generated.h"
 
 class UDigetherQuotaStateComponent;
@@ -9,7 +9,7 @@ class UDigetherRunPublicStateComponent;
 
 // 공개 상태만 보관하고 게임 진행 판정은 조율자에게 맡긴다.
 UCLASS()
-class DIGETHER_API ADigetherGameplayGameState : public AGameStateBase
+class DIGETHER_API ADigetherGameplayGameState : public AGameState
 {
 	GENERATED_BODY()
 

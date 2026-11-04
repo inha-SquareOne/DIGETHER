@@ -23,6 +23,7 @@
 #include "Game/Run/DigetherRunPublicStateComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
+#include "GameFramework/PlayerStart.h"
 #include "Misc/ScopeExit.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -224,13 +225,63 @@ void ADigetherGameplayGameMode::CollectPlayers(TArray<ADigetherGameplayPlayerSta
 			OutPlayers.Add(Player);
 		}
 	}
+	for (APlayerState* State : InactivePlayerArray)
+	{
+		ADigetherGameplayPlayerState* Player = Cast<ADigetherGameplayPlayerState>(State);
+		if (IsValid(Player) && Player->GetGameplayPlayerId().IsValid())
+		{
+			OutPlayers.AddUnique(Player);
+		}
+	}
+}
+
+void ADigetherGameplayGameMode::CollectDeparturePlayers(TArray<ADigetherGameplayPlayerState*>& OutPlayers) const
+{
+	OutPlayers.Reset();
+	if (!HasAuthority() || !IsValid(GameState))
+	{
+		return;
+	}
+	// 거점에서 끊긴 플레이어는 몸과 장부만 보존하며 이번 출발의 인원에는 넣지 않는다.
+	for (APlayerState* State : GameState->PlayerArray)
+	{
+		ADigetherGameplayPlayerState* Player = Cast<ADigetherGameplayPlayerState>(State);
+		APlayerController* Controller = IsValid(Player) ? Cast<APlayerController>(Player->GetOwner()) : nullptr;
+		if (IsValid(Player) && Player->HasAuthority() && Player->GetWorld() == GetWorld()
+			&& Player->IsGameplayInitialized() && Player->GetGameplayPlayerId().IsValid()
+			&& !Player->IsInactive() && !InactivePlayerArray.Contains(Player)
+			&& IsValid(Controller) && Controller->GetWorld() == GetWorld()
+			&& Controller->GetPlayerState<ADigetherGameplayPlayerState>() == Player)
+		{
+			OutPlayers.AddUnique(Player);
+		}
+	}
+}
+
+void ADigetherGameplayGameMode::CollectRunParticipants(TArray<ADigetherGameplayPlayerState*>& OutPlayers) const
+{
+	OutPlayers.Reset();
+	if (!HasAuthority())
+	{
+		return;
+	}
+	// 출발 때 확정한 같은 원본만 정산한다. 탐사 중 끊겨 inactive가 되어도 참가 자격은 유지한다.
+	for (const TWeakObjectPtr<ADigetherGameplayPlayerState>& Participant : RunParticipants)
+	{
+		ADigetherGameplayPlayerState* Player = Participant.Get();
+		if (IsValid(Player) && Player->HasAuthority() && Player->GetWorld() == GetWorld()
+			&& Player->IsGameplayInitialized() && Player->GetGameplayPlayerId().IsValid())
+		{
+			OutPlayers.AddUnique(Player);
+		}
+	}
 }
 
 bool ADigetherGameplayGameMode::IsValidRequester(const ADigetherGameplayPlayerController* Requester) const
 {
 	const ADigetherGameplayPlayerState* Player = IsValid(Requester)
 		? Requester->GetPlayerState<ADigetherGameplayPlayerState>() : nullptr;
-	return HasAuthority() && bRunReady && IsValid(Requester) && Requester->HasAuthority()
+	return HasAuthority() && bRunReady && !bRestoreRejected && IsValid(Requester) && Requester->HasAuthority()
 		&& Requester->GetWorld() == GetWorld() && IsValid(Player) && Player->GetOwner() == Requester
 		&& Player->GetGameplayPlayerId().IsValid() && IsValid(GameState) && GameState->PlayerArray.Contains(Player);
 }
@@ -273,21 +324,23 @@ bool ADigetherGameplayGameMode::TryMakePullContext(FDigetherElevatorPullContext&
 	Context.bAnyoneWatchingResultCredits = DigetherFrameworkDefaults::bAnyoneWatchingResultCredits;
 	TArray<APawn*> Pawns;
 	ElevatorActor->GetOverlappingPawns(Pawns);
+	TArray<ADigetherGameplayPlayerState*> EligiblePlayers;
+	if (RunCoordinatorComponent->CapturePublicState().Phase == EDigetherRunPhase::InProgress)
+	{
+		CollectRunParticipants(EligiblePlayers);
+	}
+	else
+	{
+		CollectDeparturePlayers(EligiblePlayers);
+	}
 	TArray<FGuid> PassengerIds;
 	for (const APawn* Pawn : Pawns)
 	{
 		const ADigetherGameplayPlayerState* Player = Pawn->GetPlayerState<ADigetherGameplayPlayerState>();
-		if (IsValid(Player) && IsValid(Player->GetLifeComponent())
+		if (IsValid(Player) && EligiblePlayers.Contains(Player) && Player->GetGameplayPawn() == Pawn
+			&& IsValid(Player->GetLifeComponent())
 			&& Player->GetLifeComponent()->CaptureState().PublicState.Life == EDigetherLifeState::Active)
 		{
-			if (RunCoordinatorComponent->CapturePublicState().Phase == EDigetherRunPhase::InProgress
-				&& !RunParticipants.ContainsByPredicate([Player](const TWeakObjectPtr<ADigetherGameplayPlayerState>& Participant)
-				{
-					return Participant.Get() == Player;
-				}))
-			{
-				continue;
-			}
 			PassengerIds.Add(Player->GetGameplayPlayerId());
 		}
 	}
@@ -315,6 +368,16 @@ bool ADigetherGameplayGameMode::BeginLeverPull(ADigetherGameplayPlayerController
 		return false;
 	}
 	ADigetherGameplayPlayerState* Player = Requester->GetPlayerState<ADigetherGameplayPlayerState>();
+	if (RunCoordinatorComponent->CapturePublicState().Phase == EDigetherRunPhase::InProgress)
+	{
+		TArray<ADigetherGameplayPlayerState*> Participants;
+		CollectRunParticipants(Participants);
+		if (!Participants.Contains(Player))
+		{
+			// 거점에 남았다 재접속한 플레이어는 이번 탐사의 운행도 변경하지 않는다.
+			return false;
+		}
+	}
 	const EDigetherLifeState Life = Player->GetLifeComponent()->CaptureState().PublicState.Life;
 	bool bCanOperate = Life == EDigetherLifeState::Active;
 #if !UE_BUILD_SHIPPING
@@ -334,6 +397,10 @@ bool ADigetherGameplayGameMode::BeginLeverPull(ADigetherGameplayPlayerController
 	const EDigetherElevatorLeverResult Result = Lever->GetLeverComponent()->TryBeginPull(Player->GetGameplayPlayerId(), Context);
 	if (Result == EDigetherElevatorLeverResult::Started)
 	{
+		if (Lever->GetLeverKind() == EDigetherElevatorLeverKind::Departure)
+		{
+			DepartureRequester = Requester;
+		}
 		LogRunStep(Lever->GetLeverKind() == EDigetherElevatorLeverKind::Departure ? TEXT("DeparturePullStarted") : TEXT("AscentPullStarted"));
 		return true;
 	}
@@ -462,7 +529,7 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 	UDigetherElevatorComponent* Elevator = ElevatorActor->GetElevatorComponent();
 	FDigetherElevatorState ElevatorState;
 	TArray<ADigetherGameplayPlayerState*> Players;
-	CollectPlayers(Players);
+	CollectDeparturePlayers(Players);
 	if (Players.IsEmpty() || !IsValid(State) || RunCoordinatorComponent->CapturePublicState().bGameOver
 		|| RunCoordinatorComponent->CapturePublicState().Phase == EDigetherRunPhase::InProgress
 		|| !Elevator->TryGetServerState(ElevatorState)
@@ -474,7 +541,7 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 	const FDigetherQuotaState Quota = State->GetQuotaComponent()->CaptureState().Quota;
 	FDigetherRunCoordinatorState Candidate;
 	if (FDigetherRunRules::EvaluateQuota(Quota).Result != EDigetherRunResult::Success
-		|| FDigetherRunCoordinatorRules::StartRun(Candidate, RunTuning, FDigetherRunRuleTuning(),
+		|| FDigetherRunCoordinatorRules::StartRun(Candidate, RunTuning, FixedRunRuleTuning,
 			GetWorld()->GetTimeSeconds()).Result != EDigetherRunResult::Success)
 	{
 		return;
@@ -486,9 +553,11 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 	for (int32 Index = 0; Index < Players.Num(); ++Index)
 	{
 		const ADigetherGameplayPlayerState* Player = Players[Index];
-		APawn* Pawn = Player->GetPawn();
+		APawn* Pawn = Player->GetGameplayPawn();
+		const APlayerController* Controller = Cast<APlayerController>(Player->GetOwner());
 		const FVector Local(FirstOffsetCm + Index * DigetherFrameworkDefaults::PlayerSpacingCm, 0.0, 0.0);
-		if (!IsValid(Pawn) || !IsValid(Player->GetLifeComponent())
+		if (!IsValid(Pawn) || Pawn->GetWorld() != GetWorld() || Pawn->GetController() != Controller
+			|| !IsValid(Player->GetLifeComponent())
 			|| Player->GetLifeComponent()->CaptureState().PublicState.Life != EDigetherLifeState::Active
 			|| FMath::Abs(Local.X) >= Extent.X)
 		{
@@ -497,7 +566,16 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 		}
 		Destinations.Add(Volume->GetComponentTransform().TransformPosition(Local));
 	}
-	// 모든 값·대상·공간 검사 뒤 같은 서버 호출 안에서 전원 이동과 런·운행을 확정한다.
+	// 임시 정책·기획 확인 대상(PQ-07): 출발 직전 기준점 저장 실패는 출발 차단이다.
+	// 일차 시작 기준점과 구별하여 이 호출 직전의 참가자·지갑을 같은 물리 슬롯에 보존한다.
+	if (bRestoreRejected || !WriteProgress(true))
+	{
+		NotifySaveResult(DepartureRequester.Get(), false,
+			NSLOCTEXT("DigetherSave", "DepartureCheckpointFailed", "출발 전 저장에 실패하여 출발을 막았습니다. 호스트가 저장 오류를 확인해야 합니다."));
+		UE_LOG(LogDigetherFramework, Error, TEXT("출발 거절: 기준점 저장 실패(PQ-07 임시 정책)."));
+		return;
+	}
+	// 모든 값·대상·공간·저장 검사 뒤 같은 서버 호출 안에서 전원 이동과 런·운행을 확정한다.
 	FScopedDigetherRunNotifications Notifications(RunCoordinatorComponent, Elevator, LeverActors);
 	RunParticipants.Reset();
 	DeparturePlayerCount = Players.Num();
@@ -507,13 +585,13 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 	for (int32 Index = 0; Index < Players.Num(); ++Index)
 	{
 		RunParticipants.Add(Players[Index]);
-		if (UPawnMovementComponent* Movement = Players[Index]->GetPawn()->GetMovementComponent())
+		if (UPawnMovementComponent* Movement = Players[Index]->GetGameplayPawn()->GetMovementComponent())
 		{
 			Movement->StopMovementImmediately();
 		}
-		Players[Index]->GetPawn()->SetActorLocation(Destinations[Index], false, nullptr, ETeleportType::TeleportPhysics);
+		Players[Index]->GetGameplayPawn()->SetActorLocation(Destinations[Index], false, nullptr, ETeleportType::TeleportPhysics);
 	}
-	RunCoordinatorComponent->StartRun(RunTuning, FDigetherRunRuleTuning(), GetWorld()->GetTimeSeconds());
+	RunCoordinatorComponent->StartRun(RunTuning, FixedRunRuleTuning, GetWorld()->GetTimeSeconds());
 	Elevator->DepartHub();
 	for (const TWeakObjectPtr<ADigetherElevatorLeverActor>& Lever : LeverActors)
 	{
@@ -530,7 +608,7 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 		if (APlayerController* Controller = Cast<APlayerController>(Players[Index]->GetOwner()))
 		{
 			// DefaultPawn의 소유자 위치에도 서버 순간이동을 명시적으로 전달한다.
-			Controller->ClientSetLocation(Destinations[Index], Players[Index]->GetPawn()->GetActorRotation());
+			Controller->ClientSetLocation(Destinations[Index], Players[Index]->GetGameplayPawn()->GetActorRotation());
 		}
 	}
 	NotifyClosedSessions(Closed, EDigetherEconomyResult::DepositClosed);
@@ -568,14 +646,16 @@ void ADigetherGameplayGameMode::ProcessAscent()
 		return;
 	}
 	TArray<ADigetherGameplayPlayerState*> Passengers;
+	TArray<ADigetherGameplayPlayerState*> Participants;
+	CollectRunParticipants(Participants);
 	for (const FGuid& Id : Ascent.PassengerIds)
 	{
 		ADigetherGameplayPlayerState* Found = nullptr;
-		for (const TWeakObjectPtr<ADigetherGameplayPlayerState>& Player : RunParticipants)
+		for (ADigetherGameplayPlayerState* Player : Participants)
 		{
-			if (Player.IsValid() && Player->GetGameplayPlayerId() == Id)
+			if (Player->GetGameplayPlayerId() == Id)
 			{
-				Found = Player.Get();
+				Found = Player;
 				break;
 			}
 		}
@@ -611,7 +691,7 @@ void ADigetherGameplayGameMode::ProcessAscent()
 		Player->GetLifeComponent()->NotifyStateChanged();
 		if (ADigetherGameplayPlayerController* Controller = Cast<ADigetherGameplayPlayerController>(Player->GetOwner()))
 		{
-			if (UPawnMovementComponent* Movement = Player->GetPawn() ? Player->GetPawn()->GetMovementComponent() : nullptr)
+			if (UPawnMovementComponent* Movement = Player->GetGameplayPawn() ? Player->GetGameplayPawn()->GetMovementComponent() : nullptr)
 			{
 				Movement->StopMovementImmediately();
 			}
@@ -644,6 +724,11 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 	{
 		return;
 	}
+	if (!CurrentRunId.IsValid() || CompletedSettlementRunIds.Contains(CurrentRunId))
+	{
+		UE_LOG(LogDigetherFramework, Error, TEXT("런 정산 거절: 런 ID가 없거나 이미 정산된 런입니다."));
+		return;
+	}
 	FDigetherElevatorPullContext Context;
 	if (!TryMakePullContext(Context))
 	{
@@ -657,15 +742,11 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 	Input.bElevatorOverweight = DigetherElevatorRules::IsOverCapacity(
 		DigetherElevatorRules::SumWeight(Context.LoadEntries), RunTuning.ElevatorCapacityKg);
 	TArray<ADigetherGameplayPlayerState*> Players;
+	CollectRunParticipants(Players);
 	TArray<FDigetherFrameworkPlayerSnapshot> Snapshots;
 	TArray<FVector> ReturnLocations;
-	for (const TWeakObjectPtr<ADigetherGameplayPlayerState>& WeakPlayer : RunParticipants)
+	for (ADigetherGameplayPlayerState* Player : Players)
 	{
-		ADigetherGameplayPlayerState* Player = WeakPlayer.Get();
-		if (!IsValid(Player))
-		{
-			continue;
-		}
 		if (!Player->HasAuthority() || !IsValid(Player->GetLifeComponent()) || !IsValid(Player->GetWalletComponent()))
 		{
 			return;
@@ -678,9 +759,18 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 		PlayerInput.PlayerKey = Snapshot.PlayerKey;
 		PlayerInput.Life = Snapshot.Life.PublicState.Life;
 		PlayerInput.Location = DigetherFrameworkRules::MakeRunPlayerLocation(Snapshot.Life.PublicState.Life,
-			BoardedPawns.Contains(Player->GetPawn()), Context.ElevatorPhase);
+			BoardedPawns.Contains(Player->GetGameplayPawn()), Context.ElevatorPhase);
 		AController* Controller = Cast<AController>(Player->GetOwner());
 		AActor* Start = IsValid(Controller) ? FindPlayerStart(Controller) : nullptr;
+		if (!IsValid(Start) && Player->IsInactive())
+		{
+			// 끊긴 참가자도 같은 귀환·정산을 받는다. Controller 없이 남은 Pawn만 이동한다.
+			for (TActorIterator<APlayerStart> Iterator(GetWorld()); Iterator; ++Iterator)
+			{
+				Start = *Iterator;
+				break;
+			}
+		}
 		if (!IsValid(Start))
 		{
 			UE_LOG(LogDigetherFramework, Error, TEXT("Run return rejected: PlayerStart unavailable."));
@@ -689,7 +779,6 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 		ReturnLocations.Add(Start->GetActorLocation());
 		Input.Players.Add(PlayerInput);
 		Snapshots.Add(Snapshot);
-		Players.Add(Player);
 	}
 	FDigetherFrameworkReturnPlan Plan;
 	if (!DigetherFrameworkRules::TryPlanReturn(Input, Snapshots, State->GetQuotaComponent()->CaptureState().Quota,
@@ -764,6 +853,7 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 		Elevator->ConfirmAscent(ReturnAscent);
 		LogRunStep(Completed.bEjectCargo ? TEXT("EmptyAscentAfterEjection") : TEXT("TimeoutReturnAscent"));
 	}
+	CompletedSettlementRunIds.AddUnique(CurrentRunId);
 	Notifications.Flush();
 	for (int32 Index = 0; Index < Players.Num(); ++Index)
 	{
@@ -790,7 +880,7 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 	for (int32 Index = 0; Index < Players.Num(); ++Index)
 	{
 		Players[Index]->GetLifeComponent()->Revive(false);
-		if (APawn* Pawn = Players[Index]->GetPawn())
+		if (APawn* Pawn = Players[Index]->GetGameplayPawn())
 		{
 			if (UPawnMovementComponent* Movement = Pawn->GetMovementComponent())
 			{
@@ -842,6 +932,13 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 		Player->GetLifeComponent()->NotifyStateChanged();
 	}
 	LogRunStep(Plan.bGameOver ? TEXT("BaseReturned.GameOver") : TEXT("BaseReturned"));
+	CurrentRunId = FGuid::NewGuid();
+	const bool bSaved = Plan.bGameOver ? ResetProgressAfterGameOver() : WriteProgress(true);
+	if (!bSaved)
+	{
+		NotifySaveResult(nullptr, false,
+			NSLOCTEXT("DigetherSave", "DayStartFailed", "일차 시작 자동 저장에 실패했습니다. 저장 성공 전에는 다음 출발이 차단됩니다."));
+	}
 	for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
 	{
 		APlayerController* Controller = Iterator->Get();
@@ -877,7 +974,7 @@ void ADigetherGameplayGameMode::CycleSpectateTarget(ADigetherGameplayPlayerContr
 	TArray<FDigetherSpectateCandidate> Candidates;
 	for (const ADigetherGameplayPlayerState* Player : Players)
 	{
-		if (IsValid(Player->GetPawn()))
+		if (IsValid(Player->GetGameplayPawn()))
 		{
 			FDigetherSpectateCandidate Candidate;
 			// 관전 대상 키는 공개 PlayerId만 사용한다. 런 매니페스트의 서버 GUID는 전달하지 않는다.
@@ -895,9 +992,9 @@ void ADigetherGameplayGameMode::CycleSpectateTarget(ADigetherGameplayPlayerContr
 	AActor* Target = ElevatorActor.Get();
 	for (ADigetherGameplayPlayerState* Player : Players)
 	{
-		if (FString::FromInt(Player->GetPlayerId()) == TargetKey && IsValid(Player->GetPawn()))
+		if (FString::FromInt(Player->GetPlayerId()) == TargetKey && IsValid(Player->GetGameplayPawn()))
 		{
-			Target = Player->GetPawn();
+			Target = Player->GetGameplayPawn();
 			break;
 		}
 	}
@@ -1008,6 +1105,10 @@ void ADigetherGameplayGameMode::AdvanceSmoke()
 				Controller->GetPlayerState<ADigetherGameplayPlayerState>()->GetGameplayPlayerId(), Context);
 			if (Result == EDigetherElevatorLeverResult::Started)
 			{
+				if (Kind == EDigetherElevatorLeverKind::Departure)
+				{
+					DepartureRequester = Controller;
+				}
 				LogRunStep(Kind == EDigetherElevatorLeverKind::Departure ? TEXT("DeparturePullStarted") : TEXT("AscentPullStarted"));
 			}
 		}

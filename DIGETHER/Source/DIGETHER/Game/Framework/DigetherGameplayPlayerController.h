@@ -19,6 +19,23 @@ public:
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void PawnLeavingGame() override;
+
+	void RequestManualSave();
+	void RequestLoadGame();
+	void RequestNewGame();
+
+	UFUNCTION(Server, Reliable)
+	void Server_ManualSave();
+
+	UFUNCTION(Server, Reliable)
+	void Server_LoadGame();
+
+	UFUNCTION(Server, Reliable)
+	void Server_NewGame();
+
+	UFUNCTION(Client, Reliable)
+	void Client_SaveResult(bool bSucceeded, const FText& Message);
 
 	UFUNCTION(Server, Reliable)
 	void Server_OpenDeposit(FName StationId);

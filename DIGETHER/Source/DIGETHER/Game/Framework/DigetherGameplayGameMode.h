@@ -1,13 +1,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/GameModeBase.h"
+#include "GameFramework/GameMode.h"
 #include "Game/Data/DigetherTuningProfile.h"
 #include "Game/Economy/DigetherDepositSessionRegistry.h"
 #include "Game/Economy/DigetherEconomyTuning.h"
 #include "Game/Framework/DigetherDepositResponse.h"
 #include "Game/Elevator/DigetherElevatorTypes.h"
 #include "Game/Run/DigetherRunTypes.h"
+#include "Game/Save/DigetherSaveTypes.h"
 #include "DigetherGameplayGameMode.generated.h"
 
 class ADigetherGameplayPlayerController;
@@ -21,7 +22,7 @@ class UDigetherWalletComponent;
 
 // 서버 연결층이다. 경제 판정은 P1 값 함수와 레지스트리에 위임한다.
 UCLASS()
-class DIGETHER_API ADigetherGameplayGameMode : public AGameModeBase
+class DIGETHER_API ADigetherGameplayGameMode : public AGameMode
 {
 	GENERATED_BODY()
 
@@ -34,9 +35,21 @@ public:
 	virtual void PreLogin(const FString& Options, const FString& Address,
 		const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
+	virtual APlayerController* Login(UPlayer* NewPlayer, ENetRole InRemoteRole, const FString& Portal,
+		const FString& Options, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) override;
 	virtual void Logout(AController* Exiting) override;
 	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
 	virtual bool PlayerCanRestart_Implementation(APlayerController* Player) override;
+	virtual bool ReadyToStartMatch_Implementation() override;
+	virtual void AddInactivePlayer(APlayerState* PlayerState, APlayerController* PC) override;
+	virtual bool FindInactivePlayer(APlayerController* PC) override;
+
+	void NotifyPlayerDisconnecting(ADigetherGameplayPlayerController* Controller);
+	bool SaveProgress(ADigetherGameplayPlayerController* Requester);
+	bool LoadProgress(ADigetherGameplayPlayerController* Requester, bool bStartup = false);
+	bool StartNewGame(ADigetherGameplayPlayerController* Requester);
+	// 출발 로딩 계층은 실패를 확정했을 때 이 서버 함수로 출발 전 기준점을 복원한다.
+	bool RollbackDepartureAfterLoadingFailure();
 
 	// 월드 없이도 같은 거절 경로를 검사한다. 실패하면 출력 스냅샷은 보존한다.
 	static bool TryMakeRunSnapshot(const UDigetherTuningProfile* Profile,
@@ -61,11 +74,25 @@ public:
 	TObjectPtr<UDigetherTuningProfile> TuningProfile;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FDigetherFrameworkSaveIntegrationAccess;
+#endif
+	bool CheckPlayerAdmission(const FUniqueNetIdRepl& UniqueId, bool bAllowMissingId, FString& ErrorMessage) const;
+	bool CaptureProgress(FDigetherSaveSnapshot& OutSnapshot) const;
+	bool RestoreProgress(const FDigetherSaveSnapshot& Snapshot, bool bValidateOnly = false);
+	bool WriteProgress(bool bCheckpoint, bool bExplicitNewGame = false);
+	bool IsHostRequester(const ADigetherGameplayPlayerController* Requester) const;
+	void NotifySaveResult(ADigetherGameplayPlayerController* Requester, bool bSucceeded, const FText& Message) const;
+	bool RestorePlayerRecord(ADigetherGameplayPlayerState* Player);
+	void RestorePlayerPawnTransform(ADigetherGameplayPlayerState* Player) const;
+	bool ResetProgressAfterGameOver();
 	bool InitializeRunActors();
 	bool IsDepositClosed() const;
 	bool IsValidRequester(const ADigetherGameplayPlayerController* Requester) const;
 	bool IsConfiguredLever(const ADigetherElevatorLeverActor* Lever) const;
 	void CollectPlayers(TArray<ADigetherGameplayPlayerState*>& OutPlayers) const;
+	void CollectDeparturePlayers(TArray<ADigetherGameplayPlayerState*>& OutPlayers) const;
+	void CollectRunParticipants(TArray<ADigetherGameplayPlayerState*>& OutPlayers) const;
 	bool TryMakePullContext(FDigetherElevatorPullContext& OutContext) const;
 	void ProcessDeparture();
 	void ProcessAscent();
@@ -114,4 +141,15 @@ private:
 	FDigetherEconomyTuning EconomyTuning;
 	FDigetherDepositSessionRegistry DepositSessions;
 	bool bRunReady = false;
+	FGuid GameId;
+	FGuid CurrentRunId;
+	TArray<FGuid> CompletedSettlementRunIds;
+	// 디스크에서 읽은 미접속 참가자도 다음 저장에서 보존한다.
+	TArray<FDigetherSavePlayerRecord> SavedPlayerRecords;
+	bool bRestoreRejected = false;
+	bool bHasSaveStartupAttempted = false;
+	FDigetherRunRuleTuning FixedRunRuleTuning;
+	TWeakObjectPtr<ADigetherGameplayPlayerController> DepartureRequester;
+	TArray<TWeakObjectPtr<ADigetherGameplayPlayerState>> ReconnectedPlayers;
+	TArray<TWeakObjectPtr<APlayerController>> LoggedInControllers;
 };

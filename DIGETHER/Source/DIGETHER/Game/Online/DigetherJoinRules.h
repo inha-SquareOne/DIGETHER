@@ -12,9 +12,10 @@ namespace DigetherJoinRules
 		bool bRequireSteamId = false;
 		bool bIdIsSteam = false;
 		bool bIdAlreadyConnected = false;
-		// 세션 참가 기록은 P6 레지스트리가 제공한다.
+		// 이번 세션의 비활성 PS에 예약된 ID만 재접속이다. 디스크 저장 명단은 포함하지 않는다.
 		bool bIdInRoster = false;
 		int32 ConnectedPlayers = 0;
+		int32 ReservedPlayers = 0;
 		int32 MaxPlayers = 0;
 		// 런 단계 신호는 호출자가 제공한다.
 		bool bNewJoinLocked = false;

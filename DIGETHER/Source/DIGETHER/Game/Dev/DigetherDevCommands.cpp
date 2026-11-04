@@ -11,6 +11,9 @@ namespace DigetherDev
 			{ FName(TEXT("DigetherSpawnItem")), TEXT("P1 경제"), TEXT("정의 ID로 물품을 생성한다") },
 			{ FName(TEXT("DigetherAftershock")), TEXT("P2 탐사 시간"), TEXT("여진을 즉시 일으킨다") },
 			{ FName(TEXT("DigetherRerunSettlement")), TEXT("P1 경제"), TEXT("직전 정산을 같은 스냅샷으로 다시 실행한다") },
+			{ FName(TEXT("DigetherSave")), TEXT("P6 저장·재접속"), TEXT("현재 진행을 수동 저장한다") },
+			{ FName(TEXT("DigetherLoad")), TEXT("P6 저장·재접속"), TEXT("저장한 진행을 불러온다") },
+			{ FName(TEXT("DigetherNewGame")), TEXT("P6 저장·재접속"), TEXT("새 게임 진행을 시작한다") },
 		};
 
 		TMap<FName, FCommandHandler>& Handlers()

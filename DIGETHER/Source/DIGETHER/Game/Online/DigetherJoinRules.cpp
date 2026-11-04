@@ -22,7 +22,8 @@ namespace DigetherJoinRules
 		{
 			return EDigetherJoinDecision::RejectInProgress;
 		}
-		if (Check.ConnectedPlayers >= Check.MaxPlayers)
+		// 끊긴 참가자의 자리는 세션 종료까지 예약한다. 재접속은 같은 자리를 다시 쓰므로 위에서 수락한다.
+		if (static_cast<int64>(Check.ConnectedPlayers) + Check.ReservedPlayers >= Check.MaxPlayers)
 		{
 			return EDigetherJoinDecision::RejectFull;
 		}

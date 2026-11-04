@@ -15,6 +15,10 @@
 #include "Game/Online/DigetherRoomProtocol.h"
 #include "Game/Online/DigetherSessionText.h"
 #include "Game/Run/DigetherRunCoordinatorComponent.h"
+#include "Game/Life/DigetherLifeStateComponent.h"
+#include "Game/Save/DigetherSaveRules.h"
+#include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
 #include "OnlineSubsystem.h"
 
 namespace
@@ -30,8 +34,7 @@ namespace
 		const FUniqueNetIdRepl& UniqueId = State->GetUniqueId();
 		if (UniqueId.IsValid())
 		{
-			OutPlayerKey = UniqueId.GetType().ToString() + TEXT(":") + UniqueId.ToString();
-			return true;
+			return DigetherSaveRules::MakeAuthenticatedPlayerKey(UniqueId, OutPlayerKey) == EDigetherSaveResult::Success;
 		}
 		// 직접 실행의 로컬 플레이어만 연결 수명 키를 쓴다. 재접속 식별자로 보관하지 않는다.
 		if (Controller->IsLocalController() && Controller->GetNetMode() != NM_DedicatedServer)
@@ -53,6 +56,9 @@ ADigetherGameplayGameMode::ADigetherGameplayGameMode()
 	PlayerStateClass = ADigetherGameplayPlayerState::StaticClass();
 	PlayerControllerClass = ADigetherGameplayPlayerController::StaticClass();
 	DefaultPawnClass = ADigetherTestPawn::StaticClass();
+	// 기본 300초 만료와 최대 개수 퇴출은 세션 보존 계약에 맞지 않는다.
+	InactivePlayerStateLifeSpan = 0.f;
+	MaxInactivePlayers = MAX_int32;
 }
 
 bool ADigetherGameplayGameMode::TryMakeRunSnapshot(const UDigetherTuningProfile* Profile,
@@ -103,11 +109,30 @@ void ADigetherGameplayGameMode::StartPlay()
 		return;
 	}
 	bRunReady = true;
+	GameId = FGuid::NewGuid();
+	CurrentRunId = FGuid::NewGuid();
+	ADigetherGameplayPlayerController* Host = Cast<ADigetherGameplayPlayerController>(GetWorld()->GetFirstPlayerController());
+	if (IsHostRequester(Host) && IsValid(Host->PlayerState) && Host->PlayerState->GetUniqueId().IsValid())
+	{
+		if (UGameplayStatics::HasOption(OptionsString, TEXT("DigetherNewGame")))
+		{
+			StartNewGame(Host);
+		}
+		else
+		{
+			LoadProgress(Host, true);
+		}
+	}
 	UE_LOG(LogDigetherFramework, Log, TEXT("Run tuning fixed: Profile=%s Version=%d"),
 		*RunTuning.SourceProfile.ToString(), RunTuning.ProfileVersion);
 	Quota->NotifyStateChanged();
 	// 검증 전에 엔진 BeginPlay나 초기 Pawn 스폰이 진행되지 않게 한다.
 	Super::StartPlay();
+	// 엔진 매치는 월드 수명이고, 탐사 시작·종료는 별도의 런 상태로 유지한다.
+	if (!HasMatchStarted())
+	{
+		StartMatch();
+	}
 	RunCoordinatorComponent->SetComponentTickEnabled(false);
 	for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
 	{
@@ -116,8 +141,16 @@ void ADigetherGameplayGameMode::StartPlay()
 		{
 			HandleStartingNewPlayer(Controller);
 		}
+		if (IsValid(Controller))
+		{
+			RestorePlayerPawnTransform(Controller->GetPlayerState<ADigetherGameplayPlayerState>());
+		}
 	}
 	LogRunStep(TEXT("Ready"));
+	if (!bRestoreRejected && !WriteProgress(true))
+	{
+		UE_LOG(LogDigetherFramework, Warning, TEXT("일차 시작 자동 저장 실패. 기준점 저장 성공 전에는 출발을 차단합니다(PQ-07 임시 정책)."));
+	}
 }
 
 void ADigetherGameplayGameMode::PreLogin(const FString& Options, const FString& Address,
@@ -128,56 +161,150 @@ void ADigetherGameplayGameMode::PreLogin(const FString& Options, const FString& 
 	{
 		return;
 	}
+	CheckPlayerAdmission(UniqueId, false, ErrorMessage);
+}
+
+bool ADigetherGameplayGameMode::CheckPlayerAdmission(const FUniqueNetIdRepl& UniqueId,
+	const bool bAllowMissingId, FString& ErrorMessage) const
+{
 	const IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get();
 	DigetherJoinRules::FDigetherJoinCheck Check;
-	Check.bIdValid = UniqueId.IsValid();
-	Check.bRequireSteamId = Subsystem && Subsystem->GetSubsystemName() == STEAM_SUBSYSTEM;
-	Check.bIdIsSteam = Check.bIdValid && UniqueId.GetType() == STEAM_SUBSYSTEM;
-	Check.ConnectedPlayers = GetNumPlayers();
+	// ID 없는 로컬 직접 실행의 기존 Login 예외에도 정원과 탐사 중 잠금은 적용한다.
+	Check.bIdValid = UniqueId.IsValid() || bAllowMissingId;
+	Check.bRequireSteamId = Subsystem && Subsystem->GetSubsystemName() == STEAM_SUBSYSTEM
+		&& !(bAllowMissingId && !UniqueId.IsValid());
+	Check.bIdIsSteam = UniqueId.IsValid() && UniqueId.IsV1() && UniqueId.GetType() == STEAM_SUBSYSTEM;
 	Check.MaxPlayers = DigetherRoomProtocol::MaxPlayers;
 	Check.bNewJoinLocked = RunCoordinatorComponent->CapturePublicState().Phase == EDigetherRunPhase::InProgress;
-	Check.bIdInRoster = false;
-	if (Check.bIdValid && IsValid(GameState))
+	TSet<const APlayerState*> Reserved;
+	for (const APlayerState* Inactive : InactivePlayerArray)
 	{
-		// 로비와 같은 계약이다. PlayerArray 이전의 동시 대기 연결은 P6에서 다룬다.
+		if (IsValid(Inactive))
+		{
+			Reserved.Add(Inactive);
+			const ADigetherGameplayPlayerState* Player = Cast<ADigetherGameplayPlayerState>(Inactive);
+			// 실제 FindInactivePlayer가 연결할 수 있는 원본만 정원·잠금 예외로 인정한다.
+			Check.bIdInRoster |= IsValid(Player) && Player->GetWorld() == GetWorld() && Player->IsInactive()
+				&& Player->IsGameplayInitialized() && Player->GetGameplayPlayerId().IsValid()
+				&& UniqueId.IsValid() && Player->GetUniqueId().IsValid() && Player->GetUniqueId() == UniqueId;
+		}
+	}
+	Check.ReservedPlayers = Reserved.Num();
+	if (IsValid(GameState))
+	{
+		// 엔진 인원 카운터는 PostLogin에서 증가한다. 먼저 생성된 PS까지 세어 연속 Login의 초과 승인을 막는다.
+		TSet<const APlayerState*> Connected;
 		for (const APlayerState* Player : GameState->PlayerArray)
 		{
-			if (IsValid(Player) && Player->GetUniqueId().IsValid() && Player->GetUniqueId() == UniqueId)
+			if (!IsValid(Player) || Reserved.Contains(Player))
+			{
+				continue;
+			}
+			Connected.Add(Player);
+			if (UniqueId.IsValid() && Player->GetUniqueId().IsValid() && Player->GetUniqueId() == UniqueId)
 			{
 				Check.bIdAlreadyConnected = true;
-				break;
 			}
 		}
+		Check.ConnectedPlayers = Connected.Num();
 	}
 	const DigetherJoinRules::EDigetherJoinDecision Decision = DigetherJoinRules::Evaluate(Check);
 	if (!DigetherJoinRules::IsAccepted(Decision))
 	{
 		ErrorMessage = DigetherSessionText::Get(DigetherJoinRules::GetRejectionText(Decision, Check)).ToString();
+		return false;
 	}
+	return true;
 }
 
 void ADigetherGameplayGameMode::PostLogin(APlayerController* NewPlayer)
 {
-	ADigetherGameplayPlayerState* State = IsValid(NewPlayer) ? NewPlayer->GetPlayerState<ADigetherGameplayPlayerState>() : nullptr;
-	if (HasAuthority() && IsValid(State))
+	// AGameMode::PostLogin 안의 자동 스폰보다 먼저 기존 상태를 연결한다.
+	FindInactivePlayer(NewPlayer);
+	LoggedInControllers.AddUnique(NewPlayer);
+	ADigetherGameplayPlayerController* GameplayController = Cast<ADigetherGameplayPlayerController>(NewPlayer);
+	if (!bHasSaveStartupAttempted && IsHostRequester(GameplayController) && IsValid(NewPlayer->PlayerState)
+		&& NewPlayer->PlayerState->GetUniqueId().IsValid())
 	{
-		State->InitializeGameplayIdentity();
-		FDigetherWalletState InitialWallet;
-		InitialWallet.BalanceCredits = DigetherFrameworkDefaults::StartingBalanceCredits;
-		if (State->RestoreState(InitialWallet) != EDigetherEconomyResult::Success)
+		if (UGameplayStatics::HasOption(OptionsString, TEXT("DigetherNewGame")))
 		{
-			UE_LOG(LogDigetherFramework, Error, TEXT("Player wallet initialization rejected."));
+			StartNewGame(GameplayController);
+		}
+		else
+		{
+			LoadProgress(GameplayController, true);
 		}
 	}
+	ADigetherGameplayPlayerState* State = IsValid(NewPlayer) ? NewPlayer->GetPlayerState<ADigetherGameplayPlayerState>() : nullptr;
+	if (HasAuthority() && bRunReady && IsValid(State))
+	{
+		RestorePlayerRecord(State);
+	}
 	Super::PostLogin(NewPlayer);
+	if (IsHostRequester(GameplayController) && !bRestoreRejected && !bApplyingRunEnd)
+	{
+		WriteProgress(true);
+	}
 }
 
 void ADigetherGameplayGameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
 {
-	if (HasAuthority() && bRunReady
-		&& RunCoordinatorComponent->CapturePublicState().Phase != EDigetherRunPhase::InProgress)
+	ADigetherGameplayPlayerState* Player = IsValid(NewPlayer) ? NewPlayer->GetPlayerState<ADigetherGameplayPlayerState>() : nullptr;
+	if (!HasAuthority() || !bRunReady || !IsValid(Player) || bRestoreRejected)
+	{
+		return;
+	}
+	if (!Player->IsGameplayInitialized() && !RestorePlayerRecord(Player))
+	{
+		Player->InitializeGameplayIdentity();
+		FDigetherWalletState InitialWallet;
+		InitialWallet.BalanceCredits = DigetherFrameworkDefaults::StartingBalanceCredits;
+		if (Player->RestoreState(InitialWallet) != EDigetherEconomyResult::Success)
+		{
+			return;
+		}
+		Player->MarkGameplayInitialized();
+	}
+	if (ReconnectedPlayers.Contains(Player))
+	{
+		if (APawn* Pawn = Player->GetGameplayPawn())
+		{
+			NewPlayer->Possess(Pawn);
+			if (NewPlayer->GetPawn() != Pawn)
+			{
+				return;
+			}
+			ReconnectedPlayers.Remove(Player);
+			if (ADigetherGameplayPlayerController* Controller = Cast<ADigetherGameplayPlayerController>(NewPlayer))
+			{
+				Controller->Client_SetLifeSpectating(Player->GetLifeComponent()->CaptureState().PublicState.bSpectating);
+			}
+			return;
+		}
+		// 보존 대상이 사라졌으면 재접속 표식으로 일반 생성 경로를 막지 않는다. 지급은 위 초기화 가드가 막는다.
+		ReconnectedPlayers.Remove(Player);
+	}
+	if (RunCoordinatorComponent->CapturePublicState().Phase != EDigetherRunPhase::InProgress
+		&& Player->GetLifeComponent()->CaptureState().PublicState.Life == EDigetherLifeState::Active
+		&& !IsValid(NewPlayer->GetPawn()))
 	{
 		Super::HandleStartingNewPlayer_Implementation(NewPlayer);
+		RestorePlayerPawnTransform(Player);
+		if (ADigetherGameplayPlayerController* Controller = Cast<ADigetherGameplayPlayerController>(NewPlayer))
+		{
+			Controller->Client_SetLifeSpectating(false);
+		}
+	}
+	else if (RunCoordinatorComponent->CapturePublicState().Phase == EDigetherRunPhase::InProgress
+		&& !IsValid(Player->GetGameplayPawn()))
+	{
+		// 이번 세션의 재접속자라도 보존 Pawn이 없으면 탐사에 새 몸을 만들지 않고 귀환 후 생성한다.
+		if (ADigetherGameplayPlayerController* Controller = Cast<ADigetherGameplayPlayerController>(NewPlayer))
+		{
+			Controller->Client_SetLifeSpectating(true);
+			Controller->Client_SaveResult(false, NSLOCTEXT("DigetherSave", "NoRetainedWorldPawn",
+				"참가 기록은 복원했지만 현재 월드에 남은 캐릭터가 없어 생성을 보류했습니다."));
+		}
 	}
 }
 
@@ -185,12 +312,26 @@ bool ADigetherGameplayGameMode::PlayerCanRestart_Implementation(APlayerControlle
 {
 	// 엔진의 ServerRestartPlayer 경로도 프로필 검증을 우회하지 못하게 한다.
 	return HasAuthority() && bRunReady
+		&& !bRestoreRejected
+		&& IsValid(Player)
+		&& IsValid(Player->GetPlayerState<ADigetherGameplayPlayerState>())
+		&& Player->GetPlayerState<ADigetherGameplayPlayerState>()->IsGameplayInitialized()
+		&& Player->GetPlayerState<ADigetherGameplayPlayerState>()->GetLifeComponent()->CaptureState().PublicState.Life == EDigetherLifeState::Active
 		&& RunCoordinatorComponent->CapturePublicState().Phase != EDigetherRunPhase::InProgress
 		&& Super::PlayerCanRestart_Implementation(Player);
 }
 
 void ADigetherGameplayGameMode::Logout(AController* Exiting)
 {
+	if (APlayerController* Controller = Cast<APlayerController>(Exiting))
+	{
+		if (!LoggedInControllers.Contains(Controller))
+		{
+			// Super Login의 초기화 실패도 Logout을 부른다. 아직 증가하지 않은 매치 인원을 줄이지 않는다.
+			AGameModeBase::Logout(Exiting);
+			return;
+		}
+	}
 	if (ADigetherGameplayPlayerController* Controller = Cast<ADigetherGameplayPlayerController>(Exiting))
 	{
 		for (const TWeakObjectPtr<ADigetherElevatorLeverActor>& Lever : LeverActors)
@@ -204,6 +345,7 @@ void ADigetherGameplayGameMode::Logout(AController* Exiting)
 		DepositSessions.ClosePlayerSession(PlayerKey, EDigetherDepositSessionCloseReason::Disconnected);
 	}
 	Super::Logout(Exiting);
+	LoggedInControllers.Remove(Cast<APlayerController>(Exiting));
 }
 
 bool ADigetherGameplayGameMode::ResolveDepositContext(ADigetherGameplayPlayerController* Requester, FString& OutPlayerKey,

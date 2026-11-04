@@ -6,6 +6,7 @@
 #include "Game/Framework/DigetherFrameworkDefaults.h"
 #include "Game/Framework/DigetherFrameworkLog.h"
 #include "Game/Framework/DigetherGameplayGameMode.h"
+#include "Game/Framework/DigetherGameplayPlayerState.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
 #include "HAL/PlatformTime.h"
@@ -21,7 +22,6 @@
 #include "Game/Elevator/DigetherElevatorActor.h"
 #include "Game/Elevator/DigetherElevatorComponent.h"
 #include "Game/Framework/DigetherGameplayGameState.h"
-#include "Game/Framework/DigetherGameplayPlayerState.h"
 #include "Game/Life/DigetherLifeStateComponent.h"
 #include "Game/Run/DigetherRunPublicStateComponent.h"
 #include "Game/Economy/DigetherDepositInput.h"
@@ -59,6 +59,100 @@ void ADigetherGameplayPlayerController::EndPlay(const EEndPlayReason::Type EndPl
 	ResetDepositTest();
 #endif
 	Super::EndPlay(EndPlayReason);
+}
+
+void ADigetherGameplayPlayerController::PawnLeavingGame()
+{
+	ADigetherGameplayPlayerState* State = GetPlayerState<ADigetherGameplayPlayerState>();
+	APawn* LeavingPawn = GetPawn();
+	UWorld* World = GetWorld();
+	if (!HasAuthority() || World == nullptr || World->bIsTearingDown
+		|| !IsValid(State) || !State->GetUniqueId().IsValid() || !IsValid(LeavingPawn))
+	{
+		Super::PawnLeavingGame();
+		return;
+	}
+	if (ADigetherGameplayGameMode* GameMode = ResolveGameplayGameMode())
+	{
+		// 레버 점유는 Pawn과 Controller 관계가 유효할 때 먼저 해제한다.
+		GameMode->NotifyPlayerDisconnecting(this);
+	}
+	State->RetainPawn(LeavingPawn);
+	UnPossess();
+	// UnPossess는 Pawn의 PlayerState도 지운다. 사망·탈출 판정은 같은 최신 상태를 계속 사용한다.
+	if (IsValid(LeavingPawn))
+	{
+		LeavingPawn->SetPlayerState(State);
+	}
+}
+
+void ADigetherGameplayPlayerController::RequestManualSave()
+{
+#if !UE_BUILD_SHIPPING
+	if (IsLocalController())
+	{
+		Server_ManualSave();
+	}
+#endif
+}
+
+void ADigetherGameplayPlayerController::RequestLoadGame()
+{
+#if !UE_BUILD_SHIPPING
+	if (IsLocalController())
+	{
+		Server_LoadGame();
+	}
+#endif
+}
+
+void ADigetherGameplayPlayerController::RequestNewGame()
+{
+#if !UE_BUILD_SHIPPING
+	if (IsLocalController())
+	{
+		Server_NewGame();
+	}
+#endif
+}
+
+void ADigetherGameplayPlayerController::Server_ManualSave_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	ADigetherGameplayGameMode* GameMode = ResolveGameplayGameMode();
+	const bool bSucceeded = IsDevServerRpcAllowed() && IsValid(GameMode) && GameMode->SaveProgress(this);
+	Client_SaveResult(bSucceeded, bSucceeded
+		? NSLOCTEXT("DigetherSave", "ManualSaveSucceeded", "진행을 저장했습니다.")
+		: NSLOCTEXT("DigetherSave", "ManualSaveRejected", "진행 저장을 완료하지 못했습니다."));
+#endif
+}
+
+void ADigetherGameplayPlayerController::Server_LoadGame_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	ADigetherGameplayGameMode* GameMode = ResolveGameplayGameMode();
+	const bool bSucceeded = IsDevServerRpcAllowed() && IsValid(GameMode) && GameMode->LoadProgress(this);
+	Client_SaveResult(bSucceeded, bSucceeded
+		? NSLOCTEXT("DigetherSave", "LoadSucceeded", "저장한 진행을 불러왔습니다.")
+		: NSLOCTEXT("DigetherSave", "LoadRejected", "저장한 진행을 불러오지 못했습니다."));
+#endif
+}
+
+void ADigetherGameplayPlayerController::Server_NewGame_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	ADigetherGameplayGameMode* GameMode = ResolveGameplayGameMode();
+	const bool bSucceeded = IsDevServerRpcAllowed() && IsValid(GameMode) && GameMode->StartNewGame(this);
+	Client_SaveResult(bSucceeded, bSucceeded
+		? NSLOCTEXT("DigetherSave", "NewGameSucceeded", "새 게임을 시작했습니다.")
+		: NSLOCTEXT("DigetherSave", "NewGameRejected", "새 게임을 시작하지 못했습니다."));
+#endif
+}
+
+void ADigetherGameplayPlayerController::Client_SaveResult_Implementation(const bool bSucceeded, const FText& Message)
+{
+	UE_LOG(LogDigetherFramework, Display, TEXT("진행 요청 결과: Succeeded=%d Message=%s"),
+		bSucceeded, *Message.ToString());
 }
 
 ADigetherGameplayGameMode* ADigetherGameplayPlayerController::ResolveGameplayGameMode() const

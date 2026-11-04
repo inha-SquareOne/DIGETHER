@@ -13,6 +13,8 @@ class DIGETHER_API UDigetherCheatManager : public UCheatManager
 	GENERATED_BODY()
 
 public:
+	virtual void InitCheatManager() override;
+
 	UFUNCTION(Exec)
 	void DigetherCheatList();
 
@@ -27,4 +29,13 @@ public:
 
 	UFUNCTION(Exec)
 	void DigetherRerunSettlement();
+
+	UFUNCTION(Exec)
+	void DigetherSave();
+
+	UFUNCTION(Exec)
+	void DigetherLoad();
+
+	UFUNCTION(Exec)
+	void DigetherNewGame();
 };
