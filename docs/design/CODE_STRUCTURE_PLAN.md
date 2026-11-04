@@ -53,7 +53,9 @@ Game/
   Input/       Enhanced Input 연결
   Terrain/     굴착 밀도 지형·메시·복제(현재 `Prototype/World/DigetherExcavation*`)
   Online/      세션 생성·검색·참가(이미 있음: `DigetherSessionSubsystem` 등. 프로토타입 쪽은 `Prototype/Online/`)
-  Monster/     몬스터 체력·피격·사망·굴착로 이동(후보. 근거: Notion DIGETHER 작업 보드 DEV-050~052, 2026-10-30 엑셀 사본이며 승인된 기획 원본 아님)
+  Monster/     몬스터 체력·피격·사망·굴착로 이동(후보. 근거: Notion DIGETHER 작업 보드 DEV-050~052, 2026-10-30 엑셀 사본이며 승인된 기획 원본 아님).
+               2026-11-04 사용자 결정: 굴착로 이동은 런타임 내비메시 `RuntimeGeneration=Dynamic` + 맵의 제한된 NavMeshBoundsVolume,
+               몬스터 AI(DEV-049)는 Behavior Tree(보드의 '기획자가 직접 편집하는 BT 에디터'와 같은 방식)
   UI/          HUD·위젯(문구는 String Table)
 ```
 
@@ -63,8 +65,8 @@ Game/
 
 프로토타입 GameMode를 연결층으로 쓰지 않으므로 `Game/` 쪽에 별도 진입점이 필요하다. 클래스 이름은 후보다.
 
-- GameMode·GameState·PlayerState·PlayerController를 `Game/`에 새로 둔다(예: `ADigetherGameMode`·`ADigetherGameState`·`ADigetherPlayerState`). GameMode는 로그인·스폰·구성 요소 연결만 맡고 규칙은 아래 배치표의 컴포넌트가 맡는다.
-- **미결정**: 실행할 맵. 새 맵을 만들지, 기존 맵을 바꾸지 않고 실행 옵션(`?game=`)이나 별도 GameMode 지정으로 띄울지 정한다. `.umap` 생성·수정은 에셋 작업이므로 담당·잠금을 확인한다.
+- GameMode·GameState·PlayerState·PlayerController를 `Game/Framework/`에 새로 둔다(2026-11-04 구현: `ADigetherGameplayGameMode`·`ADigetherGameplayGameState`·`ADigetherGameplayPlayerState`·`ADigetherGameplayPlayerController`. 템플릿의 `ADIGETHERGameMode`·`ADIGETHERPlayerController`와 이름이 대소문자만 달라 UHT·UObject 이름이 충돌하므로 `Gameplay`를 붙였다). GameMode는 로그인·스폰·구성 요소 연결만 맡고 규칙은 아래 배치표의 컴포넌트가 맡는다. 개발 시험 맵은 `/Game/Game/Maps/L_GameTest`이며 공유 레벨이 아니다. 플레이어 Pawn은 정식 캐릭터가 나올 때까지 임시 시험 Pawn `ADigetherTestPawn`(엔진 `ADefaultPawn` 하위, 클라이언트 이동의 서버 전달 없음)을 쓴다.
+- **실행 맵(2026-11-04 사용자 결정): 새 맵을 만든다.** 기존 맵(`L_Prototype` 등)은 바꾸지 않는다. 새 맵의 World Settings에서 `Game/` GameMode를 지정한다. 맵 경로·이름, 레벨 담당과의 조율, 플레이어 Pawn은 아래 항목과 착수 브리프에서 정한다. `.umap` 생성·수정은 에셋 작업이므로 담당·잠금을 확인한다.
 - **두 실행 경로를 구분한다.** (1) 개발 시험용 직접 실행: 맵 + `?game=` 또는 맵의 GameMode 지정. (2) 정식 실행: 메인 메뉴 → `DigetherSessionSubsystem`이 설정의 맵 이름에 `?listen`을 붙여 이동하는 기존 경로. 현재 `DefaultGame.ini`의 GameMap은 템플릿 맵이다. (2)에 새 맵·GameMode를 연결하고 cook 대상에 넣는 일은 진입점이 1인·4인 시나리오를 통과한 뒤 따로 한다.
 - **참가·재접속 계약**: 새 GameMode·Controller는 [전체 설계](../SYSTEM_DESIGN.md)의 인증 ID 기준 참가, 같은 ID 중복 연결 거부, 재접속 복원, 초기 지급 재실행 금지를 지킨다. 순서는 로그인 → 세션 레지스트리에서 신규/재접속 판정 → 재접속이면 상태 복원 뒤 기존 Pawn 재빙의(신규 스폰·지급 없음), 신규면 스폰·지급이다. 연결 해제 시 Pawn을 남겨 두는 책임은 Controller의 `PawnLeavingGame` 재정의와 레지스트리가 나눠 맡는다(프로토타입 Controller와 같은 훅을 참고).
 - **미결정**: 플레이어 Pawn·Character. 플레이어 기능은 다른 담당자 범위다. `Game/` 규칙이 의존할 사망 통지·소지품 무게 같은 접점과 Pawn 클래스 지정 방법을 플레이어 담당과 먼저 합의한다.
@@ -119,7 +121,7 @@ Game/
 
 각 단계는 따로 빌드·검증할 수 있게 나눈다. 2026-11-04 결정으로 P2 이후 단계는 `Prototype/` 파일을 고치지 않는다. 표의 "바뀌는 파일"에 있는 프로토타입 파일(Types·SaveGame·Character·GameMode·PlayerController·World·HUD)은 같은 역할의 `Game/` 새 파일로 읽고, 완료 조건의 "기존 동작 동일·회귀"는 프로토타입 동작과 같은 시나리오를 `Game/` 진입점에서 비교하는 뜻으로 읽는다. 프로토타입과 새 구조 사이에 값을 복사하는 연결 함수는 두지 않는다. P0·P1에서 이미 프로토타입에 넣은 연결(정의 자산 브리지·런 스냅샷)은 그대로 둔다.
 
-**P2 저장 변환의 미결정(2026-11-04)**: v2 세이브는 프로토타입 타입(`UDigetherPrototypeSaveGame`·`FPrototype*`)으로 저장돼 있어, "구버전 구조체를 읽기용으로 유지"와 "새 런타임 코드는 프로토타입 타입에 의존하지 않음"이 함께 성립하는 방법을 정해야 한다. 후보는 별도 변환 도구(에디터·명령줄)로 v2를 읽어 `Game/` 값 형식으로 쓰는 방법, 또는 `Game/Save/`에 v2 필드만 옮긴 읽기 전용 값 구조체를 두는 방법이다. 기존 슬롯과 v3 출력 슬롯을 같은 슬롯으로 둘지도 함께 정한다. 결정 전에는 P2를 시작하지 않는다.
+**P2 저장 변환(2026-11-04 사용자 결정): 새 저장 시스템은 v2 세이브를 읽지 않는다.** v2는 프로토타입 타입(`UDigetherPrototypeSaveGame`·`FPrototype*`)으로 저장된 프로토타입 시험 데이터로 보고, `Game/Save/`는 새 형식(v3)만 읽고 쓴다. 변환 도구나 v2 읽기용 구조체는 만들지 않고, 프로토타입으로 한 진행은 새 게임에서 이어지지 않는다. v3는 프로토타입 슬롯과 다른 슬롯 이름을 써서 기존 v2 파일을 덮어쓰지 않는다. 그래서 아래 표 P2 행의 "구버전 구조체를 읽기용으로 유지", "v2 읽기 → 검증 → 명시적 변환 → 전체 반영", 완료 조건의 "v2 불러오기 후 값 일치"·"원본 보존"은 적용하지 않는다. 미래 버전·손상 파일 거부, v3 재저장 → 재시작 → 재로드 일치, 모든 생성 경로의 `DefinitionId` 채움은 그대로 완료 조건이다.
 
 | 단계 | 내용 | 바뀌는 파일·에셋 | 완료 조건 |
 |---|---|---|---|
