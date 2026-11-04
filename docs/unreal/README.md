@@ -12,5 +12,6 @@
 | 엔진 통합 검사 | [테스트](TESTING.md) |
 | 측정·비교·회귀 | [성능](PERFORMANCE.md) |
 | 모델·재질·도입 | [아트 제작](ART_PRODUCTION.md) |
+| 영역별 UE 5.8.4 기능 후보 조사 | [기능 카탈로그](features/README.md) |
 
-프로젝트별 선택은 [프로필](../templates/PROJECT_PROFILE_TEMPLATE.md), 작성/리뷰/잠금 범위는 [경계표](../templates/PROJECT_BOUNDARIES_TEMPLATE.md)에 기록한다. 실제 명령·API·검사 결과의 한계를 유지한다.
+프로젝트별 선택은 [프로필](../project/PROJECT_PROFILE.md), 작성/리뷰/잠금 범위는 [경계표](../project/PROJECT_BOUNDARIES.md)에 기록한다. 실제 명령·API·검사 결과의 한계를 유지한다.
