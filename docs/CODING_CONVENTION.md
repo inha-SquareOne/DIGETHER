@@ -5,7 +5,7 @@ DIGETHER의 C++·Blueprint·에셋 작성 규칙이다. 기본은 Epic의 [Unrea
 ## 적용 범위
 
 - **새로 쓰는 코드**는 이 문서를 모두 따른다.
-- **기존 프로토타입 코드**(`Source/DIGETHER/Prototype/`)는 고칠 때 손대는 부분부터 맞춘다. 이름 변경·`LogTemp` 정리 같은 일괄 이전은 [코드 구조 계획](design/CODE_STRUCTURE_PLAN.md)의 단계에서 한다.
+- **기존 프로토타입 코드**(`Source/DIGETHER/Prototype/`)는 2026-11-04부터 수정하지 않는다(사용자 결정). 아래 규칙은 `Game/`의 새 코드에 적용하며, 프로토타입에 남은 이전 이름·서식은 그대로 둔다. 이 문서에서 프로토타입을 "이전 대상"·"바꾼다"고 적은 부분은 같은 역할의 `Game/` 새 코드를 이 규칙으로 작성한다는 뜻으로 읽는다([코드 구조 계획](design/CODE_STRUCTURE_PLAN.md)).
 - **Epic 템플릿 코드**(`DIGETHERCharacter` 등)는 템플릿 형태를 유지하고, 새 기능은 별도 클래스로 만든다.
 - **재사용 플러그인**(`DevelopmentWorkbench`)은 프로젝트 이름 대신 플러그인 이름을 접두사·테스트 이름에 쓴다(예: 테스트 `DevelopmentWorkbench.*`). 프로젝트 전용 어댑터(`DigetherWorkbench`)는 이 문서를 따른다.
 
