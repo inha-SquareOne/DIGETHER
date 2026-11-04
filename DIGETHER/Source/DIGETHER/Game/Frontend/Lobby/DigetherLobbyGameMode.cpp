@@ -3,10 +3,13 @@
 #include "Game/Frontend/Lobby/DigetherLobbyGameState.h"
 #include "Game/Frontend/Lobby/DigetherLobbyPlayerController.h"
 #include "Game/Frontend/Lobby/DigetherLobbyPlayerState.h"
+#include "Game/Online/DigetherJoinRules.h"
 #include "Game/Online/DigetherRoomProtocol.h"
 #include "Game/Online/DigetherSessionSubsystem.h"
 #include "Game/Online/DigetherSessionText.h"
+#include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerState.h"
 #include "OnlineSubsystem.h"
 
 ADigetherLobbyGameMode::ADigetherLobbyGameMode()
@@ -36,16 +39,37 @@ void ADigetherLobbyGameMode::PreLogin(const FString& Options, const FString& Add
 	{
 		return;
 	}
-	// 거절 사유는 참가자 쪽 연결 실패 안내로 전달된다.
-	if (GetNumPlayers() >= DigetherRoomProtocol::MaxPlayers)
-	{
-		ErrorMessage = DigetherSessionText::Get(EDigetherSessionText::RoomFull).ToString();
-		return;
-	}
 	const IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get();
-	if (Subsystem && Subsystem->GetSubsystemName() == STEAM_SUBSYSTEM && (!UniqueId.IsValid() || UniqueId.GetType() != STEAM_SUBSYSTEM))
+	DigetherJoinRules::FDigetherJoinCheck Check;
+	Check.bIdValid = UniqueId.IsValid();
+	Check.bRequireSteamId = Subsystem && Subsystem->GetSubsystemName() == STEAM_SUBSYSTEM;
+	Check.bIdIsSteam = Check.bIdValid && UniqueId.GetType() == STEAM_SUBSYSTEM;
+	Check.ConnectedPlayers = GetNumPlayers();
+	Check.MaxPlayers = DigetherRoomProtocol::MaxPlayers;
+	Check.bNewJoinLocked = false;
+	Check.bIdInRoster = false;
+	if (Check.bIdValid && IsValid(GameState))
 	{
-		ErrorMessage = DigetherSessionText::Get(EDigetherSessionText::SteamIdRequired).ToString();
+		// PlayerArray에 아직 없는 동시 접속 대기 연결은 이 비교로 검출하지 못한다.
+		for (const APlayerState* Player : GameState->PlayerArray)
+		{
+			if (!IsValid(Player))
+			{
+				continue;
+			}
+			const FUniqueNetIdRepl& ConnectedId = Player->GetUniqueId();
+			if (ConnectedId.IsValid() && ConnectedId == UniqueId)
+			{
+				Check.bIdAlreadyConnected = true;
+				break;
+			}
+		}
+	}
+	const DigetherJoinRules::EDigetherJoinDecision Decision = DigetherJoinRules::Evaluate(Check);
+	if (!DigetherJoinRules::IsAccepted(Decision))
+	{
+		// 거절 사유는 참가자 쪽 연결 실패 안내로 전달된다.
+		ErrorMessage = DigetherSessionText::Get(DigetherJoinRules::GetRejectionText(Decision, Check)).ToString();
 	}
 }
 

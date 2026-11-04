@@ -1,6 +1,7 @@
 #include "Game/Online/DigetherSessionSubsystem.h"
 
 #include "Game/Frontend/DigetherFrontendSettings.h"
+#include "Game/Online/DigetherJoinRules.h"
 #include "Game/Online/DigetherRoomProtocol.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -689,26 +690,40 @@ bool UDigetherSessionSubsystem::ShowInviteUI()
 void UDigetherSessionSubsystem::HandleInviteAccepted(bool bSuccess, int32 ControllerId, FUniqueNetIdPtr UserId, const FOnlineSessionSearchResult& Result)
 {
 	// 초대 수락은 일반 요청과 안내 문구가 달라 사전 조건을 따로 검사한다.
-	if (IsBusy())
+	DigetherJoinRules::FDigetherInviteCheck Check;
+	Check.bBusy = IsBusy();
+	if (!Check.bBusy)
 	{
+		Check.bOnlineAvailable = AcquireSessions(true).IsValid();
+	}
+	if (!Check.bBusy && Check.bOnlineAvailable)
+	{
+		Check.bLocalController = ControllerId == LocalPlayerNum;
+		Check.bSuccess = bSuccess;
+		Check.bUserIdValid = UserId.IsValid();
+		Check.bProtocolMatches = DigetherRoomProtocol::Matches(Result, FString());
+		Check.bAlreadyInSession = IsInSession();
+	}
+	switch (DigetherJoinRules::EvaluateInvite(Check))
+	{
+	case DigetherJoinRules::EDigetherInviteDecision::RejectBusy:
 		SetStatus(EDigetherSessionText::InviteBusy);
 		return;
-	}
-	if (!AcquireSessions(true).IsValid())
-	{
+	case DigetherJoinRules::EDigetherInviteDecision::RejectOnlineUnavailable:
+		// 로그인·온라인 실패의 구체 문구는 AcquireSessions가 설정했다.
 		return;
-	}
-	if (ControllerId != LocalPlayerNum || !bSuccess || !UserId.IsValid() || !DigetherRoomProtocol::Matches(Result, FString()))
-	{
+	case DigetherJoinRules::EDigetherInviteDecision::RejectInvalidInvite:
 		SetStatus(EDigetherSessionText::InviteVersionMismatch);
 		return;
-	}
-	if (IsInSession())
-	{
+	case DigetherJoinRules::EDigetherInviteDecision::RejectAlreadyInSession:
 		SetStatus(EDigetherSessionText::InviteLeaveFirst);
 		return;
+	case DigetherJoinRules::EDigetherInviteDecision::Accept:
+		// 일반 요청과 같이 지난 연결 실패 공지를 다음 참가에 남기지 않는다.
+		Notice = FText::GetEmpty();
+		JoinResult(Result);
+		return;
 	}
-	JoinResult(Result);
 }
 
 void UDigetherSessionSubsystem::HandlePostLoadMap(UWorld* World)
