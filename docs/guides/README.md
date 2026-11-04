@@ -14,3 +14,5 @@
 **준비 중인 항목:** Unreal 프로젝트와 LFS 패턴은 추가됐으며, Notion 페이지 주소·LFS 원격 사용 검증·원격 브랜치 규칙·리뷰/통합 담당은 아직 준비 중이다. 아래 안내의 브랜치·Issue·PR 전달 절차는 초기 운영안이다. 팀 담당이 [프로필](../project/PROJECT_PROFILE.md)과 [작업 경계](../project/PROJECT_BOUNDARIES.md)에 확정값을 등록한 후 적용한다. 문서만으로 계정 권한·잠금·자동 동기화가 생기지는 않는다.
 
 기획과 파일 사이의 연결 기준은 [문서 운영](../project/DOCUMENTATION.md), 작업 기록과 인수인계는 [인수인계 기준](../ai/SESSION_HANDOFF.md)을 따른다. 역할이 겹치면 관련 안내를 함께 읽되 같은 게임 규칙을 여러 문서에서 별도로 고치지 않는다.
+
+String Table 문구와 번역을 시트로 관리하는 절차는 [시트 기반 현지화 안내](LOCALIZATION_SHEETS.md)를 따른다. 실제 시트와 언어 설정 및 Unreal 왕복 검증은 아직 준비 중이다.
