@@ -54,7 +54,7 @@
 
 ## 설정과 디버그
 
-- 프로젝트 단위 설정은 `UDeveloperSettings` 하위 클래스로 만들어 프로젝트 설정 화면에서 편집한다. 게임 밸런스 값은 설정이 아니라 정의 데이터에 둔다.
+- 프로젝트 단위 설정은 `UDeveloperSettings` 하위 클래스로 만들어 프로젝트 설정 화면에서 편집한다. 게임 밸런스 값은 설정이 아니라 정의 데이터에 둔다. Blueprint 기본값과 정의 데이터의 구분은 [코딩 컨벤션의 Blueprint 규칙](../CODING_CONVENTION.md#6-blueprint와-프로퍼티-노출)을 따른다.
 - 디버그 표시·치트·강제 실행은 콘솔 변수(`TAutoConsoleVariable`)나 콘솔 명령으로 켜고, 출시 빌드에서 빠지도록 빌드 가드를 둔다([개발 패턴](ENGINEERING_PATTERNS.md#빌드-구성)).
 - 로그는 기능별 카테고리를 `DECLARE_LOG_CATEGORY_EXTERN`/`DEFINE_LOG_CATEGORY`로 선언해 쓴다. `LogTemp`는 임시 확인 뒤 지운다.
 

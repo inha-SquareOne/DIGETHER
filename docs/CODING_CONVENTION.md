@@ -100,20 +100,35 @@ DIGETHER의 C++·Blueprint·에셋 작성 규칙이다. 기본은 Epic의 [Unrea
 ## 6. Blueprint와 프로퍼티 노출
 
 - Blueprint는 C++ 클래스를 상속해 값·에셋 연결·연출을 맡는다. 게임 규칙 판정과 복제 상태 변경은 C++에 둔다.
+- 경계가 애매하면 아래 표로 정한다. C++ 열에 하나라도 해당하면 C++에 둔다. 표로도 정할 수 없으면 대안을 비교해 결정한다([대안 비교](ai/EXECUTION_POLICY.md#대안-비교와-사용자-선택)).
+
+| C++에 두는 조건 | Blueprint에 두는 조건 |
+|---|---|
+| 서버 판정·복제 상태가 관여한다 | 위 조건에 모두 해당하지 않는다 |
+| 자동화 테스트로 검증해야 한다 | 기획·아트가 자주 바꾸는 값·에셋·연출이다 |
+| 두 곳 이상의 Blueprint에서 같은 로직을 쓴다 | 그 클래스 하나에만 쓰는 연결·배치다 |
+| 매 프레임 또는 짧은 주기로 실행된다 | |
+
 - 함수 노출: 동작은 `BlueprintCallable`, 조회는 `BlueprintPure`.
+- 연출은 C++이 판정을 끝낸 뒤 부르는 이벤트로 Blueprint에 넘긴다. Blueprint만 구현하면 `BlueprintImplementableEvent`(예: `OnDigConfirmed`), C++ 기본 처리가 필요하면 `BlueprintNativeEvent`(`_Implementation` 구현)를 쓴다. 이 이벤트 안에서 게임 상태를 바꾸지 않는다.
 - 프로퍼티는 용도별로 지정자를 고른다.
 
 | 용도 | 지정자 예 |
 |---|---|
-| 기획·아트가 고치는 클래스 기본값(튜닝·에셋 연결) | `EditDefaultsOnly, BlueprintReadOnly, Category="..."` |
+| 기획·아트가 고치는 클래스 기본값(그 클래스 전용 값·에셋 연결, 정의 에셋 참조) | `EditDefaultsOnly, BlueprintReadOnly, Category="..."` |
 | 레벨에 배치한 개체마다 다른 값 | `EditAnywhere, BlueprintReadOnly, Category="..."` |
 | 런타임 상태(복제 포함) | `Replicated`/`ReplicatedUsing` + `BlueprintReadOnly`, 편집 지정자 없음 |
 | 컴포넌트 참조 | `VisibleAnywhere, BlueprintReadOnly` |
 
+- 값의 위치: 그 클래스 하나에만 쓰는 메시·사운드·위젯 클래스 연결은 Blueprint 기본값에 둔다. 여러 개체가 공유하거나 목록·비교·검증이 필요한 밸런스 수치(아이템·몬스터·런 규칙 등)는 Primary Data Asset에 두고([표준 엔진 기능](unreal/STANDARD_FEATURES.md#primary-data-asset과-asset-manager)) Blueprint는 그 에셋을 참조만 한다. 같은 값을 두 곳에 두지 않는다.
 - `Category`는 `"Digether|기능"` 형식으로 붙여 디테일 창을 정리한다.
 - BP가 C++ 상태를 직접 쓰게(`BlueprintReadWrite`) 하는 것은 이유가 있을 때만 한다.
 - private 멤버를 BP에 보이려면 getter 함수를 열거나, 의도적으로 `meta=(AllowPrivateAccess="true")`를 붙인다. 이것 없이 private 멤버에 `BlueprintReadOnly`를 붙이면 UHT 오류가 난다.
 - 이벤트 그래프가 길어지면 함수·매크로로 나누고, 같은 로직을 여러 BP에 복사하지 않는다.
+- Blueprint에서 다른 Blueprint 클래스로 Cast하지 않는다. Cast 대상 BP와 그 BP가 참조하는 에셋이 함께 로드된다. C++ 부모 클래스나 인터페이스로 Cast하고, 참조 크기는 Size Map·Reference Viewer로 확인한다.
+- Actor·Component Blueprint의 Event Tick은 쓰지 않는다(애니메이션 Blueprint의 업데이트 이벤트는 해당하지 않는다). C++ 부모 생성자에서 `PrimaryActorTick.bCanEverTick = false`를 기본으로 두고, 주기 처리는 C++ Tick이나 타이머로 한다.
+- 비우면 안 되는 참조(메시·위젯 클래스·정의 에셋 등)는 C++ 부모의 `IsDataValid`에서 검사해 Data Validation이 Blueprint 기본값 누락을 잡게 한다.
+- Blueprint 그래프에서 규칙 판정·복제 상태 변경이 발견되거나, 함수로 나눠도 흐름을 따라가기 어려워지면 그 로직을 C++로 옮기고 Blueprint에는 값·연결·연출만 남긴다. 옮길 때 기존 Blueprint 참조를 확인하고 에디터를 닫고 빌드한다.
 - C++ 선언(UPROPERTY·UFUNCTION·RPC)을 바꾸는 빌드는 에디터를 닫고 한다. 이름을 바꾸면 `DefaultEngine.ini`에 CoreRedirects를 추가한다.
 
 ## 7. 에셋 이름
