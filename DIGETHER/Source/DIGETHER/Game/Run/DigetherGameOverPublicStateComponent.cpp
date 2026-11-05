@@ -42,7 +42,7 @@ void UDigetherGameOverPublicStateComponent::BroadcastChanges(const FDigetherGame
 {
 	const FDigetherGameOverPublicState Current = PublicState;
 	const bool bPhaseChanged = Current.Phase != PreviousState.Phase || Current.Sequence != PreviousState.Sequence;
-	if (bPhaseChanged && Current.Phase != PreviousState.Phase)
+	if (Current.Phase != PreviousState.Phase)
 	{
 		OnGameOverPhaseChanged.Broadcast(Current.Phase);
 		switch (Current.Phase)
@@ -58,7 +58,7 @@ void UDigetherGameOverPublicStateComponent::BroadcastChanges(const FDigetherGame
 			OnCreditsStarted.Broadcast(Current.PublishedResult);
 			break;
 		case EDigetherGameOverPhase::None:
-			// 크레딧 뒤 새 게임으로만 None이 된다. 월드 정리(Cancel)의 None에는 보내지 않는다.
+			// 크레딧 뒤 새 게임으로만 None 진입, 월드 정리(Cancel)의 None에는 전송 안 함
 			if (PreviousState.Phase == EDigetherGameOverPhase::Credits)
 			{
 				OnNewGameStarted.Broadcast();
@@ -68,7 +68,7 @@ void UDigetherGameOverPublicStateComponent::BroadcastChanges(const FDigetherGame
 			break;
 		}
 	}
-	// 늦게 접속하거나 복제가 묶여 와도(이전 값이 빈 상태) 아직 알리지 않은 흡입을 모두 알린다.
+	// 늦은 접속·묶음 복제(이전 값이 빈 상태)여도 아직 알리지 않은 흡입 모두 전송
 	for (const int32 PlayerId : Current.AbsorbedPlayerIds)
 	{
 		if (!PreviousState.AbsorbedPlayerIds.Contains(PlayerId))

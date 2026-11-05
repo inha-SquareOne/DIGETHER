@@ -10,5 +10,5 @@ ADigetherMainMenuGameMode::ADigetherMainMenuGameMode()
 
 void ADigetherMainMenuGameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
 {
-	// 메뉴에는 조종할 캐릭터가 없으므로 Pawn을 만들지 않는다.
+	// 메뉴에는 조종할 캐릭터가 없어 Pawn 미생성
 }

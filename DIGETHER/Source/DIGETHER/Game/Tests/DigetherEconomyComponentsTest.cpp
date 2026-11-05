@@ -12,7 +12,7 @@
 
 namespace
 {
-	// 디스크 맵·기존 에디터 월드를 쓰지 않는다. 조기 반환도 월드를 정리한다.
+	// 디스크 맵·기존 에디터 월드 미사용, 조기 반환에도 월드 정리
 	class FDigetherEconomyTestWorld
 	{
 	public:
@@ -174,12 +174,12 @@ bool FDigetherEconomyComponentsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("공개 통지 횟수"), QuotaNotificationCount, 1);
 	TestTrue(TEXT("통지된 지갑 값 일치"), AreWalletStatesEqual(WalletState, NotifiedWallet));
 	TestTrue(TEXT("통지된 공개 값 일치"), ArePublicStatesEqual(PublicState, NotifiedPublic));
-	// 픽스처 120/500 = 24%는 빨강 구간(PAY_SIGNAL_THRESHOLDS 시험 기준 0.5·0.8).
+	// 픽스처 120/500 = 24%는 빨강 구간(PAY_SIGNAL_THRESHOLDS 시험 기준 0.5·0.8)
 	TestEqual(TEXT("서버 복원 값의 신호기 단계"), Quota->GetPaymentSignal(), EDigetherPaymentSignal::Red);
 	TestEqual(TEXT("서버 원본은 누적 인정액 유지"), Quota->CaptureState().Quota.DepositedCredits, 120);
 
-	// 콜백의 표현 통지만 검사한다. 실제 네트워크 전달 검증은 별도 M2 범위다.
-	// 서버(권위)에서 복제 알림을 불러도 누적 인정액을 가진 원본을 덮어쓰지 않는다.
+	// 콜백의 표현 통지만 검사, 실제 네트워크 전달은 M2 범위
+	// 서버(권위)에서 복제 알림을 불러도 누적 인정액 원본 유지
 	UFunction* WalletOnRep = Wallet->FindFunction(TEXT("OnRep_PrivateState"));
 	UFunction* QuotaOnRep = Quota->FindFunction(TEXT("OnRep_ReplicatedState"));
 	if (TestNotNull(TEXT("지갑 복제 알림 함수 등록"), WalletOnRep))
@@ -242,7 +242,7 @@ bool FDigetherEconomyPaymentSignalTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("PAY_SIGNAL_THRESHOLDS 주황 시험 기준"), Tuning.PaymentSignalOrangeRatio, 0.5);
 	TestEqual(TEXT("PAY_SIGNAL_THRESHOLDS 초록 시험 기준"), Tuning.PaymentSignalGreenRatio, 0.8);
 
-	// 목표 1000은 테스트 픽스처이며 최종 기획 목표액이 아니다.
+	// 목표 1000은 테스트 픽스처, 기획 목표액 아님
 	FDigetherQuotaState Quota;
 	Quota.Day = 2;
 	Quota.TargetCredits = 1000;
@@ -267,7 +267,7 @@ bool FDigetherEconomyPaymentSignalTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("잘못된 경계는 신호기 없음"), FDigetherEconomyRules::CalculatePaymentSignal(Quota, Inverted),
 		EDigetherPaymentSignal::None);
 
-	// 복제 값은 누적 인정액 없이 신호기만 담고, 클라이언트 조회 값은 누적 인정액 0이다.
+	// 복제 값은 신호기만, 클라이언트 조회 누적 인정액은 0
 	FDigetherQuotaPublicState Server;
 	Server.Quota = Quota;
 	Server.Quota.DepositedCredits = 650;

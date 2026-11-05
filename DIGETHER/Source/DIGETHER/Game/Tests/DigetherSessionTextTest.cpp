@@ -5,7 +5,7 @@
 #include "Internationalization/StringTableCore.h"
 #include "Misc/AutomationTest.h"
 
-// 코드가 쓰는 모든 상태 문구 키가 ST_Session에 있고, 코드가 넘기는 인자 자리가 문구에 남아 있는지 확인한다.
+// 코드가 쓰는 상태 문구 키의 ST_Session 존재와 넘기는 인자 자리의 문구 내 유지 확인
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSessionTextTest,
 	"DIGETHER.Game.Online.SessionText", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

@@ -12,7 +12,7 @@ class UDigetherMonsterDefinition;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDigetherMonsterDamaged, float, PreviousHealth, float, CurrentHealth);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDigetherMonsterDied);
 
-// 체력 판정과 공개 상태만 담당한다. 파괴·드롭·래그돌·AI 정지는 통지 수신자의 책임이다.
+// 체력 판정과 공개 상태만 담당, 파괴·드롭·래그돌·AI 정지는 통지 수신자 책임
 UCLASS(ClassGroup=(Digether), meta=(BlueprintSpawnableComponent))
 class DIGETHER_API UDigetherMonsterHealthComponent : public UActorComponent
 {
@@ -23,12 +23,12 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	// 종별 정의는 클래스 기본값에서 연결한다. BeginPlay 이후 교체로 회복·부활하지 않는다.
+	// 종별 정의는 클래스 기본값에서 연결, BeginPlay 이후 교체해도 회복·부활 없음
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Monster")
 	TObjectPtr<UDigetherMonsterDefinition> Definition;
 
-	// 서버는 적용한 피해마다, 클라이언트는 수신한 체력 감소마다 통지한다.
-	// 복제 사이의 여러 피해는 합쳐질 수 있으므로 클라이언트의 타격 횟수 판정에 쓰지 않는다.
+	// 서버는 적용한 피해마다, 클라이언트는 수신한 체력 감소마다 통지
+	// 복제 사이 여러 피해가 합쳐질 수 있어 클라이언트 타격 횟수 판정에 사용 금지
 	UPROPERTY(BlueprintAssignable, Category="Digether|Monster")
 	FOnDigetherMonsterDamaged OnDamaged;
 
@@ -62,16 +62,16 @@ private:
 	UFUNCTION()
 	void OnRep_HealthState(const FDigetherMonsterHealthState& PreviousState);
 
-	// 관련성 있는 모든 클라이언트에 공개한다(COND_None). 소유자가 없는 몬스터도 수신해야 한다.
-	// 생명 상태와 체력을 같은 RepNotify에서 읽고, 클라이언트의 정의 로드 여부에 의존하지 않는다.
-	// 소유 Actor의 bReplicates와 관련성 설정은 몬스터 Actor 담당이 연결해야 한다.
+	// 관련성 있는 모든 클라이언트에 공개(COND_None), 소유자 없는 몬스터도 수신 필요
+	// 생명 상태·체력을 같은 RepNotify에서 읽음, 클라이언트 정의 로드 여부와 무관
+	// 소유 Actor의 bReplicates·관련성 설정은 몬스터 Actor 담당이 연결
 	UPROPERTY(ReplicatedUsing=OnRep_HealthState)
 	FDigetherMonsterHealthState HealthState;
 
-	// 스트리밍 등으로 같은 객체가 다시 BeginPlay해도 체력을 채우거나 부활시키지 않는다.
+	// 스트리밍 등으로 다시 BeginPlay해도 체력 재충전·부활 방지
 	bool bHasInitializedHealth = false;
 
-	// 로컬 통지 이력이며 게임 생명 상태의 원본은 HealthState.Life 하나다.
-	// EndPlay에서 초기화하지 않아 같은 컴포넌트의 중복 수신·재진입에도 사망을 다시 알리지 않는다.
+	// 로컬 통지 이력, 생명 상태 원본은 HealthState.Life
+	// EndPlay에서 초기화하지 않음, 중복 수신·재진입에도 사망 재통지 방지
 	EDigetherMonsterLife LastNotifiedLife = EDigetherMonsterLife::Alive;
 };

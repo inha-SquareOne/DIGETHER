@@ -1,6 +1,6 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
-// 아래 숫자와 ID는 테스트 픽스처, 기획 값 아님.
+// 아래 숫자·ID는 테스트 픽스처, 기획 값 아님
 
 #include "Game/Save/DigetherSaveGame.h"
 #include "Game/Save/DigetherSaveRules.h"
@@ -22,7 +22,7 @@ namespace
 
 	FDigetherSaveSlotNames MakeTemporarySlotNames()
 	{
-		// 호스트의 실제 슬롯 이름을 쓰지 않아 반복 실행과 다른 테스트로부터 격리한다.
+		// 호스트 실제 슬롯 이름 미사용, 반복 실행·다른 테스트와 격리
 		const FString Prefix = TEXT("Digether_Automation_Save_") + FGuid::NewGuid().ToString(EGuidFormats::Digits);
 		return { Prefix + TEXT("_Primary"), Prefix + TEXT("_Backup") };
 	}
@@ -43,7 +43,7 @@ namespace
 
 	FDigetherSaveSlotData MakeStorageSlot(const int32 HostCredits = 70)
 	{
-		// 모든 수치와 ID는 저장 계약 검사용 픽스처이며 최종 기획 값이 아니다.
+		// 수치·ID는 저장 계약 검사용 픽스처, 기획 값 아님
 		FDigetherSaveSnapshot Snapshot;
 		Snapshot.HostAuthenticatedPlayerKey = StorageTestHostKey;
 		Snapshot.GameId = FGuid(1, 2, 3, 4);
@@ -160,7 +160,7 @@ namespace
 		{
 			return false;
 		}
-		// 엔진 헤더와 클래스는 그대로 두고 스키마만 바꾼다. 미래 버전 보호는 CRC 검사보다 앞선다.
+		// 엔진 헤더·클래스는 유지, 스키마만 변경, 미래 버전 보호가 CRC 검사보다 우선
 		FMemory::Memcpy(OutBytes.GetData() + PayloadOffset, &Version, sizeof(Version));
 		return true;
 	}
@@ -285,7 +285,7 @@ bool FDigetherSaveStorageCorruptPrimaryTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TArray<uint8> CorruptBytes = BackupBytes;
-	// 사용자 값은 유효하게 두고 엔진 blob 끝의 CRC만 손상시킨다.
+	// 사용자 값은 유효, 엔진 blob 끝 CRC만 손상
 	CorruptBytes.Last() ^= 0x80;
 	if (!SaveRawSlot(*this, Names.Primary, CorruptBytes))
 	{
@@ -344,7 +344,7 @@ bool FDigetherSaveStorageOlderVersionTest::RunTest(const FString& Parameters)
 			return false;
 		}
 		TArray<uint8> OlderHeaderBytes = BackupBytes;
-		// 엔진 헤더의 두 번째 int32가 파일 버전이다. 이전 본문은 파싱하지 않는다.
+		// 엔진 헤더 두 번째 int32가 파일 버전, 이전 본문은 파싱 안 함
 		FMemory::Memcpy(OlderHeaderBytes.GetData() + sizeof(int32), &Version, sizeof(Version));
 		for (const TArray<uint8>& PrimaryBytes : { OlderSchemaBytes, OlderHeaderBytes })
 		{
@@ -384,7 +384,7 @@ bool FDigetherSaveStorageInvalidHeaderTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	// 엔진이 만든 신뢰 가능한 헤더에서만 위치를 찾는다. 손상 입력의 로드는 저장 계층에 맡긴다.
+	// 엔진이 만든 신뢰 가능한 헤더에서만 위치 탐색, 손상 입력 로드는 저장 계층 담당
 	FMemoryReader HeaderReader(ValidBytes, true);
 	int32 FileType = 0;
 	int32 FileVersion = 0;
@@ -421,7 +421,7 @@ bool FDigetherSaveStorageInvalidHeaderTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	// 다른 UObject 클래스를 지정하지 않고 존재하지 않는 클래스 경로 한 글자를 만든다.
+	// 다른 UObject 클래스 지정 없이 존재하지 않는 클래스 경로 한 글자 생성
 	ClassPath[ClassPath.Len() - 1] = TEXT('X');
 	TArray<uint8> ChangedClassPathBytes;
 	FMemoryWriter ChangedClassPathWriter(ChangedClassPathBytes, true);
@@ -558,7 +558,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSaveStorageSlotNamesTest,
 
 bool FDigetherSaveStorageSlotNamesTest::RunTest(const FString& Parameters)
 {
-	// 슬롯 이름이 바뀌면 기존 저장을 찾지 못한다. v3 이름은 상수에서 만들어도 문자열이 그대로여야 한다.
+	// 슬롯 이름이 바뀌면 기존 저장 탐색 실패, v3 이름은 상수로 만들어도 문자열 불변
 	const FTCHARToUTF8 HostBytes(*StorageTestHostKey);
 	const FString ExpectedPrimary = FString(TEXT("Digether_HostProgress_v3_"))
 		+ FSHA1::HashBuffer(HostBytes.Get(), HostBytes.Length()).ToString();
@@ -577,7 +577,7 @@ bool FDigetherSaveStorageWriteWithReadsTest::RunTest(const FString& Parameters)
 	const FDigetherSaveSlotNames Names = MakeTemporarySlotNames();
 	ON_SCOPE_EXIT { DeleteTemporarySlots(*this, Names); };
 	const FDigetherSaveSlotData Slot = MakeStorageSlot();
-	// 디스크는 비어 있지만 전달한 읽기 결과가 미래 버전이면 다시 읽지 않고 거절해야 한다.
+	// 디스크가 비어도 전달한 읽기 결과가 미래 버전이면 재읽기 없이 거절
 	FDigetherSaveSlotReads FutureReads;
 	FutureReads.PrimaryResult = EDigetherSaveResult::UnsupportedVersion;
 	TestTrue(TEXT("전달한 미래 버전 읽기 결과로 쓰기 거절"),

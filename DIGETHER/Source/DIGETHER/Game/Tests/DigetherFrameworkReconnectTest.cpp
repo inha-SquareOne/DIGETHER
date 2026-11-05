@@ -1,6 +1,6 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
-// 아래 숫자와 ID는 테스트 픽스처, 기획 값 아님.
+// 아래 숫자·ID는 테스트 픽스처, 기획 값 아님
 
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
@@ -13,7 +13,7 @@
 
 namespace
 {
-	// 인증·실제 접속 없이 서버 액터의 인계와 수명을 검사한다. 실제 ID 재접속·복제는 M2/M3 대상이다.
+	// 인증·실제 접속 없이 서버 액터 인계·수명 검사, 실제 ID 재접속·복제는 M2/M3
 	class FDigetherReconnectTestWorld
 	{
 	public:
@@ -138,7 +138,7 @@ bool FDigetherFrameworkInactiveLatestStateTest::RunTest(const FString& Parameter
 	{
 		return false;
 	}
-	// 끊긴 뒤의 사망·정산을 같은 원본에 반영한다. 접속 시점 스냅샷으로 되돌아가면 안 된다.
+	// 끊긴 뒤 사망·정산을 같은 원본에 반영, 접속 시점 스냅샷으로 회귀 금지
 	const FDigetherWalletState LatestWallet = MakeReconnectWallet();
 	TestEqual(TEXT("끊긴 동안 최신 장부 적용"), Retained->RestoreState(LatestWallet), EDigetherEconomyResult::Success);
 	TestEqual(TEXT("끊긴 동안 사망 확정"), Retained->GetLifeComponent()->ApplyDeath(EDigetherDeathCause::CollapseTimeExpired),

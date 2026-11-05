@@ -11,12 +11,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherEconomyEfficiencyTest,
 bool FDigetherEconomyEfficiencyTest::RunTest(const FString& Parameters)
 {
 	const FDigetherEconomyTuning Tuning;
-	// 기본값 없는 런 스냅샷에 기존 시험 입력을 명시한다.
+	// 기본값 없는 런 스냅샷이라 시험 입력 명시
 	FDigetherRunTuning RunTuning;
 	RunTuning.DeathLossPercent = 100;
 	RunTuning.CorpseRefundPercent = 50;
 	RunTuning.InitialQuotaCredits = 100;
-	// 2026-11-04 기획 답변 초안의 임시값(PAY_DAY_EFFICIENCY). 최종 기획 값이 아니다.
+	// 2026-11-04 기획 답변 초안 임시값(PAY_DAY_EFFICIENCY), 최종 기획 값 아님
 	TestEqual(TEXT("1일차 임시 효율"), Tuning.DayOneEfficiencyPercent, 30);
 	TestEqual(TEXT("2일차 임시 효율"), Tuning.DayTwoEfficiencyPercent, 50);
 	TestEqual(TEXT("3일차 임시 효율"), Tuning.DayThreeEfficiencyPercent, 70);
@@ -28,7 +28,7 @@ bool FDigetherEconomyEfficiencyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("미사용 세션 수명(저장 호환)"), Tuning.DepositSessionLifetimeSeconds, 10.0);
 	TestEqual(TEXT("임시 붓기 기준액(PAY_UNIT_AMOUNT)"), Tuning.PourUnitCredits, 10);
 
-	// 한 주기 붓기 금액을 바꿔 가며 같은 효율 규칙을 본다. 아래 기준액은 시험 입력이며 기획 값이 아니다.
+	// 한 주기 붓기 금액별 같은 효율 규칙 확인, 기준액은 시험 입력이며 기획 값 아님
 	const auto WithUnit = [&Tuning](const int32 UnitCredits)
 	{
 		FDigetherEconomyTuning Unit = Tuning;
@@ -125,8 +125,8 @@ bool FDigetherEconomyEfficiencyTest::RunTest(const FString& Parameters)
 
 	FDigetherQuotaState NearTarget = Initial;
 	NearTarget.DepositedCredits = 50;
-	// 200원의 30% 반영 60이 남은 목표 50을 넘는다. 목표에는 N = ceil(50 * 100 / 30) = 167만 쓰고,
-	// 지갑에서는 부은 200원을 빼며 남은 33원은 바닥 금화가 된다(PQ-34 안 A, 임시).
+	// 200원의 30% 반영 60이 남은 목표 50 초과, 목표에는 N = ceil(50 * 100 / 30) = 167만 사용
+	// 지갑은 200원 차감, 남은 33원은 바닥 금화(PQ-34 안 A, 임시)
 	const FDigetherPourTickResult Reduced = FDigetherEconomyRules::CalculatePourTick(Wallet, NearTarget, WithUnit(200), false);
 	TestEqual(TEXT("초과 반영 주기 성공"), Reduced.Result, EDigetherEconomyResult::Success);
 	TestEqual(TEXT("부은 200원 전부 지갑 차감"), Reduced.SpentCredits, 200);
@@ -150,7 +150,7 @@ bool FDigetherEconomyEfficiencyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("정확한 최소액 반영"), ExactMinimum.CreditedCredits, 50);
 	TestTrue(TEXT("정확한 최소액 목표 달성"), ExactMinimum.bTargetCompleted);
 
-	// 잔고가 기준액보다 적으면 잔고 전부를 붓는다. 167원이면 정확히 남은 목표를 채운다.
+	// 잔고가 기준액 미만이면 잔고 전부 붓기, 167원이면 남은 목표 정확히 충족
 	FDigetherWalletState SmallWallet = Wallet;
 	SmallWallet.BalanceCredits = 167;
 	const FDigetherPourTickResult SmallBalance = FDigetherEconomyRules::CalculatePourTick(SmallWallet, NearTarget, WithUnit(200), false);
@@ -164,7 +164,7 @@ bool FDigetherEconomyEfficiencyTest::RunTest(const FString& Parameters)
 		CheckRejected(FDigetherEconomyRules::CalculatePourTick(Wallet, Quota, WithUnit(1), false),
 			EDigetherEconomyResult::DepositCreditTooSmall, Wallet, Quota);
 	}
-	// 1일차 30%에서는 3원까지 반영 0으로 거절되고 4원부터 1원이 반영된다.
+	// 1일차 30%: 3원까지 반영 0으로 거절, 4원부터 1원 반영
 	CheckRejected(FDigetherEconomyRules::CalculatePourTick(Wallet, Initial, WithUnit(3), false),
 		EDigetherEconomyResult::DepositCreditTooSmall, Wallet, Initial);
 	const FDigetherPourTickResult SmallestCredited = FDigetherEconomyRules::CalculatePourTick(Wallet, Initial, WithUnit(4), false);
@@ -208,7 +208,7 @@ bool FDigetherEconomyEfficiencyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("목표 증가는 포화"), Saturated.QuotaState.TargetCredits, MAX_int32);
 	TestTrue(TEXT("큰 목표 달성 성공"), Saturated.bTargetCompleted);
 
-	// 1일차 30%로 두 목표(100·200)를 연달아 채운다. 목표에 쓰인 실제 금액은 334 + 667이고 나머지는 바닥 금화다.
+	// 1일차 30%로 두 목표(100·200) 연속 충족, 목표에 쓴 금액 334 + 667, 나머지는 바닥 금화
 	FDigetherWalletState ChainWallet = Wallet;
 	ChainWallet.BalanceCredits = 2000;
 	const FDigetherPourTickResult First = FDigetherEconomyRules::CalculatePourTick(ChainWallet, Initial, WithUnit(400), false);
@@ -232,7 +232,7 @@ bool FDigetherEconomyEfficiencyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("입력 지갑은 불변"), Wallet.BalanceCredits, 1000);
 	TestEqual(TEXT("입력 목표는 불변"), Initial.TargetCredits, 100);
 
-	// 첫 목표는 런 스냅샷, 달성 후 증가량은 경제 튜닝에서 각각 받는다.
+	// 첫 목표는 런 스냅샷, 달성 후 증가량은 경제 튜닝에서 받음
 	FDigetherRunTuning SeparateRunTuning = RunTuning;
 	SeparateRunTuning.InitialQuotaCredits = 250;
 	const FDigetherQuotaState SeparateInitial = FDigetherEconomyRules::MakeInitialQuotaState(SeparateRunTuning);

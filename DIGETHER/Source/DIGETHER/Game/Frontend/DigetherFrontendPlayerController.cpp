@@ -33,7 +33,7 @@ void ADigetherFrontendPlayerController::EndPlay(const EEndPlayReason::Type EndPl
 	{
 		if (Layout) Layout->RemoveFromParent();
 		Layout = nullptr;
-		// 게임 맵에는 프런트엔드 화면이 없으므로 게임 입력으로 되돌린다.
+		// 게임 맵에는 프런트엔드 화면이 없어 게임 입력으로 복귀
 		SetInputMode(FInputModeGameOnly());
 		SetShowMouseCursor(false);
 	}

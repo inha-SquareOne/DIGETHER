@@ -80,7 +80,7 @@ struct DIGETHER_API FDigetherLifePrivateState
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Life")
 	EDigetherEscapeKind EscapeKind = EDigetherEscapeKind::None;
 
-	// Pawn 참조를 보관하지 않아 연결 해제 중에도 같은 값 규칙을 적용한다.
+	// Pawn 참조 대신 키 보관, 연결 해제 중에도 같은 값 규칙 적용
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Life")
 	FString SpectateTargetPlayerKey;
 };
@@ -141,7 +141,7 @@ struct DIGETHER_API FDigetherSpectateCandidate
 {
 	GENERATED_BODY()
 
-	// 식별자 발급과 현재 세션 목록의 최신성은 조율자가 책임진다.
+	// 식별자 발급·현재 세션 목록 최신성은 조율자 책임
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Life")
 	FString PlayerKey;
 
@@ -157,7 +157,7 @@ struct DIGETHER_API FDigetherSpectateSelectionResult
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Life")
 	EDigetherLifeResult Result = EDigetherLifeResult::InvalidInput;
 
-	// 성공이어도 관전 가능한 동료가 없으면 빈 값이다.
+	// 성공이어도 관전 가능한 동료가 없으면 빈 값
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Life")
 	FString TargetPlayerKey;
 };
@@ -170,7 +170,7 @@ struct DIGETHER_API FDigetherEmergencyCarriedItem
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Life")
 	float WeightKg = 0.f;
 
-	// 무게가 0이어도 회수품·시체이면 긴급 탈출을 막아야 한다.
+	// 무게 0이어도 회수품·시체이면 긴급 탈출 차단
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Life")
 	bool bRecoverable = false;
 };

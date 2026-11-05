@@ -4,6 +4,7 @@
 #include "Game/Save/DigetherSaveGame.h"
 #include "Game/Save/DigetherSaveRules.h"
 #include "Game/Save/DigetherSaveTuning.h"
+#include "Game/Tests/DigetherTestValues.h"
 #include "Misc/AutomationTest.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
@@ -13,7 +14,7 @@ namespace
 {
 	FDigetherSaveSnapshot MakeHubSaveFixture()
 	{
-		// 이 파일의 ID·수치는 호환성 검사용이며 실제 시험 카탈로그 값과 독립이다.
+		// ID·수치는 호환성 검사용, 실제 시험 카탈로그 값과 무관
 		FDigetherSaveSnapshot Snapshot;
 		Snapshot.HostAuthenticatedPlayerKey = TEXT("TEST:host");
 		Snapshot.GameId = FGuid(1, 2, 3, 4);
@@ -52,8 +53,8 @@ namespace
 
 	TArray<uint8> LegacyV3GoldenBytes()
 	{
-		// Hub 확장 이전 v3 wire 형식의 고정 픽스처다. 새 codec으로 생성하지 않는다.
-		// 기준점 없음, MakeHubSaveFixture의 값, little-endian int/float 및 uint16 문자열이다.
+		// Hub 확장 이전 v3 wire 형식 고정 픽스처, 새 codec으로 생성 금지
+		// 기준점 없음, MakeHubSaveFixture 값, little-endian int/float 및 uint16 문자열
 		const FString Hex =
 			TEXT("03000000000900000054004500530054003a0068006f007300740001000000020000000300000004000000")
 			TEXT("05000000060000000700000008000000010000006400000000000000000000000000000000000000000000")
@@ -120,7 +121,7 @@ bool FDigetherHubLegacySaveTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("구 히든 수입 유지"), Restored.Progress.Players[0].Wallet.HiddenLifetimeCredits, 15);
 	TestEqual(TEXT("구 할당량 유지"), Restored.Progress.Quota.Quota.TargetCredits, 100);
 	TestTrue(TEXT("구 게임 ID 유지"), Restored.Progress.GameId == FGuid(1, 2, 3, 4));
-	// 구 v3에는 전체 일차가 없다. 확실한 하한인 기간 일차(1)로 추정하고 저장 시각은 모름(0)이다.
+	// 구 v3에는 전체 일차 없음, 확실한 하한인 기간 일차(1)로 추정, 저장 시각은 모름(0)
 	TestEqual(TEXT("구 v3 기간 일차 유지"), Restored.Progress.Quota.Quota.Day, 1);
 	TestEqual(TEXT("구 v3 전체 일차는 기간 일차로 추정"), Restored.Progress.Quota.Quota.TotalDay, 1);
 	TestEqual(TEXT("구 v3 저장 시각은 모름"), Restored.SavedAtUtcTicks, static_cast<int64>(0));
@@ -129,7 +130,7 @@ bool FDigetherHubLegacySaveTest::RunTest(const FString& Parameters)
 	TArray<uint8> Bytes;
 	TestTrue(TEXT("Hub를 쓰지 않는 맵의 저장 성공"), DigetherSaveRules::SerializeSlot(Slot, Bytes)
 		== EDigetherSaveResult::Success);
-	// 새 쓰기는 항상 최신 wire다. 버전 뒤 v3 기본 본문 배치는 바뀌지 않아야 한다(확장은 본문 뒤에만 붙는다).
+	// 새 쓰기는 항상 최신 wire, 버전 뒤 v3 기본 본문 배치 불변(확장은 본문 뒤에만)
 	int32 WireVersion = 0;
 	FMemory::Memcpy(&WireVersion, Bytes.GetData(), sizeof(WireVersion));
 	TestEqual(TEXT("빈 Hub 슬롯도 최신 wire로 씀"), WireVersion, DigetherSaveWire::LatestVersion);
@@ -231,7 +232,7 @@ bool FDigetherHubSaveMalformedTest::RunTest(const FString& Parameters)
 	Corrupt[ExtensionOffset] = 0;
 	Reject(Corrupt, TEXT("확장 magic 손상 거절"));
 	Corrupt = Bytes;
-	// v2는 바닥 금화를 담는 현재 확장이다. 그다음 버전이 미래 확장이다.
+	// v2는 바닥 금화를 담는 현재 확장, 그다음 버전이 미래 확장
 	const int32 FutureVersion = 3;
 	FMemory::Memcpy(Corrupt.GetData() + ExtensionOffset + sizeof(uint32), &FutureVersion, sizeof(FutureVersion));
 	Reject(Corrupt, TEXT("미래 확장은 손상이 아닌 미지원 버전"), EDigetherSaveResult::UnsupportedVersion);
@@ -304,8 +305,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherHubSaveProgressWriteTest,
 
 bool FDigetherHubSaveProgressWriteTest::RunTest(const FString& Parameters)
 {
-	// 출발 기준점 비교는 폐기됐다(기획 1.1.0). 다음 저장 시점(호스트 거점 종료 등)이 마지막 저장 이후의
-	// 시설 재산 변화까지 진행에 담는지 확인한다.
+	// 출발 기준점 비교는 폐기(기획 1.1.0), 다음 저장 시점(호스트 거점 종료 등)이 마지막 저장 이후
+	// 시설 재산 변화까지 진행에 담는지 확인
 	FDigetherSaveSnapshot Current = MakeHubSaveFixture();
 	AddHubProgress(Current);
 	FDigetherSaveSlotData Slot;
@@ -359,7 +360,7 @@ bool FDigetherHubSaveWireProtectionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("최신 wire도 런타임 스키마 v3"), ReadBack->GetSlotData().Progress.SchemaVersion, 3);
 	TestTrue(TEXT("래퍼가 Hub 구매품을 보존"), ReadBack->GetSlotData().Progress.HubProgress.bInitialized);
 
-	// 구 reader(v3 전용)는 payload 첫 int32가 3보다 크면, v4 reader는 4보다 크면 본문/CRC와 무관하게 UnsupportedVersion이었다.
+	// 구 reader(v3 전용)는 payload 첫 int32 > 3, v4 reader는 > 4면 본문/CRC와 무관하게 UnsupportedVersion
 	int32 StoredWireVersion = 0;
 	FMemory::Memcpy(&StoredWireVersion, Envelope.GetData() + sizeof(int32), sizeof(StoredWireVersion));
 	TestEqual(TEXT("구 reader가 볼 첫 버전은 5"), StoredWireVersion, 5);
@@ -372,7 +373,7 @@ bool FDigetherHubSaveWireProtectionTest::RunTest(const FString& Parameters)
 
 	const int32 FutureWireVersion = DigetherSaveWire::LatestVersion + 1;
 	FMemory::Memcpy(Envelope.GetData() + sizeof(int32), &FutureWireVersion, sizeof(FutureWireVersion));
-	// CRC를 일부러 갱신하지 않는다. 미래 wire 보호가 CRC 손상 분류보다 앞서야 한다.
+	// CRC 의도적 미갱신, 미래 wire 보호가 CRC 손상 분류보다 우선
 	UDigetherSaveGame* FutureRead = NewObject<UDigetherSaveGame>();
 	FMemoryReader FutureReader(Envelope, true);
 	FutureRead->Serialize(FutureReader);
@@ -386,7 +387,7 @@ bool FDigetherHubSaveWireProtectionTest::RunTest(const FString& Parameters)
 
 namespace
 {
-	// 시험용 바닥 금화다. ID·금액·좌표는 픽스처이며 기획 값이 아니다.
+	// 시험용 바닥 금화, ID·금액·좌표는 픽스처이며 기획 값 아님
 	FDigetherSaveFloorCoin MakeFloorCoinFixture(const int32 Seed, const int32 Amount)
 	{
 		FDigetherSaveFloorCoin Coin;
@@ -436,7 +437,7 @@ bool FDigetherHubSaveFloorCoinTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("금화 재직렬화 성공"), DigetherSaveRules::SerializeSlot(Restored, Reencoded) == EDigetherSaveResult::Success);
 	TestTrue(TEXT("금화 재직렬화가 바이트 단위로 동일"), Bytes == Reencoded);
 
-	// v1 확장(금화 이전)은 같은 Hub 진행 뒤에 금화 목록이 없다. 읽으면 금화는 빈 목록이다.
+	// v1 확장(금화 이전)은 Hub 진행 뒤 금화 목록 없음, 읽으면 빈 목록
 	FDigetherSaveSlotData NoCoins;
 	NoCoins.Progress = MakeHubSaveFixture();
 	AddHubProgress(NoCoins.Progress);
@@ -448,7 +449,7 @@ bool FDigetherHubSaveFloorCoinTest::RunTest(const FString& Parameters)
 		FMemory::Memcpy(V1.GetData() + ExtensionOffset + sizeof(uint32), &V1Version, sizeof(V1Version));
 		int32 PayloadSize = 0;
 		FMemory::Memcpy(&PayloadSize, V1.GetData() + ExtensionOffset + 2 * sizeof(int32), sizeof(PayloadSize));
-		// wire v5는 Hub 확장 뒤에 진행 확장이 붙으므로 금화 개수는 파일 끝이 아니라 Hub 확장 payload의 마지막 int32다.
+		// wire v5는 Hub 확장 뒤 진행 확장이 붙어 금화 개수는 파일 끝이 아닌 Hub 확장 payload의 마지막 int32
 		const int32 HubPayloadEnd = ExtensionOffset + 3 * static_cast<int32>(sizeof(int32)) + PayloadSize;
 		PayloadSize -= static_cast<int32>(sizeof(int32));
 		FMemory::Memcpy(V1.GetData() + ExtensionOffset + 2 * sizeof(int32), &PayloadSize, sizeof(PayloadSize));
@@ -459,7 +460,7 @@ bool FDigetherHubSaveFloorCoinTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("v1은 바닥 금화 빈 목록"), FromV1.Progress.FloorCoins.IsEmpty());
 		TestTrue(TEXT("v1의 Hub 진행 유지"), FromV1.Progress.HubProgress.bInitialized);
 
-		// 금화 개수 상한을 넘는 손상 파일은 할당 전에 거절한다. 금화 없는 v2 Hub 확장 payload의 마지막 int32가 개수다.
+		// 금화 개수 상한 초과 손상 파일은 할당 전 거절, 금화 없는 v2 Hub 확장 payload의 마지막 int32가 개수
 		TArray<uint8> Excessive = V2Empty;
 		const int32 TooMany = DigetherSaveTuning::MaxFloorCoins + 1;
 		FMemory::Memcpy(Excessive.GetData() + HubPayloadEnd - sizeof(int32), &TooMany, sizeof(TooMany));
@@ -468,7 +469,7 @@ bool FDigetherHubSaveFloorCoinTest::RunTest(const FString& Parameters)
 			== EDigetherSaveResult::CorruptData);
 	}
 
-	// 의미가 잘못된 금화는 저장하지 않는다.
+	// 의미가 잘못된 금화는 저장 거절
 	TArray<uint8> Output = { 0x42 };
 	auto Reject = [this, &Output](const FDigetherSaveSlotData& Invalid, const TCHAR* Message)
 	{
@@ -485,7 +486,7 @@ bool FDigetherHubSaveFloorCoinTest::RunTest(const FString& Parameters)
 	Invalid.Progress.FloorCoins[0].StationId = NAME_None;
 	Reject(Invalid, TEXT("정산기 없는 금화 거절"));
 	Invalid = Slot;
-	Invalid.Progress.FloorCoins[0].Transform.SetLocation(FVector(TNumericLimits<double>::Max() * 2.0, 0.0, 0.0));
+	Invalid.Progress.FloorCoins[0].Transform.SetLocation(FVector(DigetherTestValues::Infinity<double>(), 0.0, 0.0));
 	Reject(Invalid, TEXT("유한하지 않은 위치 거절"));
 	Invalid = Slot;
 	Invalid.Progress.FloorCoins.Reset();
@@ -494,7 +495,7 @@ bool FDigetherHubSaveFloorCoinTest::RunTest(const FString& Parameters)
 		Invalid.Progress.FloorCoins.Add(MakeFloorCoinFixture(1000 + Index * 4, 1));
 	}
 	Reject(Invalid, TEXT("금화 개수 상한 초과 저장 거절"));
-	// 금화는 Hub 확장에만 저장한다. Hub 진행이 없는 구 v3 본문에 숨기지 않는다.
+	// 금화는 Hub 확장에만 저장, Hub 진행 없는 구 v3 본문에 숨기지 않음
 	Invalid = Slot;
 	Invalid.Progress.HubProgress = FDigetherHubProgress();
 	Reject(Invalid, TEXT("Hub 진행 없는 금화 거절"));
@@ -507,7 +508,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSaveTotalDayWireTest,
 
 bool FDigetherSaveTotalDayWireTest::RunTest(const FString& Parameters)
 {
-	// 일차·시각 값은 시험 픽스처이며 기획 값이 아니다. 전체 일차는 기간 일차와 다른 값으로 둔다.
+	// 일차·시각 값은 시험 픽스처, 기획 값 아님, 전체 일차는 기간 일차와 다른 값
 	FDigetherSaveSlotData Slot;
 	Slot.Progress = MakeHubSaveFixture();
 	AddHubProgress(Slot.Progress);
@@ -532,9 +533,9 @@ bool FDigetherSaveTotalDayWireTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("v5 재직렬화가 바이트 단위로 동일"), DigetherSaveRules::SerializeSlot(Restored, Reencoded)
 		== EDigetherSaveResult::Success && Reencoded == V5);
 
-	// 진행 확장은 마지막 블록(magic PRG1·버전·길이 + 저장 시각 int64 + 전체 일차 int32 + v2 결과 통계)이다.
-	// v2부터 길이가 바뀌므로 magic 위치를 뒤에서 찾아 블록 경계를 정한다. 블록을 떼고 버전을 4로 바꾸면
-	// 전체 일차 도입 전 실행 파일이 Hub 재산 슬롯에 쓰던 wire v4와 같은 배치다.
+	// 진행 확장은 마지막 블록(magic PRG1·버전·길이 + 저장 시각 int64 + 전체 일차 int32 + v2 결과 통계)
+	// v2부터 길이가 달라 magic 위치를 뒤에서 찾아 블록 경계 결정, 블록 제거 후 버전을 4로 바꾸면
+	// 전체 일차 도입 전 실행 파일이 Hub 재산 슬롯에 쓰던 wire v4와 같은 배치
 	const uint8 ProgressMagicBytes[] = { 0x50, 0x52, 0x47, 0x31 };
 	int32 ProgressExtensionOffset = INDEX_NONE;
 	for (int32 Offset = V5.Num() - static_cast<int32>(sizeof(ProgressMagicBytes)); Offset >= 0; --Offset)
@@ -577,7 +578,7 @@ bool FDigetherSaveTotalDayWireTest::RunTest(const FString& Parameters)
 			== EDigetherSaveResult::Success && UpgradedRead.Progress.Quota.Quota.TotalDay == 3);
 	}
 
-	// Hub 진행이 없는 슬롯도 v5에서는 비초기화 Hub 확장과 함께 왕복한다(v4와 달리 Hub 재산을 요구하지 않는다).
+	// Hub 진행 없는 슬롯도 v5에서는 비초기화 Hub 확장과 함께 왕복(v4와 달리 Hub 재산 불필요)
 	FDigetherSaveSlotData NoHub;
 	NoHub.Progress = MakeHubSaveFixture();
 	NoHub.Progress.Quota.Quota.TotalDay = 4;
@@ -588,7 +589,7 @@ bool FDigetherSaveTotalDayWireTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Hub 없는 v5는 Hub 비초기화 유지"), NoHubRead.Progress.HubProgress.bInitialized);
 	TestEqual(TEXT("Hub 없는 v5 전체 일차 왕복"), NoHubRead.Progress.Quota.Quota.TotalDay, 4);
 
-	// 진행 확장 v1(결과 통계 도입 전, 2026-11-05 이전 실행 파일)은 고정 길이다. 통계는 0·빈 값으로 읽는다.
+	// 진행 확장 v1(결과 통계 도입 전, 2026-11-05 이전 실행 파일)은 고정 길이, 통계는 0·빈 값으로 읽음
 	{
 		TArray<uint8> V1 = V5;
 		V1.SetNum(ProgressExtensionOffset + ProgressHeaderBytes + static_cast<int32>(sizeof(int64) + sizeof(int32)));
@@ -613,14 +614,14 @@ bool FDigetherSaveTotalDayWireTest::RunTest(const FString& Parameters)
 			== EDigetherSaveResult::CorruptData);
 	}
 
-	// 진행 확장의 손상·미래 버전은 Hub 확장과 같은 규칙으로 거절한다.
+	// 진행 확장 손상·미래 버전은 Hub 확장과 같은 규칙으로 거절
 	FDigetherSaveSlotData Output;
 	TArray<uint8> Corrupt = V5;
 	Corrupt[ProgressExtensionOffset] = 0;
 	TestTrue(TEXT("진행 확장 magic 손상 거절"), DigetherSaveRules::DeserializeSlot(Corrupt, Output)
 		== EDigetherSaveResult::CorruptData);
 	Corrupt = V5;
-	// 현재 진행 확장은 v2다. 그다음 번호를 미래 버전으로 쓴다.
+	// 현재 진행 확장은 v2, 그다음 번호를 미래 버전으로 사용
 	const int32 FutureProgressExtension = 3;
 	FMemory::Memcpy(Corrupt.GetData() + ProgressExtensionOffset + sizeof(uint32), &FutureProgressExtension,
 		sizeof(FutureProgressExtension));

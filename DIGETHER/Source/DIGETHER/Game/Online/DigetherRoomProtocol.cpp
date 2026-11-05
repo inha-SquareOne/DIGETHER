@@ -40,7 +40,7 @@ namespace DigetherRoomProtocol
 
 	FString MakeRoomCode()
 	{
-		// 혼동하기 쉬운 0/O, 1/I는 뺀다.
+		// 혼동하기 쉬운 0/O, 1/I 제외
 		static const TCHAR Alphabet[] = TEXT("ABCDEFGHJKLMNPQRSTUVWXYZ23456789");
 		constexpr int32 AlphabetLength = UE_ARRAY_COUNT(Alphabet) - 1;
 		FString Code(GeneratedCodePrefix);

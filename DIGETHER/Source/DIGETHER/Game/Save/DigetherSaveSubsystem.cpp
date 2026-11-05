@@ -64,10 +64,10 @@ EDigetherSaveResult UDigetherSaveSubsystem::Write(const FDigetherSaveSnapshot& S
 	{
 		return EDigetherSaveResult::HostIdentityMismatch;
 	}
-	// 현재 선택한 슬롯 하나만 읽고 쓴다. 다른 진행 슬롯은 새 게임·게임 오버 초기화에서도 건드리지 않는다.
+	// 현재 선택 슬롯 하나만 읽고 쓰기, 다른 진행 슬롯은 새 게임·게임 오버 초기화에서도 건드리지 않음
 	const FDigetherSaveSlotNames Names = DigetherSaveStorage::MakeSlotNames(HostAuthenticatedPlayerKey,
 		SlotSelection.SlotIndex);
-	// 두 슬롯은 한 번만 읽는다. 같은 게임 스레드 호출 안에서 기존 슬롯 선택과 쓰기 허용·순서 판정에 함께 쓴다.
+	// 두 슬롯은 한 번만 읽음, 같은 게임 스레드 호출 안에서 기존 슬롯 선택과 쓰기 허용·순서 판정에 공용
 	const FDigetherSaveSlotReads Reads = DigetherSaveStorage::ReadSlots(Names, HostAuthenticatedPlayerKey);
 	FDigetherSaveSlotData Existing;
 	bool bRecovered = false;
@@ -85,7 +85,7 @@ EDigetherSaveResult UDigetherSaveSubsystem::Write(const FDigetherSaveSnapshot& S
 	{
 		return BuildResult;
 	}
-	// 저장 규칙은 전역 시각을 읽지 않는다. 목록 표시용 저장 시각은 디스크에 쓰기 직전 이 계층에서 채운다.
+	// 저장 규칙은 전역 시각 비의존, 목록 표시용 저장 시각은 디스크 쓰기 직전 이 계층에서 채움
 	Candidate.SavedAtUtcTicks = FDateTime::UtcNow().GetTicks();
 	return DigetherSaveStorage::Write(Names, HostAuthenticatedPlayerKey, Candidate, bExplicitNewGame, Reads);
 }
@@ -102,7 +102,7 @@ EDigetherSaveResult UDigetherSaveSubsystem::Read(FDigetherSaveSnapshot& OutSnaps
 	{
 		return Result;
 	}
-	// 이전 파일에 남은 출발 기준점은 읽기만 하고 쓰지 않는다. 진행은 마지막 정상 저장(Progress)에서 시작한다.
+	// 이전 파일의 출발 기준점은 읽기만 함, 진행은 마지막 정상 저장(Progress)에서 시작
 	OutSnapshot = MoveTemp(Candidate.Progress);
 	return EDigetherSaveResult::Success;
 }
@@ -135,12 +135,12 @@ int32 UDigetherSaveSubsystem::GetMaxSlotCount()
 
 FString UDigetherSaveSubsystem::ResolveListingHostKey() const
 {
-	// 게임 맵에서 서버 연결층이 바인딩한 호스트 키가 있으면 그것을 쓴다(쓰기와 같은 키).
+	// 게임 맵에서 서버 연결층이 바인딩한 호스트 키 우선(쓰기와 같은 키)
 	if (!HostAuthenticatedPlayerKey.IsEmpty())
 	{
 		return HostAuthenticatedPlayerKey;
 	}
-	// 실행 직후 메뉴에서는 아직 바인딩이 없다. 같은 계정이면 게임 맵의 PlayerState ID와 같은 키가 된다.
+	// 실행 직후 메뉴에는 바인딩이 없음, 같은 계정이면 게임 맵 PlayerState ID와 같은 키
 	const UGameInstance* Instance = GetGameInstance();
 	const ULocalPlayer* LocalPlayer = IsValid(Instance) ? Instance->GetFirstGamePlayer() : nullptr;
 	FString LocalKey;

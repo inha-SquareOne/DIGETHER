@@ -12,7 +12,7 @@ void UDigetherSaveGame::Serialize(FArchive& Archive)
 		return;
 	}
 
-	// 영구 저장은 참조 프로퍼티 없이 고정 값 codec만 쓴다. 파일의 UObject 태그·참조를 로드하지 않는다.
+	// 영구 저장은 고정 값 codec만 사용, 파일의 UObject 태그·참조를 로드하지 않음
 	TArray<uint8> Payload;
 	if (Archive.IsSaving() && EncodeToMemory(Payload) != EDigetherSaveResult::Success)
 	{
@@ -46,7 +46,7 @@ void UDigetherSaveGame::Serialize(FArchive& Archive)
 		}
 		FDigetherSaveSlotData Candidate;
 		const EDigetherSaveResult Result = DigetherSaveRules::DeserializeSlot(Payload, Candidate);
-		// 미래 스키마는 CRC 손상과 함께 있어도 보호한다. 지원하지 않는 데이터를 초기화하지 않는다.
+		// 미래 스키마는 CRC 손상이 있어도 보호, 지원하지 않는 데이터를 초기화하지 않음
 		if (Result == EDigetherSaveResult::UnsupportedVersion)
 		{
 			DataResult = Result;
@@ -85,7 +85,7 @@ const FDigetherSaveSlotData& UDigetherSaveGame::GetSlotData() const
 
 EDigetherSaveResult UDigetherSaveGame::EncodeToMemory(TArray<uint8>& OutBytes) const
 {
-	// SerializeSlot은 같은 Data에 같은 바이트를 만든다. 캐시는 성공한 결과만 보관한다.
+	// SerializeSlot은 같은 Data에 같은 바이트, 캐시는 성공 결과만 보관
 	if (EncodedPayload.IsSet())
 	{
 		OutBytes = EncodedPayload.GetValue();

@@ -1,7 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
-// 동시 붓기 납부(기획 S24)의 서버 통합 검사다. 아래 금액·위치·간격·ID는 테스트 픽스처이며 기획 값이 아니다.
-// 붓기 시작·멈춤·주기 처리·줍기·레버는 제품의 GameMode 함수와 Tick을 그대로 부른다.
+// 동시 붓기 납부(기획 S24) 서버 통합 검사, 금액·위치·간격·ID는 테스트 픽스처이며 기획 값 아님
+// 붓기 시작·멈춤·주기 처리·줍기·레버는 제품 GameMode 함수와 Tick 직접 호출
 
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -34,7 +34,7 @@
 #include "OnlineSubsystemTypes.h"
 #include "UObject/UnrealType.h"
 
-// 준비와 관찰만 노출한다. 붓기·줍기·레버·저장 캡처/복원은 제품 함수를 그대로 호출한다.
+// 준비·관찰만 노출, 붓기·줍기·레버·저장 캡처/복원은 제품 함수 직접 호출
 class FDigetherPourIntegrationAccess
 {
 public:
@@ -53,14 +53,13 @@ public:
 			&& Mode.InitializeRunActors();
 	}
 	static void SetPourInterval(ADigetherGameplayGameMode& Mode, const float Seconds) { Mode.RunTuning.DepositIntervalSeconds = Seconds; }
-	static void SetPourUnit(ADigetherGameplayGameMode& Mode, const int32 Credits) { Mode.EconomyTuning.PourUnitCredits = Credits; }
 	static int32 PourSessionCount(const ADigetherGameplayGameMode& Mode) { return Mode.PourSessions.CaptureSessions().Num(); }
 	static bool Capture(const ADigetherGameplayGameMode& Mode, FDigetherSaveSnapshot& Out) { return Mode.CaptureProgress(Out); }
 	static bool Restore(ADigetherGameplayGameMode& Mode, const FDigetherSaveSnapshot& Snapshot) { return Mode.RestoreProgress(Snapshot); }
 	static void ClearFloorCoins(ADigetherGameplayGameMode& Mode) { Mode.ClearFloorCoins(); }
-	// 게임 오버 귀환 확정 때 거점 거래를 닫는 제품 함수다(바닥 금화·붓기 정리). 슬롯 초기화는 크레딧 뒤 새 게임이 한다.
+	// 게임 오버 귀환 확정 때 거점 거래 종료(바닥 금화·붓기 정리), 슬롯 초기화는 크레딧 뒤 새 게임 담당
 	static void CloseHubTradingForGameOver(ADigetherGameplayGameMode& Mode) { Mode.CloseHubTradingForGameOver(); }
-	// 시험 월드는 타이머를 진행하지 않는다. 남은 재시도 예약이 다음 시험에 남지 않게 지운다.
+	// 시험 월드는 타이머 미진행, 남은 재시도 예약이 다음 시험에 남지 않게 정리
 	static void ClearPendingAutosave(ADigetherGameplayGameMode& Mode) { Mode.ClearPendingAutosave(); }
 	static bool HasPendingAutosave(const ADigetherGameplayGameMode& Mode)
 	{
@@ -72,7 +71,7 @@ namespace
 {
 	const FName PourStationId(TEXT("PourStation"));
 	const FVector PourStationLocation(1000.0, 0.0, 0.0);
-	// 투입구(정산기 앞면 +X 50cm, 높이 100cm) 앞 100cm에서 -X를 바라보는 자리다.
+	// 투입구(정산기 앞면 +X 50cm, 높이 100cm) 앞 100cm에서 -X를 보는 자리
 	const FVector PourerOffsetA(150.0, 0.0, 100.0);
 	const FVector PourerOffsetB(150.0, 60.0, 100.0);
 	const FVector PourerOffsetC(150.0, -60.0, 100.0);
@@ -108,8 +107,8 @@ namespace
 		int32 Balance() const { return State->CaptureState().BalanceCredits; }
 	};
 
-	// 새 GameInstance의 임시 월드다. 독립 실행 월드에서는 모든 PlayerController가 로컬이라 호스트로 판정되므로
-	// 할당량 달성 자동 저장이 실제 슬롯에 쓰인다. 플레이어마다 고유 ID를 쓰고 끝날 때 그 슬롯을 지운다.
+	// 새 GameInstance의 임시 월드, 독립 실행 월드는 모든 PlayerController가 로컬이라 호스트 판정
+	// 할당량 달성 자동 저장이 실제 슬롯에 기록되므로 플레이어별 고유 ID 사용, 종료 시 슬롯 삭제
 	class FPourWorld
 	{
 	public:
@@ -199,7 +198,7 @@ namespace
 			FPourPlayer Player;
 			Player.Controller = World->SpawnActor<ADigetherGameplayPlayerController>();
 			if (!IsValid(Player.Controller)) return Player;
-			// 저장 스냅샷은 호스트 계정 키가 필요하다. 첫 플레이어를 호스트(로컬 컨트롤러)로 둔다(SaveIntegration 픽스처와 같은 방식).
+			// 저장 스냅샷에 호스트 계정 키 필요, 첫 플레이어를 호스트(로컬 컨트롤러)로 지정(SaveIntegration 픽스처와 동일)
 			if (!bHostAssigned)
 			{
 				Player.Controller->SetAsLocalPlayerController();
@@ -225,7 +224,7 @@ namespace
 			if (IsValid(Player.Pawn))
 			{
 				Player.Controller->Possess(Player.Pawn);
-				// 시험 월드는 카메라를 갱신하지 않으므로 시선 기준은 보는 대상(Pawn)의 위치·회전이다.
+				// 시험 월드는 카메라 미갱신, 시선 기준은 보는 대상(Pawn)의 위치·회전
 				Player.Controller->SetViewTarget(Player.Pawn);
 			}
 			return Player;
@@ -236,8 +235,8 @@ namespace
 			return AddPlayer(PourStationLocation + Offset, FacingStation, Credits);
 		}
 
-		// 자동 저장을 요청했으면 슬롯에 썼거나(성공) 재시도 대기가 남는다(실패). 독립 실행 월드는 모든 컨트롤러가 로컬이라
-		// 캡처와 쓰기의 호스트 선택이 달라 쓰기가 실패할 수 있으므로 둘 중 하나로 요청 여부를 본다.
+		// 자동 저장 요청 시 슬롯 기록(성공) 또는 재시도 대기(실패), 독립 실행 월드는 모든 컨트롤러가 로컬이라
+		// 캡처·쓰기의 호스트 선택이 달라 쓰기 실패 가능, 둘 중 하나로 요청 여부 판정
 		bool WasAutosaveRequested() const
 		{
 			return AnyTrackedSlotExists() || FDigetherPourIntegrationAccess::HasPendingAutosave(*Mode);
@@ -324,7 +323,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPourConcurrentTest,
 
 bool FDigetherPourConcurrentTest::RunTest(const FString& Parameters)
 {
-	// T17: 두 명이 동시에 붓고 한 명의 연결이 끊긴다.
+	// T17: 두 명 동시 붓기 중 한 명 연결 끊김
 	FPourWorld Fixture(*this);
 	if (!TestTrue(TEXT("붓기 시험 월드 준비"), Fixture.IsReady())) return false;
 	Fixture.SetQuota(4, 100, 0);
@@ -354,18 +353,18 @@ bool FDigetherPourConcurrentTest::RunTest(const FString& Parameters)
 	Fixture.Tick();
 	TestEqual(TEXT("뗀 뒤 차감 없음"), A.Balance(), 80);
 
-	// 거리를 벗어나면 그 사람만 멈춘다.
+	// 거리 이탈 시 그 사람만 멈춤
 	TestTrue(TEXT("A 다시 붓기"), BeginPour(Fixture, A));
 	A.Pawn->SetActorLocation(PourStationLocation + FVector(800.0, 0.0, 100.0));
 	Fixture.Tick();
 	TestEqual(TEXT("거리 이탈은 붓기 멈춤"), FDigetherPourIntegrationAccess::PourSessionCount(*Fixture.GetMode()), 0);
 	TestEqual(TEXT("거리 이탈 후 차감 없음"), A.Balance(), 80);
 
-	// 투입구를 등지면 시작하지 못한다.
+	// 투입구를 등지면 시작 불가
 	A.Pawn->SetActorLocationAndRotation(PourStationLocation + PourerOffsetA, FRotator::ZeroRotator);
 	TestEqual(TEXT("입구를 보지 않으면 거절"), Fixture.GetMode()->BeginPour(A.Controller, Fixture.GetStation()).Result,
 		EDigetherEconomyResult::PourInteractionLost);
-	// 정산기 뒤에서는 입구 앞쪽이 아니므로 거절한다.
+	// 정산기 뒤는 입구 앞쪽이 아니라 거절
 	A.Pawn->SetActorLocationAndRotation(PourStationLocation + FVector(-50.0, 0.0, 100.0), FRotator::ZeroRotator);
 	TestEqual(TEXT("정산기 뒤에서 거절"), Fixture.GetMode()->BeginPour(A.Controller, Fixture.GetStation()).Result,
 		EDigetherEconomyResult::PourInteractionLost);
@@ -380,7 +379,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPourOverflowTest,
 
 bool FDigetherPourOverflowTest::RunTest(const FString& Parameters)
 {
-	// T18·T79: 남은 목표보다 큰 주기는 목표만큼 인정하고 남은 금화는 바닥에 떨어져 누구나 줍는다.
+	// T18·T79: 남은 목표 초과 주기는 목표만큼 인정, 남은 금화는 바닥에 떨어져 누구나 줍기 가능
 	FPourWorld Fixture(*this);
 	if (!TestTrue(TEXT("붓기 시험 월드 준비"), Fixture.IsReady())) return false;
 	Fixture.SetQuota(4, 100, 95);
@@ -416,7 +415,7 @@ bool FDigetherPourOverflowTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("바닥 금화 F = S - N = 5"), Coin->GetAmountCredits(), 5);
 	TestTrue(TEXT("정산기 앞 바닥 위치"), Coin->GetActorLocation().Equals(Fixture.GetStation()->GetCoinDropTransform().GetLocation()));
 
-	// 같은 처리 시점의 두 줍기 요청은 먼저 처리된 한 명만 받는다.
+	// 같은 처리 시점의 두 줍기 요청은 먼저 처리된 한 명만 수령
 	const FDigetherDepositResponse First = Fixture.GetMode()->PickupFloorCoin(B.Controller, Coin);
 	const FDigetherDepositResponse Second = Fixture.GetMode()->PickupFloorCoin(C.Controller, Coin);
 	TestEqual(TEXT("B 줍기 성공"), First.Result, EDigetherEconomyResult::Success);
@@ -429,7 +428,7 @@ bool FDigetherPourOverflowTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("주워도 새 목표에 더하지 않음"), Fixture.QuotaState().DepositedCredits, 0);
 	TestTrue(TEXT("주운 금화 제거"), Fixture.FloorCoins().IsEmpty());
 
-	// 정산기당 금화 더미 하나에 합산한다(1일차 30%: 남은 2에 10원 → N 7, F 3).
+	// 정산기당 금화 더미 하나에 합산(1일차 30%: 남은 2에 10원 → N 7, F 3)
 	Fixture.SetQuota(1, 200, 198);
 	if (!TestTrue(TEXT("다시 눌러 새 목표에 붓기"), BeginPour(Fixture, A))) return false;
 	Fixture.Tick();
@@ -452,7 +451,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPourDayOneAfterCompletionTest,
 
 bool FDigetherPourDayOneAfterCompletionTest::RunTest(const FString& Parameters)
 {
-	// T58: 3일차 거점에서 달성하면 즉시 1일차가 되고, 추가 붓기는 새 목표에 1일차 비율로 반영된다.
+	// T58: 3일차 거점 달성 시 즉시 1일차, 추가 붓기는 새 목표에 1일차 비율 반영
 	FPourWorld Fixture(*this);
 	if (!TestTrue(TEXT("붓기 시험 월드 준비"), Fixture.IsReady())) return false;
 	Fixture.SetQuota(3, 100, 95);
@@ -477,7 +476,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPourDuringLeverTest,
 
 bool FDigetherPourDuringLeverTest::RunTest(const FString& Parameters)
 {
-	// T62·T63(달성 먼저): 4일차 레버를 당기는 중 동료가 목표를 채우면 이전 출발·마감·게이지를 취소한다.
+	// T62·T63(달성 먼저): 4일차 레버 당기는 중 동료가 목표 충족 시 이전 출발·마감·게이지 취소
 	FPourWorld Fixture(*this);
 	if (!TestTrue(TEXT("붓기 시험 월드 준비"), Fixture.IsReady())) return false;
 	Fixture.SetQuota(4, 100, 95);
@@ -508,11 +507,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPourDeadlineFirstTest,
 
 bool FDigetherPourDeadlineFirstTest::RunTest(const FString& Parameters)
 {
-	// T63(마감 먼저): 레버 게이지 완료가 먼저면 진행 중인 붓기를 멈추고 이후 붓기는 차감 없이 거절한다.
+	// T63(마감 먼저): 레버 게이지 완료가 먼저면 진행 중 붓기 중단, 이후 붓기는 차감 없이 거절
 	FPourWorld Fixture(*this);
 	if (!TestTrue(TEXT("붓기 시험 월드 준비"), Fixture.IsReady())) return false;
 	Fixture.SetQuota(4, 100, 0);
-	// 레버가 차는 동안 붓기 주기가 오지 않게 간격을 길게 둔다(시험 값).
+	// 레버가 차는 동안 붓기 주기가 오지 않게 긴 간격(시험 값)
 	FDigetherPourIntegrationAccess::SetPourInterval(*Fixture.GetMode(), 1000.f);
 	FPourPlayer Operator = Fixture.AddPlayer(LeverOperatorLocation, FRotator::ZeroRotator, 0);
 	FPourPlayer A = Fixture.AddPourer(PourerOffsetA, 100);
@@ -547,7 +546,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPourSameFrameTest,
 
 bool FDigetherPourSameFrameTest::RunTest(const FString& Parameters)
 {
-	// T78: 마지막 붓기 주기와 레버 게이지 완료가 같은 처리 시점이면 붓기를 먼저 판정한다.
+	// T78: 마지막 붓기 주기와 레버 게이지 완료가 같은 처리 시점이면 붓기 먼저 판정
 	const float Duration = DigetherElevatorRules::CalculateDepartureDuration(4, FDigetherElevatorTuning());
 	constexpr float FinalStepSeconds = 0.1f;
 	for (const bool bReachesTarget : { true, false })
@@ -558,7 +557,7 @@ bool FDigetherPourSameFrameTest::RunTest(const FString& Parameters)
 			return false;
 		}
 		Fixture.SetQuota(4, 100, bReachesTarget ? 95 : 0);
-		// 붓기 첫 주기와 게이지 완료가 같은 Tick에 오도록 간격을 게이지 길이와 같게 둔다(시험 값).
+		// 붓기 첫 주기와 게이지 완료를 같은 Tick에 맞추려 간격 = 게이지 길이(시험 값)
 		FDigetherPourIntegrationAccess::SetPourInterval(*Fixture.GetMode(), Duration);
 		FPourPlayer Operator = Fixture.AddPlayer(LeverOperatorLocation, FRotator::ZeroRotator, 0);
 		FPourPlayer A = Fixture.AddPourer(PourerOffsetA, 100);
@@ -600,7 +599,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPourSignalAndRestoreTest,
 
 bool FDigetherPourSignalAndRestoreTest::RunTest(const FString& Parameters)
 {
-	// T79: 신호기는 시험 경계대로 바뀌고, 남은 바닥 금화는 저장 복원(이어하기·공통 로딩 실패 복귀와 같은 복원 경로)으로 돌아온다.
+	// T79: 신호기는 시험 경계대로 변경, 남은 바닥 금화는 저장 복원(이어하기·공통 로딩 실패 복귀와 같은 경로)으로 복귀
 	FPourWorld Fixture(*this);
 	if (!TestTrue(TEXT("붓기 시험 월드 준비"), Fixture.IsReady())) return false;
 	FPourPlayer A = Fixture.AddPourer(PourerOffsetA, 100);
@@ -644,7 +643,7 @@ bool FDigetherPourSignalAndRestoreTest::RunTest(const FString& Parameters)
 	}
 	TestEqual(TEXT("저장 금액"), Snapshot.FloorCoins[0].AmountCredits, 5);
 
-	// 저장 뒤 금화를 주웠어도 복원하면 저장 시점의 금화가 다시 생긴다. 누가 줍던 잔고도 저장 시점으로 돌아간다.
+	// 저장 뒤 주운 금화도 복원 시 저장 시점대로 재생성, 잔고도 저장 시점으로 복귀
 	TestEqual(TEXT("저장 뒤 줍기"), Fixture.GetMode()->PickupFloorCoin(B.Controller, Coins[0]).Result, EDigetherEconomyResult::Success);
 	TestTrue(TEXT("주운 뒤 금화 없음"), Fixture.FloorCoins().IsEmpty());
 	if (!TestTrue(TEXT("저장 진행 복원"), FDigetherPourIntegrationAccess::Restore(*Fixture.GetMode(), Snapshot))) return false;
@@ -659,14 +658,14 @@ bool FDigetherPourSignalAndRestoreTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("복원된 신호기 색(새 사이클 0)"), Fixture.GetQuota()->GetPaymentSignal(), EDigetherPaymentSignal::Red);
 	TestEqual(TEXT("복원은 달성 연출을 다시 재생하지 않음"), CompletedCount, 1);
 
-	// 다른 금화가 있던 상태에 복원해도 저장대로만 남는다.
+	// 다른 금화가 있던 상태에 복원해도 저장 내용만 남음
 	FDigetherSaveSnapshot Empty = Snapshot;
 	Empty.FloorCoins.Reset();
 	TestTrue(TEXT("금화 없는 저장 복원"), FDigetherPourIntegrationAccess::Restore(*Fixture.GetMode(), Empty));
 	TestTrue(TEXT("기존 금화 제거"), Fixture.FloorCoins().IsEmpty());
 	TestTrue(TEXT("금화 저장 다시 복원"), FDigetherPourIntegrationAccess::Restore(*Fixture.GetMode(), Snapshot));
 
-	// 게임 오버 귀환 확정은 바닥 금화를 비운다(실패 사건·크레딧 중 줍기·붓기 불가).
+	// 게임 오버 귀환 확정 시 바닥 금화 비움(실패 사건·크레딧 중 줍기·붓기 불가)
 	ADigetherFloorCoinActor* Stale = Fixture.FloorCoins().Num() == 1 ? Fixture.FloorCoins()[0] : nullptr;
 	FDigetherPourIntegrationAccess::CloseHubTradingForGameOver(*Fixture.GetMode());
 	TestTrue(TEXT("게임 오버 확정 뒤 금화 없음"), Fixture.FloorCoins().IsEmpty());
@@ -681,7 +680,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPourReplicationPrivacyTest,
 
 bool FDigetherPourReplicationPrivacyTest::RunTest(const FString& Parameters)
 {
-	// S24: 공동 인정액·바닥 금화 금액은 어떤 복제 프로퍼티에도 싣지 않는다.
+	// S24: 공동 인정액·바닥 금화 금액은 복제 프로퍼티에 미포함
 	const auto ContainsDepositedTotal = [](const FProperty* Property)
 	{
 		if (Property->GetFName() == TEXT("DepositedCredits"))

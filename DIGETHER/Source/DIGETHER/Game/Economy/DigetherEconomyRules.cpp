@@ -35,7 +35,7 @@ bool FDigetherEconomyRules::IsValidWalletState(const FDigetherWalletState& State
 
 bool FDigetherEconomyRules::IsValidQuotaState(const FDigetherQuotaState& State)
 {
-	// 전체 일차와 기간 일차의 관계(전체 >= 기간)는 여기서 강제하지 않는다. 값의 형태만 본다(헤더 주석 참고).
+	// 전체·기간 일차 관계(전체 >= 기간)는 비강제, 값 형태만 검사(헤더 주석 참고)
 	return State.Day >= 0 && State.TargetCredits >= 0 && State.DepositedCredits >= 0
 		&& State.DepositedCredits <= State.TargetCredits && State.PeriodGeneration >= 0 && State.TotalDay >= 0;
 }
@@ -48,13 +48,19 @@ bool FDigetherEconomyRules::IsValidPublicState(const FDigetherQuotaPublicState& 
 	}
 
 	TSet<FString> PlayerKeys;
+	PlayerKeys.Reserve(State.HiddenReveals.Num());
 	for (const FDigetherHiddenRevealEntry& Entry : State.HiddenReveals)
 	{
-		if (Entry.PlayerKey.IsEmpty() || Entry.HiddenLifetimeCredits < 0 || PlayerKeys.Contains(Entry.PlayerKey))
+		if (Entry.PlayerKey.IsEmpty() || Entry.HiddenLifetimeCredits < 0)
 		{
 			return false;
 		}
-		PlayerKeys.Add(Entry.PlayerKey);
+		bool bDuplicateKey = false;
+		PlayerKeys.Add(Entry.PlayerKey, &bDuplicateKey);
+		if (bDuplicateKey)
+		{
+			return false;
+		}
 	}
 	return true;
 }
@@ -110,7 +116,7 @@ FDigetherQuotaPublicState FDigetherEconomyRules::MakeClientQuotaPublicState(cons
 	FDigetherQuotaPublicState Public;
 	Public.Quota.Day = State.Day;
 	Public.Quota.TargetCredits = State.TargetCredits;
-	// 클라이언트는 정확한 누적 인정액을 받지 않는다. 진행도는 PaymentSignal로만 표시한다.
+	// 클라이언트는 정확한 누적 인정액 미수신, 진행도는 PaymentSignal로만 표시
 	Public.Quota.DepositedCredits = 0;
 	Public.Quota.PeriodGeneration = State.PeriodGeneration;
 	Public.Quota.TotalDay = State.TotalDay;
@@ -155,7 +161,7 @@ FDigetherQuotaState FDigetherEconomyRules::MakeInitialQuotaState(const FDigether
 	State.TargetCredits = FMath::Max(0, RunTuning.InitialQuotaCredits);
 	State.DepositedCredits = 0;
 	State.PeriodGeneration = 0;
-	// 새 게임은 전체 1일차·기간 1일차로 시작한다.
+	// 새 게임은 전체·기간 모두 1일차
 	State.TotalDay = FirstDay;
 	return State;
 }
@@ -203,7 +209,7 @@ FDigetherRunSettlementResult FDigetherEconomyRules::CalculateRunSettlement(int32
 	}
 
 	const int32 CargoCredits = FMath::Max(0, GeneralCargoCredits);
-	// 전멸·출발 0일 때 몫 0. 살아 돌아온 인원은 분모를 바꾸지 않는다.
+	// 전멸·출발 0이면 몫 0, 분모는 생존 인원이 아닌 출발 인원
 	if (DepartureCount > 0 && SurvivorCount > 0)
 	{
 		Result.GeneralShareCredits = static_cast<int32>(static_cast<int64>(CargoCredits) / DepartureCount);
@@ -223,7 +229,7 @@ FDigetherRunSettlementResult FDigetherEconomyRules::CalculateRunSettlement(int32
 		}
 		else if (Player.bDied && Player.bCorpseRecovered)
 		{
-			// D25 확정: 전멸(생존 귀환 0명)이어도 유효하게 회수된 시체의 복구금은 지급한다.
+			// D25 확정: 전멸(생존 귀환 0명)이어도 유효하게 회수된 시체의 복구금 지급
 			Payment.CorpseRefundCredits = CalculateCorpseRefund(Player.PreDeathBalanceCredits, CorpseRefundPercent);
 		}
 		Result.Players.Add(Payment);
@@ -267,7 +273,7 @@ FDigetherWalletUpdateResult FDigetherEconomyRules::ApplyRunSettlement(const FDig
 		Settlement.CorpseRefundCredits);
 	Result.State.LastRunPayoutCredits = Settlement.PayoutCredits;
 	Result.State.HiddenLifetimeCredits = AddCredits(State.HiddenLifetimeCredits, Settlement.HiddenCredits);
-	// 기획 S33: 결과 통계는 지급할 때마다 누적한다. 복구금은 새로 번 돈이 아니므로 획득액에 넣지 않고 따로 쌓는다.
+	// 기획 S33: 결과 통계는 지급마다 누적, 복구금은 새로 번 돈이 아니므로 획득액과 따로 누적
 	Result.State.LifetimeEarnedCredits = AddCredits(State.LifetimeEarnedCredits, Settlement.PayoutCredits);
 	Result.State.LifetimeCorpseRefundCredits = AddCredits(State.LifetimeCorpseRefundCredits,
 		Settlement.CorpseRefundCredits);
@@ -313,12 +319,12 @@ FDigetherPourTickResult FDigetherEconomyRules::CalculatePourTick(const FDigether
 	const int64 CandidateCredits = static_cast<int64>(SpentCredits) * EfficiencyPercent / PercentDenominator;
 	if (CandidateCredits == 0)
 	{
-		// 효율 내림으로 인정이 0인 주기는 돈만 사라지므로 차감하지 않는다.
+		// 효율 내림으로 인정 0인 주기는 돈만 사라지므로 차감 없음
 		Result.Result = EDigetherEconomyResult::DepositCreditTooSmall;
 		return Result;
 	}
 	const bool bTargetCompleted = CandidateCredits >= RemainingCredits;
-	// 세대를 재사용하면 이전 기간의 붓기와 구별할 수 없다. 변경 전에 거절한다.
+	// 세대 재사용 시 이전 기간 붓기와 구별 불가, 변경 전 거절
 	if (bTargetCompleted && QuotaState.PeriodGeneration == MAX_int32)
 	{
 		return Result;
@@ -327,7 +333,7 @@ FDigetherPourTickResult FDigetherEconomyRules::CalculatePourTick(const FDigether
 	int32 CreditedCredits = static_cast<int32>(CandidateCredits);
 	if (CandidateCredits > RemainingCredits)
 	{
-		// 남은 목표를 채우는 최소 실제 금액 N = ceil(100R / e)다. floor(S·e/100) > R이므로 N <= S가 보장된다.
+		// 남은 목표를 채우는 최소 실제 금액 N = ceil(100R / e), floor(S·e/100) > R이므로 N <= S 보장
 		ConsumedCredits = static_cast<int32>((static_cast<int64>(RemainingCredits) * PercentDenominator
 			+ EfficiencyPercent - 1) / EfficiencyPercent);
 		CreditedCredits = RemainingCredits;
@@ -345,7 +351,7 @@ FDigetherPourTickResult FDigetherEconomyRules::CalculatePourTick(const FDigether
 	{
 		Result.QuotaState.TargetCredits = CalculateNextTargetCredits(QuotaState.TargetCredits, Tuning);
 		Result.QuotaState.DepositedCredits = 0;
-		// 새 기간은 기간 일차만 1로 되돌린다. 탐사를 끝낸 것이 아니므로 전체 일차는 그대로다(기획 02 개요 5·6행).
+		// 새 기간은 기간 일차만 1로 복귀, 탐사 종료가 아니므로 전체 일차 유지(기획 02 개요 5·6행)
 		Result.QuotaState.Day = FirstDay;
 		Result.QuotaState.PeriodGeneration = static_cast<int32>(static_cast<int64>(QuotaState.PeriodGeneration) + 1);
 	}
@@ -374,8 +380,8 @@ FDigetherDayAdvanceResult FDigetherEconomyRules::AdvanceDay(const FDigetherQuota
 	{
 		return Result;
 	}
-	// 게임상 일차 상한·게임 오버는 판정하지 않고 자료형 표현 상한만 포화한다.
-	// 탐사 종료 확정 한 번에 기간 일차와 전체 일차가 각각 하루 오른다(공유 사양 "일차 증가").
+	// 게임상 일차 상한·게임 오버는 판정하지 않고 자료형 상한만 포화
+	// 탐사 종료 확정 1회에 기간·전체 일차 각각 +1(공유 사양 "일차 증가")
 	Result.State.Day = ClampCredits(static_cast<int64>(State.Day) + 1);
 	Result.State.TotalDay = ClampCredits(static_cast<int64>(State.TotalDay) + 1);
 	Result.Result = EDigetherEconomyResult::Success;

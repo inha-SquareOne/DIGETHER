@@ -14,11 +14,6 @@ class DIGETHER_API UDigetherDepositPanelWidget : public UUserWidget
 {
 	GENERATED_BODY()
 
-public:
-	void SetStatus(const FText& Message);
-	void SetCanSubmit(bool bEnabled);
-	void FocusAmountInput();
-
 protected:
 	virtual void NativeOnInitialized() override;
 

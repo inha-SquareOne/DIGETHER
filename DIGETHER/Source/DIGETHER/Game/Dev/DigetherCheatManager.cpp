@@ -12,8 +12,8 @@ namespace
 
 	void RegisterSaveCommand(const FName Name, const FSaveRequest Request)
 	{
-		// 경로는 명령을 실행한 로컬 Controller 조회에만 사용한다. 인증·재접속 ID와 무관하다.
-		// 처리기는 UObject를 캡처하지 않아 월드 종료 후에도 이전 객체를 붙잡지 않는다.
+		// 경로는 명령 실행 로컬 Controller 조회 전용, 인증·재접속 ID와 무관
+		// UObject 미캡처, 월드 종료 후 이전 객체 참조 방지
 		DigetherDev::Register(Name, [Request](const TArray<FString>& Args)
 		{
 			ADigetherGameplayPlayerController* Controller = Args.Num() == 1
@@ -29,11 +29,20 @@ namespace
 }
 #endif
 
+namespace
+{
+	// 저장 명령 처리기가 받는 인자, Controller 경로 하나 또는 빈 배열
+	TArray<FString> MakeControllerArgs(const APlayerController* Controller)
+	{
+		return IsValid(Controller) ? TArray<FString>{ Controller->GetPathName() } : TArray<FString>{};
+	}
+}
+
 void UDigetherCheatManager::InitCheatManager()
 {
 	Super::InitCheatManager();
 #if !UE_BUILD_SHIPPING
-	// 클라이언트에는 GameMode가 없으므로 로컬 CheatManager가 자기 프로세스의 처리기를 등록한다.
+	// 클라이언트에는 GameMode가 없어 로컬 CheatManager가 자기 프로세스 처리기 등록
 	RegisterSaveCommand(TEXT("DigetherSave"), &ADigetherGameplayPlayerController::RequestManualSave);
 	RegisterSaveCommand(TEXT("DigetherLoad"), &ADigetherGameplayPlayerController::RequestLoadGame);
 	RegisterSaveCommand(TEXT("DigetherNewGame"), &ADigetherGameplayPlayerController::RequestNewGame);
@@ -71,21 +80,15 @@ void UDigetherCheatManager::DigetherRerunSettlement()
 
 void UDigetherCheatManager::DigetherSave()
 {
-	const APlayerController* Controller = GetOuterAPlayerController();
-	DigetherDev::Execute(TEXT("DigetherSave"), IsValid(Controller)
-		? TArray<FString>{ Controller->GetPathName() } : TArray<FString>{});
+	DigetherDev::Execute(TEXT("DigetherSave"), MakeControllerArgs(GetOuterAPlayerController()));
 }
 
 void UDigetherCheatManager::DigetherLoad()
 {
-	const APlayerController* Controller = GetOuterAPlayerController();
-	DigetherDev::Execute(TEXT("DigetherLoad"), IsValid(Controller)
-		? TArray<FString>{ Controller->GetPathName() } : TArray<FString>{});
+	DigetherDev::Execute(TEXT("DigetherLoad"), MakeControllerArgs(GetOuterAPlayerController()));
 }
 
 void UDigetherCheatManager::DigetherNewGame()
 {
-	const APlayerController* Controller = GetOuterAPlayerController();
-	DigetherDev::Execute(TEXT("DigetherNewGame"), IsValid(Controller)
-		? TArray<FString>{ Controller->GetPathName() } : TArray<FString>{});
+	DigetherDev::Execute(TEXT("DigetherNewGame"), MakeControllerArgs(GetOuterAPlayerController()));
 }

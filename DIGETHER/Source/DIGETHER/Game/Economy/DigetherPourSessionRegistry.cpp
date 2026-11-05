@@ -45,7 +45,7 @@ EDigetherEconomyResult FDigetherPourSessionRegistry::BeginPour(const FString& Pl
 	Session.StartSequence = NextStartSequence++;
 	if (Index != INDEX_NONE)
 	{
-		// 같은 사람의 이전 세션은 남기지 않는다. 한 사람은 한 정산기에만 붓는다.
+		// 한 사람은 한 정산기에만 붓기, 같은 사람의 이전 세션 교체
 		Sessions[Index] = Session;
 	}
 	else
@@ -94,7 +94,7 @@ TArray<FDigetherPourDueTick> FDigetherPourSessionRegistry::CollectDueTicks(const
 	}
 	for (const FDigetherPourSession& Session : Sessions)
 	{
-		// 세션마다 상한까지만 펼친다. 긴 정지 뒤에도 한 프레임에 무한히 쌓이지 않는다.
+		// 세션마다 상한까지만 펼쳐 긴 정지 뒤에도 한 프레임 누적 제한
 		double Scheduled = Session.NextTickServerSeconds;
 		for (int32 Count = 0; Count < MaxTicks && Scheduled <= NowServerSeconds; ++Count)
 		{
@@ -105,7 +105,7 @@ TArray<FDigetherPourDueTick> FDigetherPourSessionRegistry::CollectDueTicks(const
 			Scheduled += IntervalSeconds;
 		}
 	}
-	// 기획 S24 ①: 동시에 붓는 사람이 여럿이면 호스트가 처리한 순서대로 반영한다. 예정 시각, 같으면 먼저 시작한 순서다.
+	// 기획 S24 ①: 동시 붓기는 호스트 처리 순서대로 반영, 예정 시각 우선, 같으면 먼저 시작한 순서
 	Due.StableSort([](const FDigetherPourDueTick& Left, const FDigetherPourDueTick& Right)
 	{
 		return Left.ScheduledServerSeconds != Right.ScheduledServerSeconds

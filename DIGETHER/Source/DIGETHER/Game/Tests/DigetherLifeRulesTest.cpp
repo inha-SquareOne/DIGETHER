@@ -170,7 +170,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherLifeDeathDropTest,
 
 bool FDigetherLifeDeathDropTest::RunTest(const FString& Parameters)
 {
-	// 테스트 픽스처이며 최종 기획 값이 아니다.
+	// 테스트 픽스처, 기획 값 아님
 	const FVector PlayerLocation(12.0, 34.0, 56.0);
 	const FVector DropLocation(78.0, 90.0, 12.0);
 	FDigetherLifeDropItem Equipment;
@@ -296,7 +296,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherLifeEmergencyEscapeTest,
 
 bool FDigetherLifeEmergencyEscapeTest::RunTest(const FString& Parameters)
 {
-	// 테스트 픽스처이며 최종 기획 값이 아니다. 실제 한도는 런 튜닝 스냅샷에서 전달한다.
+	// 테스트 픽스처, 기획 값 아님, 실제 한도는 런 튜닝 스냅샷에서 전달
 	constexpr float FixtureLimitKg = 10.f;
 	FDigetherEmergencyCarriedItem First;
 	First.WeightKg = 4.f;

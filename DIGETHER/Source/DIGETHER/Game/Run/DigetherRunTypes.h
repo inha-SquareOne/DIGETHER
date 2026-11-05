@@ -143,7 +143,7 @@ struct DIGETHER_API FDigetherRunTerminationResult
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Run")
 	bool bEjectCargo = false;
 
-	// 입력과 같은 순서다. 식별자 검증 실패 시 일부 플레이어만 처리하지 않고 배열 전체를 비운다.
+	// 입력과 같은 순서, 식별자 검증 실패 시 일부만 처리하지 않고 배열 전체를 비움
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Run")
 	TArray<FDigetherRunPlayerOutcome> Players;
 };

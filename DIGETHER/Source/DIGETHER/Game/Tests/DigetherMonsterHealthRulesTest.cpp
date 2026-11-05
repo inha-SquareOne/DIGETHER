@@ -1,9 +1,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Game/Monster/DigetherMonsterHealthRules.h"
+#include "Game/Tests/DigetherTestValues.h"
 #include "Misc/AutomationTest.h"
-
-#include <cmath>
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherMonsterHealthRulesTest,
 	"DIGETHER.Game.Monster.HealthRules", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -12,7 +11,7 @@ bool FDigetherMonsterHealthRulesTest::RunTest(const FString& Parameters)
 {
 	using namespace DigetherMonsterHealthRules;
 
-	// 테스트 픽스처이며 몬스터의 최종 기획 체력·피해량이 아니다.
+	// 테스트 픽스처, 몬스터 기획 체력·피해량 아님
 	constexpr float FixtureMaxHealth = 100.f;
 	constexpr float FixtureDamage = 25.f;
 	FDigetherMonsterHealthState State;
@@ -32,7 +31,7 @@ bool FDigetherMonsterHealthRulesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("사망 후 피해는 다시 사망시키지 않음"),
 		ApplyDamage(State, FixtureDamage) == EDigetherMonsterDamageResult::IgnoredAlreadyDead);
 	TestTrue(TEXT("사망 여부를 잘못된 피해량보다 먼저 검사"),
-		ApplyDamage(State, NAN) == EDigetherMonsterDamageResult::IgnoredAlreadyDead);
+		ApplyDamage(State, DigetherTestValues::NaN()) == EDigetherMonsterDamageResult::IgnoredAlreadyDead);
 	TestEqual(TEXT("사망 후 체력 유지"), State.CurrentHealth, 0.f);
 
 	TryCreateState(true, FixtureMaxHealth, State);
@@ -53,7 +52,7 @@ bool FDigetherMonsterHealthRulesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("연속 피해 후 체력 0"), State.CurrentHealth, 0.f);
 	TestTrue(TEXT("연속 피해 후 사망 상태 유지"), State.Life == EDigetherMonsterLife::Dead);
 
-	const float InvalidAmounts[] = { 0.f, -FixtureDamage, NAN, INFINITY, -INFINITY };
+	const float InvalidAmounts[] = { 0.f, -FixtureDamage, DigetherTestValues::NaN(), DigetherTestValues::Infinity(), -DigetherTestValues::Infinity() };
 	TryCreateState(true, FixtureMaxHealth, State);
 	for (const float Amount : InvalidAmounts)
 	{
@@ -78,7 +77,7 @@ bool FDigetherMonsterHealthRulesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("불사는 피해 후에도 체력 0"), State.CurrentHealth, 0.f);
 	TestTrue(TEXT("체력 0의 불사 초기화"), TryCreateState(false, 0.f, State));
 
-	const float InvalidMaxHealth[] = { 0.f, -FixtureMaxHealth, NAN, INFINITY, -INFINITY };
+	const float InvalidMaxHealth[] = { 0.f, -FixtureMaxHealth, DigetherTestValues::NaN(), DigetherTestValues::Infinity(), -DigetherTestValues::Infinity() };
 	for (const float MaxHealth : InvalidMaxHealth)
 	{
 		TryCreateState(true, FixtureMaxHealth, State);
@@ -90,7 +89,7 @@ bool FDigetherMonsterHealthRulesTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("초기화 실패 상태는 피해로 사망하지 않음"),
 			ApplyDamage(State, FixtureDamage) == EDigetherMonsterDamageResult::IgnoredNotKillable);
 	}
-	const float InvalidNonKillableMaxHealth[] = { -FixtureMaxHealth, NAN, INFINITY, -INFINITY };
+	const float InvalidNonKillableMaxHealth[] = { -FixtureMaxHealth, DigetherTestValues::NaN(), DigetherTestValues::Infinity(), -DigetherTestValues::Infinity() };
 	for (const float MaxHealth : InvalidNonKillableMaxHealth)
 	{
 		TestFalse(TEXT("불사도 손상된 최대 체력은 초기화 실패"), TryCreateState(false, MaxHealth, State));
@@ -98,7 +97,7 @@ bool FDigetherMonsterHealthRulesTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("불사 초기화 실패도 안전한 체력 유지"), State.CurrentHealth, 0.f);
 	}
 
-	const float InvalidCurrentHealth[] = { 0.f, -FixtureDamage, FixtureMaxHealth + FixtureDamage, NAN, INFINITY, -INFINITY };
+	const float InvalidCurrentHealth[] = { 0.f, -FixtureDamage, FixtureMaxHealth + FixtureDamage, DigetherTestValues::NaN(), DigetherTestValues::Infinity(), -DigetherTestValues::Infinity() };
 	for (const float CurrentHealth : InvalidCurrentHealth)
 	{
 		TryCreateState(true, FixtureMaxHealth, State);

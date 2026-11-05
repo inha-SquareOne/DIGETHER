@@ -10,7 +10,7 @@ class UEditableTextBox;
 class UDigetherButtonWidget;
 class UDigetherRoomListItem;
 
-// '방 참가' 패널: 방 코드 입력과 공개 방 목록. Steam 초대 수락은 세션 서브시스템이 직접 처리한다.
+// 방 참가 패널(방 코드 입력·공개 방 목록), Steam 초대 수락은 세션 서브시스템 담당
 UCLASS(Abstract)
 class DIGETHER_API UDigetherJoinRoomPanelWidget : public UCommonActivatableWidget
 {

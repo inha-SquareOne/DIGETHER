@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "DigetherRoomTypes.generated.h"
 
-// 방 목록 한 줄에 표시할 값. Index는 마지막 검색 결과의 위치다.
+// 방 목록 한 줄 표시 값, Index는 마지막 검색 결과 내 위치
 USTRUCT(BlueprintType)
 struct FDigetherRoomInfo
 {

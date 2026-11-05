@@ -9,12 +9,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherEconomySettlementTest,
 
 bool FDigetherEconomySettlementTest::RunTest(const FString& Parameters)
 {
-	// 기본값 없는 런 스냅샷에 기존 시험 입력을 명시한다.
+	// 기본값 없는 런 스냅샷이라 시험 입력 명시
 	FDigetherRunTuning RunTuning;
 	RunTuning.DeathLossPercent = 100;
 	RunTuning.CorpseRefundPercent = 50;
 	RunTuning.InitialQuotaCredits = 100;
-	// 고정된 프로토타입 Q01~Q09의 산식 입력이며 최종 기획 수치가 아니다.
+	// 고정 프로토타입 Q01~Q09 산식 입력, 최종 기획 수치 아님
 	struct FDigetherSettlementCase
 	{
 		const TCHAR* Name;
@@ -139,7 +139,7 @@ bool FDigetherEconomySettlementTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("전멸 결과 인원 수"), Wipeout.Players.Num(), 2);
 	if (Wipeout.Players.Num() == 2)
 	{
-		// D25 확정(작업리스트 1.1.0): 전멸이어도 회수 목록에 있고 지상에 도착한 시체는 복구금을 받는다(101의 50% 버림).
+		// D25 확정(작업리스트 1.1.0): 전멸이어도 회수 목록에 있고 지상 도착한 시체는 복구금 지급(101의 50% 버림)
 		CheckPlayer(TEXT("전멸 첫 사망자"), Wipeout.Players[0], 0, 0, 0, 50);
 		CheckPlayer(TEXT("전멸 둘째 사망자"), Wipeout.Players[1], 0, 0, 0, 50);
 	}

@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Game/Elevator/DigetherElevatorRules.h"
+#include "Game/Tests/DigetherTestValues.h"
 #include "Misc/AutomationTest.h"
 #include "UObject/UnrealType.h"
 
@@ -12,8 +13,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherElevatorDoorClosingTest,
 bool FDigetherElevatorDoorClosingTest::RunTest(const FString& Parameters)
 {
 	using namespace DigetherElevatorRules;
-	// 테스트 픽스처이며 최종 기획 문 닫힘 시간·운행 시간이 아니다.
-	// 거점·갱도 닫힘 시간을 서로 다르게 두어 각 문이 자기 시간을 쓰는지 함께 검사한다.
+	// 테스트 픽스처, 기획 문 닫힘·운행 시간 아님
+	// 거점·갱도 닫힘 시간을 달리 두어 각 문의 자기 시간 사용 확인
 	FDigetherElevatorTuning Tuning;
 	Tuning.HubDoorCloseSeconds = 2.f;
 	Tuning.MineDoorCloseSeconds = 5.f;
@@ -41,7 +42,7 @@ bool FDigetherElevatorDoorClosingTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("갱도 문은 갱도 닫힘 시간"), GetDoorCloseSeconds(EDigetherElevatorPhase::BottomWaiting, Tuning), 5.f);
 	TestEqual(TEXT("대기 단계가 아니면 닫힘 시간 0"), GetDoorCloseSeconds(EDigetherElevatorPhase::Ascending, Tuning), 0.f);
 
-	// 거점: 출발 게이지 완료 → 문 닫힘 → 닫힘 완료 → 첫 하강.
+	// 거점: 출발 게이지 완료 → 문 닫힘 → 닫힘 완료 → 첫 하강
 	Apply(EDigetherElevatorCommand::BeginDoorClose, 0.f, EDigetherElevatorPhase::DoorClosing, EDigetherElevatorResult::Success);
 	TestEqual(TEXT("거점 문 닫힘 시작 단계 기록"), State.DoorOriginPhase, EDigetherElevatorPhase::HubWaiting);
 	TestEqual(TEXT("거점 문 닫힘 중 위치는 상부"), CalculateTravelProgress(State, TravelSeconds), 1.f);
@@ -70,14 +71,14 @@ bool FDigetherElevatorDoorClosingTest::RunTest(const FString& Parameters)
 	Rejected = Transition(State, EDigetherElevatorCommand::ReopenDoor, 0.f, TripLimit, TravelSeconds, Tuning);
 	TestEqual(TEXT("문 닫힘이 아니면 재개방 거절"), Rejected.Result, EDigetherElevatorResult::InvalidPhase);
 
-	// 거점 출발 실패: 문을 다시 열면 출발 전 대기로 돌아간다.
+	// 거점 출발 실패: 문 재개방 시 출발 전 대기로 복귀
 	State = FDigetherElevatorState();
 	Apply(EDigetherElevatorCommand::BeginDoorClose, 0.f, EDigetherElevatorPhase::DoorClosing, EDigetherElevatorResult::Success);
 	Apply(EDigetherElevatorCommand::AdvanceTime, Tuning.HubDoorCloseSeconds, EDigetherElevatorPhase::DoorClosing, EDigetherElevatorResult::DoorClosed);
 	Apply(EDigetherElevatorCommand::ReopenDoor, 0.f, EDigetherElevatorPhase::HubWaiting, EDigetherElevatorResult::Success);
 	TestTrue(TEXT("거점 재개방은 기본 거점 상태"), SameState(FDigetherElevatorState(), State));
 
-	// 갱도: 문 닫힘 중 무게 초과 재개방은 하부 대기로 돌아가고 상승 횟수에 넣지 않는다.
+	// 갱도: 문 닫힘 중 무게 초과 재개방은 하부 대기로 복귀, 상승 횟수 미포함
 	State = FDigetherElevatorState();
 	State.Phase = EDigetherElevatorPhase::BottomWaiting;
 	State.CompletedAscents = 1;
@@ -98,14 +99,14 @@ bool FDigetherElevatorDoorClosingTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("재개방은 하부 대기 경과 0"), State.PhaseElapsedSeconds, 0.f);
 	TestEqual(TEXT("재개방은 문 시작 단계 초기화"), State.DoorOriginPhase, EDigetherElevatorPhase::HubWaiting);
 
-	// 갱도: 닫힘 완료 뒤 상승. 마지막 편이면 최종 상승이다.
+	// 갱도: 닫힘 완료 뒤 상승, 마지막 편이면 최종 상승
 	Apply(EDigetherElevatorCommand::BeginDoorClose, 0.f, EDigetherElevatorPhase::DoorClosing, EDigetherElevatorResult::Success);
 	Apply(EDigetherElevatorCommand::AdvanceTime, Tuning.MineDoorCloseSeconds, EDigetherElevatorPhase::DoorClosing, EDigetherElevatorResult::DoorClosed);
 	Apply(EDigetherElevatorCommand::RequestAscent, 0.f, EDigetherElevatorPhase::FinalAscent, EDigetherElevatorResult::Success);
 	TestEqual(TEXT("상승 출발은 경과 0"), State.PhaseElapsedSeconds, 0.f);
 	TestEqual(TEXT("상승 출발은 성공 횟수 증가 없음"), State.CompletedAscents, 1);
 
-	// 시간 종료 귀환은 닫힘 도중에도 상승을 시작한다(갱도 대기와 같게 처리).
+	// 시간 종료 귀환은 닫힘 도중에도 상승 시작(갱도 대기와 동일)
 	State = FDigetherElevatorState();
 	State.Phase = EDigetherElevatorPhase::BottomWaiting;
 	Apply(EDigetherElevatorCommand::BeginDoorClose, 0.f, EDigetherElevatorPhase::DoorClosing, EDigetherElevatorResult::Success);
@@ -113,7 +114,7 @@ bool FDigetherElevatorDoorClosingTest::RunTest(const FString& Parameters)
 		EDigetherElevatorResult::Success);
 	Apply(EDigetherElevatorCommand::RequestAscent, 0.f, EDigetherElevatorPhase::Ascending, EDigetherElevatorResult::Success);
 
-	// 손상된 문 상태와 튜닝은 거절하고 상태를 바꾸지 않는다.
+	// 손상된 문 상태·튜닝은 거절, 상태 유지
 	FDigetherElevatorState Corrupted;
 	Corrupted.Phase = EDigetherElevatorPhase::DoorClosing;
 	Corrupted.DoorOriginPhase = EDigetherElevatorPhase::Ascending;
@@ -125,7 +126,7 @@ bool FDigetherElevatorDoorClosingTest::RunTest(const FString& Parameters)
 	Update = Transition(Corrupted, EDigetherElevatorCommand::AdvanceTime, 1.f, TripLimit, TravelSeconds, Tuning);
 	TestEqual(TEXT("상승 기록이 있는 거점 문 닫힘 거절"), Update.Result, EDigetherElevatorResult::InvalidInput);
 	Corrupted.CompletedAscents = 0;
-	Corrupted.PhaseElapsedSeconds = std::nextafter(Tuning.HubDoorCloseSeconds, INFINITY);
+	Corrupted.PhaseElapsedSeconds = std::nextafter(Tuning.HubDoorCloseSeconds, DigetherTestValues::Infinity());
 	Update = Transition(Corrupted, EDigetherElevatorCommand::AdvanceTime, 1.f, TripLimit, TravelSeconds, Tuning);
 	TestEqual(TEXT("닫힘 시간을 넘은 경과 거절"), Update.Result, EDigetherElevatorResult::InvalidInput);
 	FDigetherElevatorState StrayOrigin;
@@ -137,7 +138,7 @@ bool FDigetherElevatorDoorClosingTest::RunTest(const FString& Parameters)
 	MineClosing.Phase = EDigetherElevatorPhase::DoorClosing;
 	MineClosing.DoorOriginPhase = EDigetherElevatorPhase::BottomWaiting;
 	MineClosing.PhaseElapsedSeconds = 1.f;
-	for (const float InvalidSeconds : { 0.f, -1.f, NAN, INFINITY })
+	for (const float InvalidSeconds : { 0.f, -1.f, DigetherTestValues::NaN(), DigetherTestValues::Infinity() })
 	{
 		FDigetherElevatorTuning InvalidHub = Tuning;
 		InvalidHub.HubDoorCloseSeconds = InvalidSeconds;
@@ -153,7 +154,7 @@ bool FDigetherElevatorDoorClosingTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("잘못된 갱도 문 닫힘 시간 튜닝 거절"), Update.Result, EDigetherElevatorResult::InvalidInput);
 		TestEqual(TEXT("잘못된 갱도 튜닝의 갱도 문 진행률 0"), CalculateDoorCloseProgress(MineClosing, InvalidMine), 0.f);
 	}
-	for (const float InvalidSummon : { -1.f, NAN, INFINITY })
+	for (const float InvalidSummon : { -1.f, DigetherTestValues::NaN(), DigetherTestValues::Infinity() })
 	{
 		FDigetherElevatorTuning InvalidTuning = Tuning;
 		InvalidTuning.ChainSummonSeconds = InvalidSummon;
@@ -171,7 +172,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherElevatorDoorOverweightPolicyTest,
 bool FDigetherElevatorDoorOverweightPolicyTest::RunTest(const FString& Parameters)
 {
 	using namespace DigetherElevatorRules;
-	// 테스트 픽스처이며 최종 기획 적재 한도가 아니다.
+	// 테스트 픽스처, 기획 적재 한도 아님
 	constexpr float CapacityKg = 100.f;
 	FDigetherElevatorState HubClosing;
 	HubClosing.Phase = EDigetherElevatorPhase::DoorClosing;
@@ -181,12 +182,12 @@ bool FDigetherElevatorDoorOverweightPolicyTest::RunTest(const FString& Parameter
 	FDigetherElevatorState MineWaiting;
 	MineWaiting.Phase = EDigetherElevatorPhase::BottomWaiting;
 
-	// 기획: 거점 게이지 완료 뒤에는 출발 취소가 없으므로 거점 문은 무게 초과로 다시 열지 않는다.
+	// 기획: 거점 게이지 완료 뒤 출발 취소 없음, 거점 문은 무게 초과로 재개방 안 함
 	TestFalse(TEXT("거점 문 닫힘 중 초과는 재개방하지 않음"), ShouldReopenDoorForOverweight(HubClosing, 101.0, CapacityKg));
 	TestTrue(TEXT("갱도 문 닫힘 중 초과는 재개방"), ShouldReopenDoorForOverweight(MineClosing, 101.0, CapacityKg));
 	TestFalse(TEXT("갱도 문 한도와 같으면 재개방 없음"), ShouldReopenDoorForOverweight(MineClosing, 100.0, CapacityKg));
 	TestFalse(TEXT("문 닫힘이 아니면 재개방 없음"), ShouldReopenDoorForOverweight(MineWaiting, 101.0, CapacityKg));
-	TestFalse(TEXT("비유한 무게는 재개방 근거 아님"), ShouldReopenDoorForOverweight(MineClosing, NAN, CapacityKg));
+	TestFalse(TEXT("비유한 무게는 재개방 근거 아님"), ShouldReopenDoorForOverweight(MineClosing, DigetherTestValues::NaN(), CapacityKg));
 	return true;
 }
 #endif

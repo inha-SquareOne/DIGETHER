@@ -182,7 +182,7 @@ void UDigetherSettingsPanelWidget::Apply()
 	{
 		Settings->SetCameraShakeReduced(Check_ReduceShake->IsChecked());
 	}
-	// ApplySettings는 해상도·품질을 적용한 뒤 GameUserSettings.ini에 저장한다.
+	// ApplySettings가 해상도·품질 적용 후 GameUserSettings.ini 저장
 	Settings->ApplySettings(false);
 	Text_Notice->SetText(LOCTEXT("Applied", "설정을 저장했습니다."));
 }
@@ -191,7 +191,7 @@ void UDigetherSettingsPanelWidget::ResetToDefaults()
 {
 	UDigetherGameUserSettings* Settings = UDigetherGameUserSettings::Get();
 	if (!Settings) return;
-	// 기본값을 화면에만 채우고, 메모리의 설정은 저장된 값으로 되돌린다. '적용'을 눌러야 반영된다.
+	// 기본값은 화면에만 채우고 메모리 설정은 저장값으로 복원, 반영은 적용 시점
 	Settings->SetToDefaults();
 	LoadFromSettings();
 	Settings->LoadSettings(true);

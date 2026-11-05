@@ -4,7 +4,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "DigetherMainMenuGameMode.generated.h"
 
-// 메인 메뉴 맵: 캐릭터 없이 메뉴 화면만 띄운다.
+// 메인 메뉴 맵: 캐릭터 없이 메뉴 화면만 표시
 UCLASS()
 class DIGETHER_API ADigetherMainMenuGameMode : public AGameModeBase
 {

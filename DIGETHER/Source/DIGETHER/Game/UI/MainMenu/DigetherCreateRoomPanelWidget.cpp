@@ -27,7 +27,7 @@ void UDigetherCreateRoomPanelWidget::NativeOnInitialized()
 	}
 }
 
-// CommonUI 스택은 닫힌 패널 인스턴스를 다시 쓰므로 NativeOnInitialized가 아니라 Construct/Destruct 짝에서 구독한다.
+// CommonUI 스택의 닫힌 패널 인스턴스 재사용 대비, NativeOnInitialized 대신 Construct/Destruct 짝에서 구독
 void UDigetherCreateRoomPanelWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -104,7 +104,7 @@ void UDigetherCreateRoomPanelWidget::RefreshSaveSlots()
 		const int32 SlotCount = UDigetherSaveSubsystem::GetMaxSlotCount();
 		for (int32 SlotIndex = 0; SlotIndex < SlotCount; ++SlotIndex)
 		{
-			// 화면 번호는 1부터다. 내부 슬롯 번호(0부터)와 섞지 않는다.
+			// 화면 번호는 1부터, 내부 슬롯 번호(0부터)와 혼용 금지
 			Combo_SaveSlot->AddOption(FText::Format(LOCTEXT("SlotOption", "슬롯 {0}"),
 				FText::AsNumber(SlotIndex + 1)).ToString());
 		}

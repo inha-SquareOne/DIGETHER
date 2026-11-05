@@ -19,7 +19,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogDigetherLobby, Log, All);
 
 namespace
 {
-	// 같은 계정 교체 대기의 정리 확인 주기. 제한 시간(DigetherJoinRules::LoginReplacementTimeoutSeconds)보다 충분히 짧게 둔다.
+	// 같은 계정 교체 대기의 정리 확인 주기, 제한 시간(DigetherJoinRules::LoginReplacementTimeoutSeconds)보다 충분히 짧게
 	constexpr float LobbyLoginReplacementPollSeconds = 0.1f;
 }
 
@@ -29,7 +29,7 @@ ADigetherLobbyGameMode::ADigetherLobbyGameMode()
 	PlayerStateClass = ADigetherLobbyPlayerState::StaticClass();
 	PlayerControllerClass = ADigetherLobbyPlayerController::StaticClass();
 	DefaultPawnClass = nullptr;
-	// 대기실과 게임의 컨트롤러·상태 클래스가 달라 다시 접속시키는 이동을 쓴다.
+	// 대기실과 게임의 컨트롤러·상태 클래스가 달라 재접속 이동 사용
 	bUseSeamlessTravel = false;
 }
 
@@ -49,11 +49,15 @@ void ADigetherLobbyGameMode::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		GetWorldTimerManager().ClearTimer(LoginReplacementTimer);
 	}
-	// PreLoginAsync 계약상 남은 교체 대기의 완료 콜백도 부른 뒤 끝낸다.
-	const FString DuplicateMessage = DigetherJoinRules::MakeRejectionMessage(EDigetherSessionText::AccountAlreadyConnected);
-	for (const FDigetherLoginReplacementQueue::FEntry& Entry : LoginReplacements.TakeAll())
+	// PreLoginAsync 계약상 남은 교체 대기의 완료 콜백도 호출 후 종료
+	const TArray<FDigetherLoginReplacementQueue::FEntry> Remaining = LoginReplacements.TakeAll();
+	if (!Remaining.IsEmpty())
 	{
-		Entry.OnComplete.ExecuteIfBound(DuplicateMessage);
+		const FString DuplicateMessage = DigetherJoinRules::MakeRejectionMessage(EDigetherSessionText::AccountAlreadyConnected);
+		for (const FDigetherLoginReplacementQueue::FEntry& Entry : Remaining)
+		{
+			Entry.OnComplete.ExecuteIfBound(DuplicateMessage);
+		}
 	}
 	Super::EndPlay(EndPlayReason);
 }
@@ -71,7 +75,7 @@ void ADigetherLobbyGameMode::PreLogin(const FString& Options, const FString& Add
 void ADigetherLobbyGameMode::PreLoginAsync(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId,
 	const FOnPreLoginCompleteDelegate& OnComplete)
 {
-	// 엔진 계약(GameModeBase.h): PreLogin 검사와 GameModePreLoginEvent 방송(Super::PreLogin)을 함께 하고 OnComplete를 반드시 부른다.
+	// 엔진 계약(GameModeBase.h): PreLogin 검사와 GameModePreLoginEvent 방송(Super::PreLogin)을 함께 하고 OnComplete는 반드시 호출
 	FString ErrorMessage;
 	Super::PreLogin(Options, Address, UniqueId, ErrorMessage);
 	DigetherJoinRules::EDigetherJoinDecision Decision = DigetherJoinRules::EDigetherJoinDecision::RejectInvalidId;
@@ -86,8 +90,8 @@ void ADigetherLobbyGameMode::PreLoginAsync(const FString& Options, const FString
 		OnComplete.ExecuteIfBound(ErrorMessage);
 		return;
 	}
-	// 기획 C2(2026-11-04 확정): 이전 접속을 끊고 새 접속을 받는다. 이전 연결의 로그아웃(세션 등록 해제·PlayerState 제거)이
-	// 끝난 뒤 승인해야 같은 ID의 PlayerState가 둘이 되거나 늦은 등록 해제가 새 등록을 지우지 않는다.
+	// 기획 C2(2026-11-04 확정): 이전 접속을 끊고 새 접속 수락, 이전 연결 로그아웃(세션 등록 해제·PlayerState 제거)이
+	// 끝난 뒤 승인해야 같은 ID PlayerState 중복이나 늦은 등록 해제의 새 등록 삭제를 방지
 	FDigetherLoginReplacementQueue::FEntry Entry;
 	Entry.UniqueId = UniqueId;
 	Entry.Previous = Previous;
@@ -95,15 +99,18 @@ void ADigetherLobbyGameMode::PreLoginAsync(const FString& Options, const FString
 	Entry.StartSeconds = FPlatformTime::Seconds();
 	TArray<FDigetherLoginReplacementQueue::FEntry> Superseded;
 	LoginReplacements.Add(MoveTemp(Entry), Superseded);
-	const FString DuplicateMessage = DigetherJoinRules::MakeRejectionMessage(EDigetherSessionText::AccountAlreadyConnected);
-	for (const FDigetherLoginReplacementQueue::FEntry& Older : Superseded)
+	if (!Superseded.IsEmpty())
 	{
-		Older.OnComplete.ExecuteIfBound(DuplicateMessage);
+		const FString DuplicateMessage = DigetherJoinRules::MakeRejectionMessage(EDigetherSessionText::AccountAlreadyConnected);
+		for (const FDigetherLoginReplacementQueue::FEntry& Older : Superseded)
+		{
+			Older.OnComplete.ExecuteIfBound(DuplicateMessage);
+		}
 	}
 	if (IsValid(Previous) && GameSession)
 	{
-		// 대기실에는 Pawn과 비활성 PlayerState 재접속 계약이 없어 엔진 KickPlayer를 그대로 쓴다. 새 접속의 PlayerState는
-		// 새로 만들어지므로 준비 상태도 초기화된다. KickPlayer는 원격 연결 컨트롤러만 처리하고 PC를 바로 파괴한다.
+		// 대기실에는 Pawn·비활성 PlayerState 재접속 계약이 없어 엔진 KickPlayer 사용, 새 접속 PlayerState는
+		// 새로 만들어져 준비 상태도 초기화, KickPlayer는 원격 연결 컨트롤러만 처리하고 PC를 바로 파괴
 		const bool bKicked = GameSession->KickPlayer(Previous, FText::GetEmpty());
 		UE_LOG(LogDigetherLobby, Log, TEXT("Duplicate login %s: previous connection %s"),
 			*UniqueId.ToDebugString(), bKicked ? TEXT("kicked") : TEXT("not kicked"));
@@ -131,15 +138,19 @@ void ADigetherLobbyGameMode::PollLoginReplacements()
 	}
 	for (const FDigetherLoginReplacementQueue::FEntry& Entry : Ready)
 	{
-		// 정리 뒤 현재 인원으로 다시 판정한다. 그 사이 같은 ID가 또 들어왔으면 교체를 반복하지 않고 ②로 거절한다.
+		// 정리 뒤 현재 인원으로 재판정, 그 사이 같은 ID가 또 들어왔으면 교체 반복 없이 ②로 거절
 		FString ErrorMessage;
 		EvaluateAdmission(Entry.UniqueId, ErrorMessage, nullptr);
 		Entry.OnComplete.ExecuteIfBound(ErrorMessage);
 	}
+	if (TimedOut.IsEmpty())
+	{
+		return;
+	}
 	const FString DuplicateMessage = DigetherJoinRules::MakeRejectionMessage(EDigetherSessionText::AccountAlreadyConnected);
 	for (const FDigetherLoginReplacementQueue::FEntry& Entry : TimedOut)
 	{
-		// 기획 C4: ②는 이전 접속을 끊지 못한 경우에만 쓴다.
+		// 기획 C4: ②는 이전 접속을 끊지 못한 경우에만 사용
 		UE_LOG(LogDigetherLobby, Warning, TEXT("Duplicate login %s: previous connection not released"), *Entry.UniqueId.ToDebugString());
 		Entry.OnComplete.ExecuteIfBound(DuplicateMessage);
 	}
@@ -183,7 +194,7 @@ DigetherJoinRules::EDigetherJoinDecision ADigetherLobbyGameMode::EvaluateAdmissi
 	APlayerController* PreviousController = nullptr;
 	if (Check.bIdValid && IsValid(GameState))
 	{
-		// PlayerArray에 아직 없는 동시 접속 대기 연결은 이 비교로 검출하지 못한다.
+		// PlayerArray에 아직 없는 동시 접속 대기 연결은 이 비교로 검출 불가
 		for (const APlayerState* Player : GameState->PlayerArray)
 		{
 			if (!IsValid(Player))
@@ -199,14 +210,14 @@ DigetherJoinRules::EDigetherJoinDecision ADigetherLobbyGameMode::EvaluateAdmissi
 			}
 		}
 	}
-	// 호스트 자신(리슨 서버의 로컬 컨트롤러)과 같은 ID면 끊지 않고 ②로 거절한다.
+	// 호스트 자신(리슨 서버 로컬 컨트롤러)과 같은 ID면 끊지 않고 ②로 거절
 	Check.bDuplicateIsLocal = IsValid(PreviousController) && PreviousController->IsLocalController();
 	const DigetherJoinRules::EDigetherJoinDecision Decision = DigetherJoinRules::Evaluate(Check);
 	if (DigetherJoinRules::IsAccepted(Decision))
 	{
 		return Decision;
 	}
-	// 참가자가 자기 언어 문구로 바꿔 보이도록 문구 대신 사유 키를 보낸다. 교체 대기는 대기를 끝내지 못했을 때의 ②다.
+	// 참가자가 자기 언어 문구로 바꾸도록 문구 대신 사유 키 전송, 교체 대기는 대기를 끝내지 못했을 때의 ②
 	ErrorMessage = DigetherJoinRules::MakeRejectionMessage(DigetherJoinRules::GetRejectionText(Decision, Check));
 	if (OutPreviousToReplace != nullptr && IsValid(PreviousController)
 		&& DigetherJoinRules::ShouldDisconnectPreviousConnection(Decision))
@@ -221,7 +232,7 @@ void ADigetherLobbyGameMode::PostLogin(APlayerController* NewPlayer)
 	Super::PostLogin(NewPlayer);
 	if (ADigetherLobbyPlayerState* LobbyState = NewPlayer ? NewPlayer->GetPlayerState<ADigetherLobbyPlayerState>() : nullptr)
 	{
-		// 리슨 서버에서 로컬 컨트롤러는 호스트뿐이다.
+		// 리슨 서버의 로컬 컨트롤러는 호스트뿐
 		LobbyState->SetHost(NewPlayer->IsLocalController());
 		LobbyState->SetReady(NewPlayer->IsLocalController());
 	}
@@ -229,7 +240,7 @@ void ADigetherLobbyGameMode::PostLogin(APlayerController* NewPlayer)
 
 void ADigetherLobbyGameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
 {
-	// 대기실에는 조종할 캐릭터가 없으므로 Pawn을 만들지 않는다.
+	// 대기실에는 조종할 캐릭터가 없어 Pawn 미생성
 }
 
 void ADigetherLobbyGameMode::TryStartGame(APlayerController* Requester)
@@ -237,7 +248,7 @@ void ADigetherLobbyGameMode::TryStartGame(APlayerController* Requester)
 	const ADigetherLobbyPlayerState* RequesterState = Requester ? Requester->GetPlayerState<ADigetherLobbyPlayerState>() : nullptr;
 	const ADigetherLobbyGameState* LobbyState = GetGameState<ADigetherLobbyGameState>();
 	UDigetherSessionSubsystem* Session = UDigetherSessionSubsystem::Get(this);
-	// 화면 버튼은 이미 같은 판정으로 막혀 있다. 콘솔 명령 등 다른 경로를 위해 서버에서 다시 확인한다.
+	// 화면 버튼은 같은 판정으로 이미 막혀 있음, 콘솔 명령 등 다른 경로 대비 서버에서 재확인
 	if (!RequesterState || !RequesterState->IsHost() || !LobbyState || !LobbyState->AreGuestsReady() || !Session)
 	{
 		return;

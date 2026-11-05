@@ -24,8 +24,8 @@ bool UDigetherMonsterDefinition::CollectProblems(TArray<FText>& OutProblems) con
 	{
 		OutProblems.Add(LOCTEXT("KillableRequiresHealth", "처치 가능한 몬스터의 MaxHealth는 0보다 커야 합니다."));
 	}
-	// 불사는 체력을 사용하지 않으므로 유한한 양수 값이 남아 있어도 오류로 취급하지 않는다.
-	// 비유한 값·음수는 처치 가능 여부를 바꿀 때도 안전하게 쓸 수 없으므로 공통으로 거부한다.
+	// 불사는 체력 미사용, 유한한 양수 값이 남아 있어도 허용
+	// 비유한 값·음수는 처치 가능 여부를 바꿀 때도 위험해 공통 거부
 	return OutProblems.Num() == Before;
 }
 

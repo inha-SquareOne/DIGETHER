@@ -10,7 +10,7 @@
 
 namespace
 {
-	// 아래 값은 정산 표시 경계 테스트의 픽스처이며 기획 수치가 아니다.
+	// 정산 표시 경계 테스트 픽스처, 기획 수치 아님
 	FDigetherRunTuning MakeRunResultTuning()
 	{
 		FDigetherRunTuning Tuning;

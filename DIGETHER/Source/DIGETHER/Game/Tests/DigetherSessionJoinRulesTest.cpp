@@ -10,7 +10,7 @@
 
 namespace
 {
-	// 입력으로 주입하는 정원 경계 시험값이다.
+	// 입력으로 주입하는 정원 경계 시험값
 	constexpr int32 JoinRulesFixtureMaxPlayers = 4;
 
 	DigetherJoinRules::FDigetherJoinCheck MakeValidJoinRulesCheck()
@@ -113,7 +113,7 @@ bool FDigetherSessionJoinIdentityPriorityTest::RunTest(const FString& Parameters
 	Check.bIdInRoster = true;
 	Check.bNewJoinLocked = true;
 	Check.ConnectedPlayers = JoinRulesFixtureMaxPlayers;
-	// 기획 C2: 같은 계정은 이전 접속을 끊고 받으므로 첫 시도 결과는 거절이 아니라 교체 대기다.
+	// 기획 C2: 같은 계정은 이전 접속을 끊고 수락, 첫 시도 결과는 거절이 아닌 교체 대기
 	TestTrue(TEXT("중복 연결 교체 대기는 재접속·잠금·정원보다 우선"), Evaluate(Check) == EDigetherJoinDecision::ReplacePrevious);
 	Check.bDuplicateIsLocal = true;
 	TestTrue(TEXT("호스트 자신과 같은 ID는 끊지 않고 중복 거절"), Evaluate(Check) == EDigetherJoinDecision::RejectDuplicate);
@@ -212,7 +212,7 @@ bool FDigetherSessionJoinRejectionMessageTest::RunTest(const FString& Parameters
 	TestFalse(TEXT("사유 키 이름만 있는 문자열은 사유 키가 아님"), TryParseRejectionMessage(DigetherSessionText::GetKey(EDigetherSessionText::RoomFull), Parsed));
 	TestTrue(TEXT("판정을 못 한 문자열은 결과를 바꾸지 않음"), Parsed == EDigetherSessionText::Busy);
 
-	// 인자 자리가 있거나 거절 사유가 아닌 키는 원격 키로 보내지 않는다.
+	// 인자 자리가 있거나 거절 사유가 아닌 키는 원격 키로 전송 금지
 	TestTrue(TEXT("거절 사유가 아닌 키는 JoinFailed로 보냄"),
 		MakeRejectionMessage(EDigetherSessionText::ConnectionFailed) == MakeRejectionMessage(EDigetherSessionText::JoinFailed));
 
@@ -246,24 +246,24 @@ bool FDigetherSessionLobbyDuplicateReplaceTest::RunTest(const FString& Parameter
 		TestFalse(FString::Printf(TEXT("교체 대기가 아닌 결과(%d)는 이전 연결을 끊지 않음"), static_cast<int32>(Decision)), ShouldDisconnectPreviousConnection(Decision));
 	}
 
-	// 중복 판정은 정원·잠금보다 먼저 나오므로, 정원이 찬 대기실에서도 같은 계정의 이전 연결을 끊고 교체한다.
+	// 중복 판정이 정원·잠금보다 먼저라 정원이 찬 대기실에서도 같은 계정 이전 연결을 끊고 교체
 	FDigetherJoinCheck Check = MakeValidJoinRulesCheck();
 	Check.bIdAlreadyConnected = true;
 	Check.ConnectedPlayers = JoinRulesFixtureMaxPlayers;
 	TestTrue(TEXT("정원이 찬 대기실의 중복 접속도 이전 연결을 끊음"), ShouldDisconnectPreviousConnection(Evaluate(Check)));
 
-	// 호스트 자신과 같은 ID는 끊지 않고 ②로 거절한다.
+	// 호스트 자신과 같은 ID는 끊지 않고 ②로 거절
 	Check.bDuplicateIsLocal = true;
 	TestFalse(TEXT("이전 연결이 호스트 자신이면 끊지 않음"), ShouldDisconnectPreviousConnection(Evaluate(Check)));
 	TestTrue(TEXT("호스트 자신과 같은 ID는 ② 사유"), GetRejectionText(Evaluate(Check), Check) == EDigetherSessionText::AccountAlreadyConnected);
 
-	// 정리 뒤 재판정: 대기실은 PlayerState가 사라져 자리가 하나 빈 신규 참가다.
+	// 정리 뒤 재판정: 대기실은 PlayerState가 사라져 빈자리 하나인 신규 참가
 	Check.bDuplicateIsLocal = false;
 	Check.bIdAlreadyConnected = false;
 	Check.ConnectedPlayers = JoinRulesFixtureMaxPlayers - 1;
 	TestTrue(TEXT("이전 연결 정리 뒤 대기실은 새 PlayerState로 수락"), Evaluate(Check) == EDigetherJoinDecision::AcceptNew);
 
-	// ID가 무효면 중복 판정 전에 거절되므로 아무 연결도 끊지 않는다.
+	// 무효 ID는 중복 판정 전 거절, 연결 유지
 	Check.bIdAlreadyConnected = true;
 	Check.bIdValid = false;
 	TestFalse(TEXT("무효 ID 접속은 이전 연결을 끊지 않음"), ShouldDisconnectPreviousConnection(Evaluate(Check)));
@@ -280,7 +280,7 @@ bool FDigetherSessionGameplayDuplicateRetryTest::RunTest(const FString& Paramete
 	for (const bool bNewJoinLocked : { false, true })
 	{
 		const TCHAR* const Phase = bNewJoinLocked ? TEXT("탐사 중") : TEXT("거점");
-		// 첫 판정: 같은 ID의 이전 연결이 아직 활성이다. 정원이 차 있고 잠겨 있어도 교체 대기가 먼저다(C2).
+		// 첫 판정: 같은 ID 이전 연결이 아직 활성, 정원이 차고 잠겨도 교체 대기 우선(C2)
 		FDigetherJoinCheck Check = MakeValidJoinRulesCheck();
 		Check.bNewJoinLocked = bNewJoinLocked;
 		Check.bIdAlreadyConnected = true;
@@ -292,8 +292,8 @@ bool FDigetherSessionGameplayDuplicateRetryTest::RunTest(const FString& Paramete
 		TestTrue(FString::Printf(TEXT("%s 교체를 끝내지 못하면 ② 사유"), Phase),
 			GetRejectionText(First, Check) == EDigetherSessionText::AccountAlreadyConnected);
 
-		// 같은 시도 안의 재판정: 탐사 중이면 이전 연결이 비활성 PlayerState(예약 자리)가 되어 재접속,
-		// 거점이면 자리를 반환한 기존 참가자라 빈자리 검사 뒤 참가한다(S01).
+		// 같은 시도 안 재판정: 탐사 중이면 이전 연결이 비활성 PlayerState(예약 자리)가 되어 재접속,
+		// 거점이면 자리를 반환한 기존 참가자라 빈자리 검사 뒤 참가(S01)
 		Check.bIdAlreadyConnected = false;
 		Check.bIdInRoster = bNewJoinLocked;
 		Check.ConnectedPlayers = JoinRulesFixtureMaxPlayers - 1;
@@ -314,20 +314,20 @@ bool FDigetherSessionSpectatorJoinTest::RunTest(const FString& Parameters)
 {
 	using namespace DigetherJoinRules;
 
-	// 수락은 게이지 완료 전, 참가 확정(Login)은 잠금 중: 빈자리가 있으면 관전 합류(T76 첫 경우).
+	// 수락은 게이지 완료 전, 참가 확정(Login)은 잠금 중: 빈자리가 있으면 관전 합류(T76 첫 경우)
 	FDigetherJoinCheck Check = MakeValidJoinRulesCheck();
 	Check.bNewJoinLocked = true;
 	Check.ConnectedPlayers = 2;
 	Check.bAcceptedBeforeLock = true;
 	TestTrue(TEXT("수락 후 게이지 완료 뒤 확정은 관전 합류"), Evaluate(Check) == EDigetherJoinDecision::AcceptSpectator);
 
-	// 관전 합류의 빈자리는 탐사 출발 후 끊긴 참가자의 예약 자리를 빼고 계산한다.
+	// 관전 합류 빈자리는 탐사 출발 후 끊긴 참가자의 예약 자리 제외 계산
 	Check.ReservedPlayers = 2;
 	TestTrue(TEXT("예약 자리까지 차면 관전 합류도 정원 거절"), Evaluate(Check) == EDigetherJoinDecision::RejectFull);
 	Check.ReservedPlayers = 1;
 	TestTrue(TEXT("예약 자리를 빼고 남은 자리가 있으면 관전 합류"), Evaluate(Check) == EDigetherJoinDecision::AcceptSpectator);
 
-	// 거점에서 떠났던 기존 참가자가 탐사 중 돌아오면 관전한다(저장 명단 기록).
+	// 거점에서 떠났던 기존 참가자가 탐사 중 돌아오면 관전(저장 명단 기록)
 	Check = MakeValidJoinRulesCheck();
 	Check.bNewJoinLocked = true;
 	Check.ConnectedPlayers = 2;
@@ -336,19 +336,19 @@ bool FDigetherSessionSpectatorJoinTest::RunTest(const FString& Parameters)
 	Check.ConnectedPlayers = JoinRulesFixtureMaxPlayers;
 	TestTrue(TEXT("반환한 자리를 다른 사람이 채웠으면 기존 참가자도 정원 거절(T77)"), Evaluate(Check) == EDigetherJoinDecision::RejectFull);
 
-	// 완전 신규 참가와 게이지 완료 후 수락(PreLogin 자체가 잠금 중)은 여전히 ③.
+	// 완전 신규 참가와 게이지 완료 후 수락(PreLogin 자체가 잠금 중)은 여전히 ③
 	Check = MakeValidJoinRulesCheck();
 	Check.bNewJoinLocked = true;
 	TestTrue(TEXT("잠금 중 신규 참가는 ③ 거절"), Evaluate(Check) == EDigetherJoinDecision::RejectInProgress);
 	TestTrue(TEXT("③ 사유 키"), GetRejectionText(Evaluate(Check), Check) == EDigetherSessionText::RunInProgress);
 
-	// 잠금이 없으면 기록과 무관하게 일반 참가(빈자리 검사)다.
+	// 잠금이 없으면 기록과 무관하게 일반 참가(빈자리 검사)
 	Check.bNewJoinLocked = false;
 	Check.bHasParticipantRecord = true;
 	Check.bAcceptedBeforeLock = true;
 	TestTrue(TEXT("잠금이 없으면 일반 참가"), Evaluate(Check) == EDigetherJoinDecision::AcceptNew);
 
-	// 이번 탐사의 예약 참가자는 관전이 아니라 같은 자리 재접속이다.
+	// 이번 탐사 예약 참가자는 관전이 아닌 같은 자리 재접속
 	Check.bNewJoinLocked = true;
 	Check.bIdInRoster = true;
 	Check.ConnectedPlayers = JoinRulesFixtureMaxPlayers;

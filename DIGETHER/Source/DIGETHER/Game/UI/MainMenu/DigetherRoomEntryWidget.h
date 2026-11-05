@@ -7,7 +7,7 @@
 
 class UCommonTextBlock;
 
-// 방 목록 한 줄. CommonListView가 선택·클릭을 처리하고, 선택 모양은 버튼 스타일의 Selected 값이 정한다.
+// 방 목록 한 줄, 선택·클릭은 CommonListView 담당, 선택 모양은 버튼 스타일 Selected 값
 UCLASS(Abstract)
 class DIGETHER_API UDigetherRoomEntryWidget : public UCommonButtonBase, public IUserObjectListEntry
 {

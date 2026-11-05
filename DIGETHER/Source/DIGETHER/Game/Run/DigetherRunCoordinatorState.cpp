@@ -94,7 +94,7 @@ FDigetherRunAdvanceResult FDigetherRunCoordinatorRules::StartClock(FDigetherRunC
 	{
 		return FDigetherRunAdvanceResult();
 	}
-	// 출발부터 도착까지 확정된 상승 페널티는 없으므로 도착 시각을 새 기준점으로 삼는다.
+	// 출발부터 도착까지 확정된 상승 페널티가 없으므로 도착 시각을 새 기준점으로 사용
 	FDigetherRunCoordinatorState Candidate = State;
 	Candidate.StartedAtSeconds = ServerSeconds;
 	Candidate.bClockStarted = true;

@@ -43,7 +43,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherRunCoordinatorFlowTest,
 
 bool FDigetherRunCoordinatorFlowTest::RunTest(const FString& Parameters)
 {
-	// 테스트 픽스처이며 최종 기획 값이 아니다.
+	// 테스트 픽스처, 기획 값 아님
 	FDigetherRunTuning Tuning;
 	Tuning.RunSeconds = 100.f;
 	Tuning.AscentPenaltySeconds = 20.f;
@@ -129,7 +129,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherRunClockStartTest,
 
 bool FDigetherRunClockStartTest::RunTest(const FString& Parameters)
 {
-	// 테스트 픽스처이며 최종 기획 값이 아니다.
+	// 테스트 픽스처, 기획 값 아님
 	FDigetherRunTuning Tuning;
 	Tuning.RunSeconds = 100.f;
 	Tuning.AscentPenaltySeconds = 20.f;
@@ -138,7 +138,7 @@ bool FDigetherRunClockStartTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("시작 전 시계 시작 거절"), FDigetherRunCoordinatorRules::StartClock(State, 5.0).Result,
 		EDigetherRunResult::NotInProgress);
 
-	// 기획: 제한 시간은 최초 하강을 마치고 갱도에 도착한 순간부터 흐른다. 출발~도착 사이에는 줄지 않는다.
+	// 기획: 제한 시간은 최초 하강 후 갱도 도착 순간부터 경과, 출발~도착 사이엔 감소 없음
 	TestEqual(TEXT("시계 정지 상태로 출발"), FDigetherRunCoordinatorRules::StartRun(State, Tuning, RuleTuning, 10.0, false).Result,
 		EDigetherRunResult::Success);
 	TestFalse(TEXT("출발 직후 시계 정지"), State.bClockStarted);
@@ -166,7 +166,7 @@ bool FDigetherRunClockStartTest::RunTest(const FString& Parameters)
 	const FDigetherRunAdvanceResult Expired = FDigetherRunCoordinatorRules::UpdateTime(State, 600.0);
 	TestTrue(TEXT("도착 기준 제한 시간 종료"), Expired.bTimeExpiredNow);
 
-	// 기본 시작은 기존처럼 즉시 시계를 흐르게 한다(다른 조율 경로·시험 호환).
+	// 기본 시작은 즉시 시계 진행(다른 조율 경로·시험 호환)
 	FDigetherRunCoordinatorState Immediate;
 	FDigetherRunCoordinatorRules::StartRun(Immediate, Tuning, RuleTuning, 0.0);
 	TestTrue(TEXT("기본 시작은 시계 즉시 흐름"), Immediate.bClockStarted);
@@ -180,7 +180,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherRunComponentsTest,
 
 bool FDigetherRunComponentsTest::RunTest(const FString& Parameters)
 {
-	// 테스트 픽스처이며 최종 기획 값이 아니다.
+	// 테스트 픽스처, 기획 값 아님
 	UDigetherRunCoordinatorComponent* Coordinator = NewObject<UDigetherRunCoordinatorComponent>();
 	UDigetherRunPublicStateComponent* Public = NewObject<UDigetherRunPublicStateComponent>();
 	TestFalse(TEXT("조율자 복제 비활성"), Coordinator->GetIsReplicated());
@@ -260,8 +260,8 @@ bool FDigetherRunComponentsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("거절 시 조율자 시간 불변"), Coordinator->GetRemainingSeconds(), 0.0);
 	TestEqual(TEXT("거절 시 조율자 단계 불변"), Coordinator->CapturePublicState().Phase, EDigetherRunPhase::NotStarted);
 	Public->OnRunPublicStateChanged.Remove(Handle);
-	// 월드 없는 검사에서 권위 소유자를 흉내 내면 실제 권한 검사의 증거가 되지 않는다.
-	// 실제 Capture/Restore 왕복·공개 반영은 호출자의 직렬 통합 검사에서 확인한다.
+	// 월드 없는 검사의 권위 소유자 흉내는 실제 권한 검사 증거 아님
+	// 실제 Capture/Restore 왕복·공개 반영은 호출자의 직렬 통합 검사에서 확인
 	return true;
 }
 

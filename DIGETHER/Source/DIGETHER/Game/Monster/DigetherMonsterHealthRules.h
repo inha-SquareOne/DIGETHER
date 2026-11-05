@@ -21,7 +21,7 @@ enum class EDigetherMonsterDamageResult : uint8
 	IgnoredInvalidState
 };
 
-// 정의 로드와 무관하게 같은 체력·생명 상태를 관찰할 수 있도록 한 단위로 전달한다.
+// 정의 로드와 무관하게 체력·생명 상태를 함께 관찰하도록 한 단위로 전달
 USTRUCT()
 struct DIGETHER_API FDigetherMonsterHealthState
 {
@@ -42,9 +42,9 @@ struct DIGETHER_API FDigetherMonsterHealthState
 
 namespace DigetherMonsterHealthRules
 {
-	// 실패해도 호출자가 이전의 처치 가능 상태를 쓰지 않도록 안전한 불사 상태를 돌려준다.
+	// 실패 시에도 OutState는 안전한 불사 상태, 이전 처치 가능 상태 잔존 방지
 	DIGETHER_API bool TryCreateState(bool bKillable, float MaxHealth, FDigetherMonsterHealthState& OutState);
 
-	// 월드·Actor·시간에 의존하지 않으며 회복이나 부활 전이는 제공하지 않는다.
+	// 월드·Actor·시간 비의존, 회복·부활 전이 없음
 	DIGETHER_API EDigetherMonsterDamageResult ApplyDamage(FDigetherMonsterHealthState& State, float Amount);
 }

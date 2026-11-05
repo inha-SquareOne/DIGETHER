@@ -20,7 +20,7 @@ bool FDigetherRunTuning::CollectProblems(TArray<FText>& OutProblems) const
 			OutProblems.Add(Problem);
 		}
 	};
-	// NaN도 걸러지도록 "조건을 만족한다" 형태로 비교한다.
+	// NaN도 거르도록 "조건 만족" 형태로 비교
 	Require(ProfileVersion >= 1, LOCTEXT("Version", "ProfileVersion은 1 이상이어야 합니다."));
 	Require(InitialQuotaCredits >= 1, LOCTEXT("Quota", "InitialQuotaCredits는 1 이상이어야 합니다."));
 	Require(RunSeconds >= 1.f, LOCTEXT("RunSeconds", "RunSeconds는 1초 이상이어야 합니다."));

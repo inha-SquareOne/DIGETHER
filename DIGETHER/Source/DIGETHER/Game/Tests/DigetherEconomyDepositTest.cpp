@@ -4,8 +4,8 @@
 #include "Game/Economy/DigetherEconomyTuning.h"
 #include "Misc/AutomationTest.h"
 
-// 붓기 한 주기(CalculatePourTick)의 값 계산이다. 금액·목표는 테스트 픽스처이며 기획 값이 아니다.
-// 초과 처리는 PQ-34 안 A(임시, D27 확정 전)를 따른다: 지갑 차감 S, 인정 C, 목표에 쓴 금액 N, 바닥 금화 F = S - N.
+// 붓기 한 주기(CalculatePourTick) 값 계산, 금액·목표는 테스트 픽스처이며 기획 값 아님
+// 초과 처리는 PQ-34 안 A(임시, D27 확정 전): 지갑 차감 S, 인정 C, 목표에 쓴 금액 N, 바닥 금화 F = S - N
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherEconomyDepositTest,
 	"DIGETHER.Game.Economy.Deposit", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -67,7 +67,7 @@ bool FDigetherEconomyDepositTest::RunTest(const FString& Parameters)
 	Quota.TargetCredits = 100;
 	Quota.DepositedCredits = 20;
 	Quota.PeriodGeneration = 7;
-	// 전체 일차는 기간 일차와 다른 값으로 둔다. 목표 달성(새 기간)에도 바뀌지 않아야 한다(기획 02 개요 5·6행).
+	// 전체 일차는 기간 일차와 다른 값, 목표 달성(새 기간)에도 불변(기획 02 개요 5·6행)
 	Quota.TotalDay = 11;
 
 	FDigetherWalletState ExpectedWallet = Wallet;
@@ -98,7 +98,7 @@ bool FDigetherEconomyDepositTest::RunTest(const FString& Parameters)
 	CheckAccepted(TEXT("정확히 남은 목표를 채우면 새 기간"), FDigetherEconomyRules::CalculatePourTick(Wallet, ExactTarget, Tuning, false),
 		10, 10, 0, true, ExpectedWallet, ExpectedQuota);
 
-	// 남은 목표 5에 4일차 10원을 부으면 N = 5만 목표에 쓰고, 지갑에서는 10원을 빼며 F = 5가 바닥에 떨어진다.
+	// 남은 목표 5에 4일차 10원: N = 5, 지갑 10원 차감, F = 5 바닥 금화
 	FDigetherQuotaState NearTarget = Quota;
 	NearTarget.DepositedCredits = 95;
 	ExpectedQuota = NearTarget;
@@ -110,7 +110,7 @@ bool FDigetherEconomyDepositTest::RunTest(const FString& Parameters)
 	CheckAccepted(TEXT("초과분은 바닥 금화이며 새 목표에 넣지 않음"), Overflow, 10, 5, 5, true, ExpectedWallet, ExpectedQuota);
 	TestEqual(TEXT("목표에 쓴 금액 N"), Overflow.ConsumedCredits, 5);
 
-	// 바닥 금화를 만들지 못하면 F를 지갑에 되돌려 차감을 N으로 줄인다(돈 소멸 방지).
+	// 바닥 금화 생성 실패 시 F를 지갑에 반환, 차감은 N(돈 소멸 방지)
 	const FDigetherPourTickResult Reclaimed = FDigetherEconomyRules::ReclaimFloorCredits(Overflow);
 	ExpectedWallet = Wallet;
 	ExpectedWallet.BalanceCredits = 45;
@@ -121,7 +121,7 @@ bool FDigetherEconomyDepositTest::RunTest(const FString& Parameters)
 	const FDigetherPourTickResult FailedReclaim = FDigetherEconomyRules::ReclaimFloorCredits(FDigetherPourTickResult());
 	TestTrue(TEXT("실패 결과는 그대로"), FailedReclaim.Result == EDigetherEconomyResult::InvalidInput && FailedReclaim.FloorCredits == 0);
 
-	// 1일차 30%: 10원은 3원 인정이다. 남은 목표 2면 N = ceil(200 / 30) = 7, F = 3이다.
+	// 1일차 30%: 10원은 3원 인정, 남은 목표 2면 N = ceil(200 / 30) = 7, F = 3
 	FDigetherQuotaState DayOneNear = Quota;
 	DayOneNear.Day = 1;
 	DayOneNear.DepositedCredits = 98;
@@ -132,7 +132,7 @@ bool FDigetherEconomyDepositTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("1일차 효율 기록"), DayOneOverflow.EfficiencyPercent, 30);
 	TestTrue(TEXT("1일차 초과 달성"), DayOneOverflow.bTargetCompleted);
 
-	// 효율 내림으로 인정이 0이면 차감 없이 거절한다.
+	// 효율 내림으로 인정 0이면 차감 없이 거절
 	FDigetherQuotaState DayOne = Quota;
 	DayOne.Day = 1;
 	FDigetherWalletState TinyWallet = Wallet;
@@ -257,7 +257,7 @@ bool FDigetherEconomyDepositTest::RunTest(const FString& Parameters)
 	const FDigetherDayAdvanceResult NextDay = FDigetherEconomyRules::AdvanceDay(ThirdDay);
 	ExpectedQuota = ThirdDay;
 	ExpectedQuota.Day = 4;
-	// 작업리스트 1.1.0: 탐사 종료 확정 시 기간 일차와 전체 일차가 함께 하루 증가한다.
+	// 작업리스트 1.1.0: 탐사 종료 확정 시 기간 일차·전체 일차 함께 하루 증가
 	ExpectedQuota.TotalDay = ThirdDay.TotalDay + 1;
 	TestTrue(TEXT("일차 전환 성공"), NextDay.Result == EDigetherEconomyResult::Success);
 	CheckQuota(TEXT("일차만 증가하고 목표·진행량·세대 유지"), NextDay.State, ExpectedQuota);

@@ -11,8 +11,8 @@ enum class EDigetherMicrophoneMode : uint8
 	PushToTalk
 };
 
-// 엔진 GameUserSettings에 사운드·조작 값을 더한다. 그래픽 값은 엔진 기본 항목을 그대로 쓴다.
-// 저장 위치는 엔진 기본 GameUserSettings.ini다.
+// 엔진 GameUserSettings에 사운드·조작 값 추가, 그래픽 값은 엔진 기본 항목 사용
+// 저장 위치는 엔진 기본 GameUserSettings.ini
 UCLASS(Config = GameUserSettings, ConfigDoNotCheckDefaults)
 class DIGETHER_API UDigetherGameUserSettings : public UGameUserSettings
 {
@@ -49,7 +49,7 @@ public:
 
 private:
 	UPROPERTY(Config) float MasterVolume = 1.f;
-	// 효과음·음악 분류(SoundClass)가 생기면 그 볼륨에 연결한다. 지금은 저장만 한다.
+	// 효과음·음악 분류(SoundClass)가 생기면 해당 볼륨에 연결, 현재 저장만
 	UPROPERTY(Config) float EffectsVolume = 1.f;
 	UPROPERTY(Config) float MusicVolume = 1.f;
 	UPROPERTY(Config) float MouseSensitivity = 1.f;

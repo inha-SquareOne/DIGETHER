@@ -26,7 +26,7 @@ public:
 	UFUNCTION(BlueprintPure, Category="Digether|Elevator")
 	EDigetherElevatorLeverKind GetLeverKind() const;
 
-	// 갱도 상승 레버의 안·밖 위치다. 출발 레버는 기본값 Inside를 그대로 둔다.
+	// 갱도 상승 레버의 안·밖 위치, 출발 레버는 기본값 Inside 유지
 	UFUNCTION(BlueprintPure, Category="Digether|Elevator")
 	EDigetherElevatorLeverPlacement GetPlacement() const;
 
@@ -46,7 +46,7 @@ private:
 	UPROPERTY(EditInstanceOnly, Replicated, BlueprintReadOnly, Category="Digether|Elevator", meta=(AllowPrivateAccess="true"))
 	EDigetherElevatorLeverKind LeverKind = EDigetherElevatorLeverKind::Ascent;
 
-	// 맵 배치 인스턴스마다 정한다. 안쪽은 탑승 영역 안, 밖은 탑승 영역 밖에 둔다(시작 시 경고로만 검사).
+	// 맵 배치 인스턴스마다 지정, 안쪽은 탑승 영역 안·밖은 탑승 영역 밖에 배치(시작 시 경고로만 검사)
 	UPROPERTY(EditInstanceOnly, Replicated, BlueprintReadOnly, Category="Digether|Elevator", meta=(AllowPrivateAccess="true"))
 	EDigetherElevatorLeverPlacement Placement = EDigetherElevatorLeverPlacement::Inside;
 

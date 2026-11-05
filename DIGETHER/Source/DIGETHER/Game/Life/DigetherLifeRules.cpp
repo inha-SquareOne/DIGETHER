@@ -27,7 +27,7 @@ bool FDigetherLifeRules::IsValidLifeState(const EDigetherLifeState Life)
 
 bool FDigetherLifeRules::IsValidPlayerKey(const FString& PlayerKey)
 {
-	// 인증 방식의 문자열 형식을 이 도메인에서 재정의하지 않고 빈 식별자만 거른다.
+	// 인증 방식의 문자열 형식은 재정의하지 않고 빈 식별자만 거름
 	return !PlayerKey.TrimStartAndEnd().IsEmpty();
 }
 
@@ -103,7 +103,7 @@ FDigetherLifeUpdateResult FDigetherLifeRules::ApplyEscape(const FDigetherLifeCom
 		return Update;
 	}
 
-	// 탈출 확정과 관전 전환을 한 값에서 처리해 중간 상태가 저장되지 않게 한다.
+	// 탈출 확정과 관전 전환을 한 값에서 처리, 중간 상태 저장 방지
 	Update.State.PublicState.Life = EDigetherLifeState::Escaped;
 	Update.State.PublicState.bSpectating = true;
 	Update.State.PrivateState.DeathCause = EDigetherDeathCause::None;
@@ -143,19 +143,25 @@ FDigetherDeathDropPlan FDigetherLifeRules::PlanDeathDrop(const TArray<FDigetherL
 	}
 
 	TSet<FGuid> InstanceIds;
+	InstanceIds.Reserve(Items.Num());
 	for (const FDigetherLifeDropItem& Item : Items)
 	{
-		if (!Item.InstanceId.IsValid() || InstanceIds.Contains(Item.InstanceId))
+		if (!Item.InstanceId.IsValid())
 		{
 			return Plan;
 		}
-		InstanceIds.Add(Item.InstanceId);
+		bool bDuplicateId = false;
+		InstanceIds.Add(Item.InstanceId, &bDuplicateId);
+		if (bDuplicateId)
+		{
+			return Plan;
+		}
 	}
 
 	Plan.InstanceIds.Reserve(Items.Num());
 	for (const FDigetherLifeDropItem& Item : Items)
 	{
-		// 히든도 같은 소지품 실체이므로 포함한다. 잔고 손실은 경제 도메인의 별도 명령이 담당한다.
+		// 히든도 같은 소지품 실체라 포함, 잔고 손실은 경제 도메인의 별도 명령 담당
 		Plan.InstanceIds.Add(Item.InstanceId);
 	}
 	Plan.Location = SelectedLocation;
@@ -176,16 +182,21 @@ FDigetherSpectateSelectionResult FDigetherLifeRules::SelectSpectateTarget(
 	}
 
 	TSet<FString> PlayerKeys;
+	PlayerKeys.Reserve(Candidates.Num());
 	int32 CurrentIndex = INDEX_NONE;
 	for (int32 Index = 0; Index < Candidates.Num(); ++Index)
 	{
 		const FDigetherSpectateCandidate& Candidate = Candidates[Index];
-		if (!IsValidPlayerKey(Candidate.PlayerKey) || !IsValidLifeState(Candidate.Life)
-			|| PlayerKeys.Contains(Candidate.PlayerKey))
+		if (!IsValidPlayerKey(Candidate.PlayerKey) || !IsValidLifeState(Candidate.Life))
 		{
 			return Selection;
 		}
-		PlayerKeys.Add(Candidate.PlayerKey);
+		bool bDuplicateKey = false;
+		PlayerKeys.Add(Candidate.PlayerKey, &bDuplicateKey);
+		if (bDuplicateKey)
+		{
+			return Selection;
+		}
 		if (Candidate.PlayerKey == CurrentTargetPlayerKey)
 		{
 			CurrentIndex = Index;
@@ -195,7 +206,7 @@ FDigetherSpectateSelectionResult FDigetherLifeRules::SelectSpectateTarget(
 	Selection.Result = EDigetherLifeResult::Success;
 	const int32 CandidateCount = Candidates.Num();
 	const int32 Step = Direction == EDigetherSpectateDirection::Next ? 1 : -1;
-	// 현 대상이 사망해도 원래 순서를 기준으로 한다. 후보를 먼저 거르면 이 위치를 잃는다.
+	// 현 대상이 사망해도 원래 순서 기준, 후보를 먼저 거르면 이 위치를 잃음
 	const int32 StartIndex = CurrentIndex != INDEX_NONE ? CurrentIndex
 		: (Direction == EDigetherSpectateDirection::Next ? CandidateCount - 1 : 0);
 	for (int32 Offset = 1; Offset <= CandidateCount; ++Offset)

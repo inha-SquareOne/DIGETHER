@@ -1,6 +1,6 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
-// 아래 숫자와 ID는 테스트 픽스처, 기획 값 아님.
+// 아래 숫자·ID는 테스트 픽스처, 기획 값 아님
 
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -12,7 +12,6 @@
 #include "GameFramework/OnlineReplStructs.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/ScopeExit.h"
 #include "Misc/SecureHash.h"
 #include "OnlineSubsystemTypes.h"
 
@@ -24,7 +23,7 @@ namespace
 	FDigetherSaveSnapshot MakeSlotTestSnapshot(const FString& HostKey, const FGuid& GameId, const int32 PeriodDay,
 		const int32 TotalDay)
 	{
-		// 모든 수치·ID는 저장 계약 검사용 픽스처이며 최종 기획 값이 아니다.
+		// 수치·ID는 저장 계약 검사용 픽스처, 기획 값 아님
 		FDigetherSaveSnapshot Snapshot;
 		Snapshot.HostAuthenticatedPlayerKey = HostKey;
 		Snapshot.GameId = GameId;
@@ -55,7 +54,7 @@ namespace
 		return Snapshot;
 	}
 
-	// 실제 GameInstance·독립 실행 월드에서 저장 서브시스템을 만든다. 디스크 슬롯은 고유 계정 이름으로 격리한다.
+	// 실제 GameInstance·독립 실행 월드에서 저장 서브시스템 생성, 디스크 슬롯은 고유 계정 이름으로 격리
 	class FDigetherSaveSlotTestInstance
 	{
 	public:
@@ -139,7 +138,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSaveSlotNamesTest,
 bool FDigetherSaveSlotNamesTest::RunTest(const FString& Parameters)
 {
 	const FString HostKey = TEXT("SAVE_SLOT_TEST:host");
-	// 슬롯 도입 전 이름 규칙을 이 테스트 안에서 독립으로 다시 만든다(저장 코드의 상수를 쓰지 않는다).
+	// 슬롯 도입 전 이름 규칙을 테스트 안에서 독립 재현(저장 코드 상수 미사용)
 	const FTCHARToUTF8 HostBytes(*HostKey);
 	const FString LegacyPrimary = TEXT("Digether_HostProgress_v3_")
 		+ FSHA1::HashBuffer(HostBytes.Get(), HostBytes.Length()).ToString();
@@ -170,7 +169,7 @@ bool FDigetherSaveSlotNamesTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("빈 이름 읽기는 InvalidState"), DigetherSaveStorage::ReadSlot(Names.Primary, HostKey, Output)
 			== EDigetherSaveResult::InvalidState);
 	}
-	// 이름 버전은 슬롯 도입 전 파일을 계속 찾도록 3으로 고정한다(스키마·wire 버전과 별개).
+	// 슬롯 도입 전 파일을 계속 찾도록 이름 버전 3 고정(스키마·wire 버전과 별개)
 	TestEqual(TEXT("이름 버전은 진행 스키마 버전과 별개 상수"), DigetherSaveTuning::SlotNameVersion, 3);
 	TestTrue(TEXT("슬롯 1개 이상"), DigetherSaveTuning::MaxProgressSlots >= 1);
 	return true;
@@ -217,7 +216,7 @@ bool FDigetherSaveSlotRulesTest::RunTest(const FString& Parameters)
 	{
 		const FDigetherSaveSlotSummary Summary = DigetherSaveRules::MakeSlotSummary(2, Case.Read, Slot);
 		TestEqual(FString::Printf(TEXT("읽기 결과 %s의 상태"), LexToString(Case.Read)), Summary.Status, Case.Expected);
-		// 읽지 못한 슬롯에서는 다른 슬롯 값이 새지 않게 요약 값을 비운다.
+		// 읽지 못한 슬롯은 다른 슬롯 값이 새지 않게 요약 값 비움
 		TestTrue(FString::Printf(TEXT("읽기 결과 %s는 요약 값 없음"), LexToString(Case.Read)),
 			Summary.TotalDay == 0 && Summary.PeriodDay == 0 && Summary.TargetCredits == 0 && !Summary.bHasSavedAt);
 	}
@@ -300,7 +299,7 @@ bool FDigetherSaveSlotSubsystemTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("새 계정의 모든 슬롯은 비어 있음"), Summary.Status, EDigetherSaveSlotStatus::Empty);
 	}
 
-	// 슬롯 1에 진행을 쓴다. 다른 슬롯은 파일이 생기지 않는다.
+	// 슬롯 1에 진행 기록, 다른 슬롯은 파일 미생성
 	const FGuid GameA = FGuid::NewGuid();
 	FDigetherSaveSlotSelection SlotOne;
 	SlotOne.SlotIndex = 1;
@@ -330,7 +329,7 @@ bool FDigetherSaveSlotSubsystemTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("슬롯 0 선택"), Save->SetSlotSelection(SlotZero));
 	TestEqual(TEXT("슬롯 0 읽기는 없음"), Save->Read(Loaded), EDigetherSaveResult::NotFound);
 
-	// 슬롯 2 새 게임은 슬롯 1을 지우거나 덮지 않는다.
+	// 슬롯 2 새 게임은 슬롯 1 유지
 	FDigetherSaveSlotSelection SlotTwoNew;
 	SlotTwoNew.SlotIndex = 2;
 	SlotTwoNew.StartMode = EDigetherSaveStartMode::NewGame;
@@ -342,7 +341,7 @@ bool FDigetherSaveSlotSubsystemTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("새 게임 완료 뒤 같은 슬롯"), Save->GetSlotSelection().SlotIndex, 2);
 	TestEqual(TEXT("새 게임 완료 뒤 이어하기"), Save->GetSlotSelection().StartMode, EDigetherSaveStartMode::Continue);
 
-	// 크레딧 뒤 새 게임(새 게임 ID, 명시 새 게임 쓰기)을 슬롯 1에 쓰면 슬롯 1만 바뀐다(S30 208행·S33 240행·T38).
+	// 크레딧 뒤 새 게임(새 게임 ID, 명시 새 게임 쓰기)을 슬롯 1에 쓰면 슬롯 1만 변경(S30 208행·S33 240행·T38)
 	TestTrue(TEXT("슬롯 1 다시 선택"), Save->SetSlotSelection(SlotOne));
 	const FGuid GameAfterCredits = FGuid::NewGuid();
 	TestEqual(TEXT("같은 게임 ID가 아닌 새 게임은 일반 쓰기로 덮지 않음"),
@@ -357,7 +356,7 @@ bool FDigetherSaveSlotSubsystemTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("슬롯 2 새 게임은 보존"), FindSummary(Summaries, 2)->Status, EDigetherSaveSlotStatus::Ready);
 	TestEqual(TEXT("슬롯 0은 끝까지 비어 있음"), FindSummary(Summaries, 0)->Status, EDigetherSaveSlotStatus::Empty);
 
-	// 슬롯 1의 다른 게임 ID 일반 저장은 기존 진행을 덮지 않는다(새 게임 선택 없이 다른 진행을 쓰지 않음).
+	// 슬롯 1의 다른 게임 ID 일반 저장은 기존 진행 유지(새 게임 선택 없이 다른 진행 쓰기 금지)
 	TestEqual(TEXT("다른 게임의 일반 저장 거절"),
 		Save->Write(MakeSlotTestSnapshot(Fixture.HostKey, GameB, 2, 2), false), EDigetherSaveResult::InvalidState);
 	return true;

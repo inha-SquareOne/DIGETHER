@@ -1,6 +1,6 @@
 #include "Game/UI/Lobby/DigetherLobbyView.h"
 
-// 번역 키를 바꾸지 않도록 대기실 화면과 같은 네임스페이스·키를 쓴다.
+// 번역 키 보존용, 대기실 화면과 같은 네임스페이스·키 사용
 #define LOCTEXT_NAMESPACE "DigetherLobby"
 
 namespace DigetherLobbyView
@@ -16,7 +16,7 @@ namespace DigetherLobbyView
 			View.RoomCode = FText::Format(LOCTEXT("RoomCode", "방 코드  {0}"), FText::FromString(Input.RoomCode));
 		}
 
-		// 호스트를 맨 위에 두고 나머지는 입장 순서대로 보여 준다.
+		// 호스트 맨 위, 나머지는 입장 순서
 		TArray<int32> Order;
 		Order.Reserve(Input.Players.Num());
 		for (int32 Index = 0; Index < Input.Players.Num(); ++Index)

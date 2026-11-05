@@ -7,7 +7,7 @@
 #include "GameFramework/OnlineReplStructs.h"
 
 // 바이트 변환은 DigetherSaveCodec.cpp, 스냅샷·슬롯 검증은 DigetherSaveValidation.cpp,
-// 주·백업 슬롯 선택 정책은 DigetherSaveSlotPolicy.cpp에 둔다.
+// 주·백업 슬롯 선택 정책은 DigetherSaveSlotPolicy.cpp
 
 EDigetherSaveResult DigetherSaveRules::MakeAuthenticatedPlayerKey(const FUniqueNetIdRepl& UniqueId,
 	FString& OutPlayerKey)
@@ -34,7 +34,7 @@ EDigetherSaveResult DigetherSaveRules::MakeAuthenticatedPlayerKey(const FUniqueN
 		{
 			return EDigetherSaveResult::UnsupportedIdentity;
 		}
-		// 프로세스 수명의 GetHandle은 저장하지 않는다. 제공자의 실제 계정 문자열만 사용한다.
+		// 프로세스 수명 GetHandle은 저장 금지, 제공자의 실제 계정 문자열만 사용
 		Candidate = FString(TEXT("OSSv2.")) + UE::Online::LexToString(AccountId.GetOnlineServicesType())
 			+ TEXT(":") + Registry->ToString(AccountId);
 	}
@@ -119,8 +119,8 @@ EDigetherSaveResult DigetherSaveRules::TryBuildSlot(const FDigetherSaveSnapshot&
 		Candidate = *Existing;
 	}
 	Candidate.Progress = Snapshot;
-	// 기획 1.1.0: 출발 기준점 저장과 디스크 복원 규칙은 폐기됐다. 필드와 codec은 이전 파일을 읽으려고 남기며,
-	// 새로 쓰는 슬롯에는 지난 기준점을 옮기지 않는다.
+	// 기획 1.1.0: 출발 기준점 저장·디스크 복원 규칙 폐기, 필드·codec은 이전 파일 읽기용으로 유지
+	// 새로 쓰는 슬롯에는 지난 기준점을 옮기지 않음
 	Candidate.DepartureCheckpoint = FDigetherSaveSnapshot();
 	Candidate.bHasDepartureCheckpoint = false;
 	OutSlot = MoveTemp(Candidate);

@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Game/Elevator/DigetherElevatorRules.h"
+#include "Game/Tests/DigetherTestValues.h"
 #include "Misc/AutomationTest.h"
 #include "UObject/UnrealType.h"
 
@@ -12,7 +13,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherElevatorStateMachineTest,
 bool FDigetherElevatorStateMachineTest::RunTest(const FString& Parameters)
 {
 	using namespace DigetherElevatorRules;
-	// 테스트 픽스처이며 최종 기획 운행 시간·횟수가 아니다.
+	// 테스트 픽스처, 기획 운행 시간·횟수 아님
 	FDigetherElevatorTuning Tuning;
 	Tuning.UpperStopSeconds = 2.f;
 	constexpr float TravelSeconds = 4.f;
@@ -64,7 +65,7 @@ bool FDigetherElevatorStateMachineTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("거점 리셋 위치 상부"), CalculateTravelProgress(State, TravelSeconds), 1.f);
 
 	State.Phase = EDigetherElevatorPhase::BottomWaiting;
-	// ELV_ASCENT_LIMIT는 2회 확정이다. 1회 비교 설정은 운행 전이를 거절하고 상태를 바꾸지 않는다.
+	// ELV_ASCENT_LIMIT 2회 확정, 1회 비교 설정은 운행 전이 거절·상태 유지
 	FDigetherElevatorTransition Update = Transition(State, EDigetherElevatorCommand::RequestAscent, 0.f, 1, TravelSeconds, Tuning);
 	TestEqual(TEXT("1회 설정 상승 요청 거절"), Update.Result, EDigetherElevatorResult::InvalidInput);
 	TestTrue(TEXT("1회 설정 거절은 상태 불변"), SameState(State, Update.State));
@@ -83,7 +84,7 @@ bool FDigetherElevatorStateMachineTest::RunTest(const FString& Parameters)
 	Apply(EDigetherElevatorCommand::AdvanceTime, 1.f, EDigetherElevatorPhase::ReturnDescent, EDigetherElevatorResult::Success);
 	TestEqual(TEXT("다음 호출은 새 시간만 소비"), State.PhaseElapsedSeconds, 1.f);
 	TestEqual(TEXT("하강 1초 위치"), CalculateTravelProgress(State, TravelSeconds), 0.75f);
-	for (const float InvalidTime : { -1.f, NAN, INFINITY, -INFINITY })
+	for (const float InvalidTime : { -1.f, DigetherTestValues::NaN(), DigetherTestValues::Infinity(), -DigetherTestValues::Infinity() })
 	{
 		const FDigetherElevatorTransition Rejected = Transition(State, EDigetherElevatorCommand::AdvanceTime, InvalidTime, TripLimit, TravelSeconds, Tuning);
 		TestEqual(TEXT("손상된 시간 입력 거절"), Rejected.Result, EDigetherElevatorResult::InvalidInput);
@@ -97,7 +98,7 @@ bool FDigetherElevatorStateMachineTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("정의되지 않은 단계 거절"), Update.Result, EDigetherElevatorResult::InvalidInput);
 	TestTrue(TEXT("단계 오류 상태 불변"), SameState(State, Update.State));
 	State.CompletedAscents = -1;
-	State.PhaseElapsedSeconds = NAN;
+	State.PhaseElapsedSeconds = DigetherTestValues::NaN();
 	Update = Transition(State, EDigetherElevatorCommand::Reset, 0.f, TripLimit, TravelSeconds, Tuning);
 	TestEqual(TEXT("리셋은 손상된 현재 상태도 복구"), Update.Result, EDigetherElevatorResult::Success);
 	TestTrue(TEXT("손상된 상태 리셋은 거점 기본 상태"), SameState(FDigetherElevatorState(), Update.State));
@@ -110,7 +111,7 @@ bool FDigetherElevatorStateMachineTest::RunTest(const FString& Parameters)
 	Update = Transition(State, EDigetherElevatorCommand::DepartHub, 0.f, TripLimit, TravelSeconds, InvalidTuning);
 	TestEqual(TEXT("잘못된 튜닝 거절"), Update.Result, EDigetherElevatorResult::InvalidInput);
 	TestTrue(TEXT("튜닝 오류 상태 불변"), SameState(State, Update.State));
-	// float 저장 시 반올림으로 완료 시각에 도달해도 이동 상태에 갇히면 안 된다.
+	// float 저장 반올림으로 완료 시각에 도달해도 이동 상태 고착 금지
 	FDigetherElevatorState RoundingState;
 	RoundingState.Phase = EDigetherElevatorPhase::InitialDescent;
 	RoundingState.PhaseElapsedSeconds = std::nextafter(TravelSeconds, 0.f);

@@ -18,13 +18,13 @@ void UDigetherMainMenuScreenWidget::NativeOnInitialized()
 	Btn_Quit->OnClicked().AddUObject(this, &ThisClass::QuitGame);
 }
 
-// CommonUI 스택은 화면 인스턴스를 다시 쓸 수 있으므로 NativeOnInitialized가 아니라 Construct/Destruct 짝에서 구독한다.
+// CommonUI 스택의 화면 인스턴스 재사용 대비, NativeOnInitialized 대신 Construct/Destruct 짝에서 구독
 void UDigetherMainMenuScreenWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 	if (UDigetherSessionSubsystem* Session = UDigetherSessionSubsystem::Get(this))
 	{
-		// 메인 메뉴로 돌아온 이유는 사용자가 다음 요청을 보낼 때까지 보여 준다.
+		// 메뉴 복귀 이유는 다음 패널을 열 때까지 표시
 		NoticeMessage = Session->ConsumeNotice();
 		StatusChangedHandle = Session->OnStatusChanged.AddUObject(this, &ThisClass::HandleSessionStatusChanged);
 	}
@@ -65,7 +65,7 @@ void UDigetherMainMenuScreenWidget::OpenPanel(TSubclassOf<UCommonActivatableWidg
 {
 	if (!PanelClass || !Stack_Panels) return;
 	NoticeMessage = FText::GetEmpty();
-	// 패널은 한 번에 하나만 연다. 닫기·Esc(뒤로)는 패널이 스스로 비활성화해 스택에서 빠진다.
+	// 패널은 한 번에 하나, 닫기·Esc(뒤로)는 패널 자체 비활성화로 스택에서 제거
 	Stack_Panels->ClearWidgets();
 	Stack_Panels->AddWidget(PanelClass);
 	RefreshState();

@@ -26,7 +26,7 @@ void UDigetherJoinRoomPanelWidget::NativeOnInitialized()
 	List_Rooms->OnItemSelectionChanged().AddUObject(this, &ThisClass::HandleSelectionChanged);
 }
 
-// CommonUI 스택은 닫힌 패널 인스턴스를 다시 쓰므로 NativeOnInitialized가 아니라 Construct/Destruct 짝에서 구독한다.
+// CommonUI 스택의 닫힌 패널 인스턴스 재사용 대비, NativeOnInitialized 대신 Construct/Destruct 짝에서 구독
 void UDigetherJoinRoomPanelWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -116,7 +116,7 @@ void UDigetherJoinRoomPanelWidget::JoinByCode()
 {
 	if (UDigetherSessionSubsystem* Session = UDigetherSessionSubsystem::Get(this))
 	{
-		// 공백 제거·대문자 정규화는 서브시스템 입구(JoinByCode)가 콘솔 명령과 같은 경로로 맡는다.
+		// 공백 제거·대문자 정규화는 서브시스템 JoinByCode 담당, 콘솔 명령과 같은 경로
 		Session->JoinByCode(Input_Code->GetText().ToString());
 	}
 }

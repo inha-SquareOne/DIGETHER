@@ -2,10 +2,9 @@
 
 #include "Game/Elevator/DigetherElevatorLeverComponent.h"
 #include "Game/Elevator/DigetherElevatorRules.h"
+#include "Game/Tests/DigetherTestValues.h"
 #include "Misc/AutomationTest.h"
 #include "UObject/UnrealType.h"
-
-#include <cmath>
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherElevatorDepartureLeverTest,
 	"DIGETHER.Game.Elevator.DepartureLever", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -13,7 +12,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherElevatorDepartureLeverTest,
 bool FDigetherElevatorDepartureLeverTest::RunTest(const FString& Parameters)
 {
 	using namespace DigetherElevatorRules;
-	// 테스트 픽스처이며 최종 기획 출발 홀드 시간이 아니다. 4일차·2배는 보드 확정 계약이다.
+	// 테스트 픽스처, 기획 출발 홀드 시간 아님, 4일차·2배는 보드 확정 계약
 	FDigetherElevatorTuning Tuning;
 	Tuning.DepartureHoldSeconds = 2.f;
 	FDigetherElevatorPullContext Context;
@@ -39,7 +38,7 @@ bool FDigetherElevatorDepartureLeverTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("거점 밖에서 출발 홀드 거절"), Rejected.Feedback.Result, EDigetherElevatorLeverResult::InvalidPhase);
 		TestTrue(TEXT("운행 단계 거절 시 게이지 불변"), SameState(State, Rejected.State));
 	}
-	// 결과 크레딧 중 출발 차단은 게임 오버 단계가 연결층에서 막는다(S33). 순수 규칙의 출발 조건은 거점 대기만 본다.
+	// 결과 크레딧 중 출발 차단은 게임 오버 단계가 연결층에서 담당(S33), 순수 규칙 출발 조건은 거점 대기만 확인
 	TestEqual(TEXT("거점 대기 출발 조건 허용"), CanUseDeparture(Context), EDigetherElevatorLeverResult::Started);
 	TestEqual(TEXT("보통 일차 출발 시간"), CalculateDepartureDuration(1, Tuning), Tuning.DepartureHoldSeconds);
 	FDigetherElevatorGaugeUpdate Update = BeginPull(State, EDigetherElevatorLeverKind::Departure, Puller, Context, Tuning);
@@ -95,7 +94,7 @@ bool FDigetherElevatorDepartureLeverTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("4일차 확정 payload 조작자"), Update.State.Departure.PullerId, Puller);
 
 	State = BeginPull(FDigetherElevatorGaugeState(), EDigetherElevatorLeverKind::Departure, Puller, Context, Tuning).State;
-	for (const float InvalidTime : { -1.f, NAN, INFINITY, -INFINITY })
+	for (const float InvalidTime : { -1.f, DigetherTestValues::NaN(), DigetherTestValues::Infinity(), -DigetherTestValues::Infinity() })
 	{
 		Update = AdvancePull(State, EDigetherElevatorLeverKind::Departure, InvalidTime, Context, Tuning);
 		TestEqual(TEXT("손상된 출발 홀드 시간 거절"), Update.Feedback.Result, EDigetherElevatorLeverResult::InvalidInput);
@@ -106,7 +105,7 @@ bool FDigetherElevatorDepartureLeverTest::RunTest(const FString& Parameters)
 	Update = BeginPull(FDigetherElevatorGaugeState(), EDigetherElevatorLeverKind::Departure, Puller, InvalidContext, Tuning);
 	TestEqual(TEXT("정의되지 않은 출발 단계 거절"), Update.Feedback.Result, EDigetherElevatorLeverResult::InvalidInput);
 	TestTrue(TEXT("손상된 단계는 시작 상태 불변"), SameState(FDigetherElevatorGaugeState(), Update.State));
-	// 홀드 중 출발 조건(거점 대기)이 사라지면 취소한다. 조건 상실 사례로 거점 대기 이탈을 쓴다.
+	// 홀드 중 출발 조건(거점 대기) 상실 시 취소, 상실 사례는 거점 대기 이탈
 	Context.ElevatorPhase = EDigetherElevatorPhase::DoorClosing;
 	Update = AdvancePull(State, EDigetherElevatorLeverKind::Departure, 1.f, Context, Tuning);
 	TestEqual(TEXT("홀드 중 거점 대기 이탈은 출발 취소"), Update.Feedback.Result, EDigetherElevatorLeverResult::InterruptedConditions);
@@ -122,7 +121,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherElevatorDepartureWarningTest,
 bool FDigetherElevatorDepartureWarningTest::RunTest(const FString& Parameters)
 {
 	using namespace DigetherElevatorRules;
-	// 테스트 픽스처이며 최종 기획 출발 홀드 시간이 아니다.
+	// 테스트 픽스처, 기획 출발 홀드 시간 아님
 	FDigetherElevatorTuning Tuning;
 	Tuning.DepartureHoldSeconds = 2.f;
 	FDigetherElevatorPullContext Context;
@@ -151,7 +150,7 @@ bool FDigetherElevatorDepartureWarningTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("4일차는 마감 경고"), CalculateDepartureWarning(Deadline.State), EDigetherDepartureWarningKind::Deadline);
 	TestTrue(TEXT("4일차 마감 경고 표식 유지"), Deadline.State.bWarningActive);
 
-	// 상승 레버는 출발 경고를 쓰지 않는다.
+	// 상승 레버는 출발 경고 미사용
 	FDigetherElevatorPullContext Ascent;
 	Ascent.ElevatorPhase = EDigetherElevatorPhase::BottomWaiting;
 	Ascent.TripLimit = 2;
@@ -174,7 +173,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherElevatorDeparturePeriodTest,
 bool FDigetherElevatorDeparturePeriodTest::RunTest(const FString& Parameters)
 {
 	using namespace DigetherElevatorRules;
-	// 테스트 픽스처이며 최종 기획 출발 홀드 시간이 아니다.
+	// 테스트 픽스처, 기획 출발 홀드 시간 아님
 	FDigetherElevatorTuning Tuning;
 	Tuning.DepartureHoldSeconds = 2.f;
 	FDigetherElevatorPullContext Context;
@@ -187,7 +186,7 @@ bool FDigetherElevatorDeparturePeriodTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("출발 시작"), Started.Feedback.Result, EDigetherElevatorLeverResult::Started);
 	TestEqual(TEXT("시작한 기간 세대 기록"), Started.State.DeparturePeriodGeneration, 4);
 
-	// 게이지 완료 전에 목표를 달성하면(기간 세대 변화) 레버 입력을 취소한다.
+	// 게이지 완료 전 목표 달성(기간 세대 변화) 시 레버 입력 취소
 	FDigetherElevatorPullContext Achieved = Context;
 	Achieved.DayNumber = 1;
 	Achieved.PeriodGeneration = 5;
@@ -195,13 +194,13 @@ bool FDigetherElevatorDeparturePeriodTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("완료 전 달성은 출발 레버 취소"), Update.Feedback.Result, EDigetherElevatorLeverResult::InterruptedConditions);
 	TestEqual(TEXT("취소 뒤 대기 게이지"), Update.State.Phase, EDigetherElevatorGaugePhase::Idle);
 
-	// 같은 일차 번호여도 기간이 바뀌면 달성으로 본다(일차 비교만으로는 놓친다).
+	// 같은 일차 번호여도 기간이 바뀌면 달성(일차 비교만으로는 누락)
 	FDigetherElevatorPullContext SameDayNewPeriod = Context;
 	SameDayNewPeriod.PeriodGeneration = 5;
 	Update = AdvancePull(Started.State, EDigetherElevatorLeverKind::Departure, 1.f, SameDayNewPeriod, Tuning);
 	TestEqual(TEXT("같은 일차 번호의 새 기간도 취소"), Update.Feedback.Result, EDigetherElevatorLeverResult::InterruptedConditions);
 
-	// 게이지가 차는 같은 처리 시점의 납부 달성은 납부를 먼저 반영하고, 완료된 레버로 새 기간 1일차를 출발한다.
+	// 게이지 완료와 같은 처리 시점의 납부 달성은 납부 먼저 반영, 완료된 레버로 새 기간 1일차 출발
 	const FDigetherElevatorGaugeUpdate Half = AdvancePull(Started.State, EDigetherElevatorLeverKind::Departure, 1.f, Context, Tuning);
 	TestEqual(TEXT("같은 기간 절반 진행"), Half.Feedback.Result, EDigetherElevatorLeverResult::InProgress);
 	Update = AdvancePull(Half.State, EDigetherElevatorLeverKind::Departure, 1.f, Achieved, Tuning);
@@ -209,13 +208,13 @@ bool FDigetherElevatorDeparturePeriodTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("확정 일차는 새 기간 1일차"), Update.State.Departure.DayNumber, 1);
 	TestEqual(TEXT("확정 조작자 유지"), Update.State.Departure.PullerId, Puller);
 
-	// 같은 기간에서 일차만 달라지는 손상 입력은 취소한다.
+	// 같은 기간에서 일차만 다른 손상 입력은 취소
 	FDigetherElevatorPullContext DayOnly = Context;
 	DayOnly.DayNumber = 4;
 	Update = AdvancePull(Started.State, EDigetherElevatorLeverKind::Departure, 1.f, DayOnly, Tuning);
 	TestEqual(TEXT("같은 기간 일차 변화는 취소"), Update.Feedback.Result, EDigetherElevatorLeverResult::InterruptedConditions);
 
-	// 손상된 기간 세대 값은 받지 않는다.
+	// 손상된 기간 세대 값 거절
 	FDigetherElevatorPullContext Negative = Context;
 	Negative.PeriodGeneration = -1;
 	Update = AdvancePull(Started.State, EDigetherElevatorLeverKind::Departure, 1.f, Negative, Tuning);

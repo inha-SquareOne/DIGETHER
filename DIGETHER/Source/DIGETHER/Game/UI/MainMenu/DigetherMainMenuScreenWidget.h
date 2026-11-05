@@ -9,8 +9,8 @@ class UCommonTextBlock;
 class UCommonTextStyle;
 class UDigetherButtonWidget;
 
-// 메인 메뉴 화면: 방 만들기·방 참가·설정·종료 버튼과 상태 안내. 각 기능 패널은 Stack_Panels에 올린다.
-// 배치·모양은 WBP_MainMenuScreen이 정한다.
+// 메인 메뉴 화면(방 만들기·방 참가·설정·종료, 상태 안내), 기능 패널은 Stack_Panels에 적재
+// 배치·모양은 WBP_MainMenuScreen 담당
 UCLASS(Abstract)
 class DIGETHER_API UDigetherMainMenuScreenWidget : public UCommonActivatableWidget
 {
@@ -36,7 +36,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Digether|Panels") TSubclassOf<UCommonActivatableWidget> JoinRoomPanelClass;
 	UPROPERTY(EditDefaultsOnly, Category = "Digether|Panels") TSubclassOf<UCommonActivatableWidget> SettingsPanelClass;
 
-	// 평소 상태 글자와, 메뉴로 돌아온 이유(연결 끊김 등) 안내 글자 스타일.
+	// 평소 상태 문구·메뉴 복귀 이유(연결 끊김 등) 안내 문구 스타일
 	UPROPERTY(EditDefaultsOnly, Category = "Digether|Style") TSubclassOf<UCommonTextStyle> StatusTextStyle;
 	UPROPERTY(EditDefaultsOnly, Category = "Digether|Style") TSubclassOf<UCommonTextStyle> NoticeTextStyle;
 
@@ -46,7 +46,7 @@ private:
 	void QuitGame();
 	void RefreshState();
 
-	// 메뉴로 돌아온 이유. 비어 있지 않으면 상태 문구 대신 보여 준다.
+	// 메뉴 복귀 이유, 비어 있지 않으면 상태 문구보다 우선
 	FText NoticeMessage;
 	FDelegateHandle StatusChangedHandle;
 };

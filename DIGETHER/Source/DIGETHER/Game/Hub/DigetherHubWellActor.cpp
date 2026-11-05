@@ -9,9 +9,9 @@
 
 namespace
 {
-	// 클라이언트는 GameState 복제가 우물 BeginPlay보다 늦을 수 있다. 연결될 때까지 이 간격으로 다시 찾는다.
+	// 클라이언트 GameState 복제가 우물 BeginPlay보다 늦는 경우 대비, 연결 전까지 재탐색 간격
 	constexpr float WellBindRetrySeconds = 0.25f;
-	// 임시값: 기획 미정(우물 아래 대기 지점 깊이, cm), 2026-11-05. 맵 배치에서 대기 지점 컴포넌트를 옮겨 조정한다.
+	// 임시값: 기획 미정(우물 아래 대기 지점 깊이, cm), 2026-11-05, 기본 배치에만 적용·맵에서 WaitingPoint 이동으로 조정
 	const FVector DefaultWaitingPointOffsetCm(0.0, 0.0, -1500.0);
 }
 
@@ -77,7 +77,7 @@ FTransform ADigetherHubWellActor::GetWaitingTransform(const int32 Index) const
 	{
 		return Base;
 	}
-	// 대기 지점 둘레에 겹치지 않게 놓는다. 위치 판정에 쓰지 않는 표시용 배치다.
+	// 대기 지점 둘레 비중첩 배치, 위치 판정에 쓰지 않는 표시용
 	constexpr int32 SeatsPerRing = 6;
 	const int32 Ring = 1 + (Index - 1) / SeatsPerRing;
 	const double Angle = 2.0 * UE_DOUBLE_PI * static_cast<double>((Index - 1) % SeatsPerRing) / SeatsPerRing;
@@ -103,7 +103,7 @@ void ADigetherHubWellActor::TryBindPublicState()
 	BoundPublicState = Public;
 	Public->OnGameOverPhaseChanged.AddUniqueDynamic(this, &ThisClass::HandlePhaseChanged);
 	Public->OnFailureEventStarted.AddUniqueDynamic(this, &ThisClass::HandleFailureEventStarted);
-	// 실패 사건 도중 들어온 클라이언트도 남은 연출을 이어 받는다.
+	// 실패 사건 도중 합류한 클라이언트도 남은 연출 이어받기
 	const FDigetherGameOverPublicState Current = Public->GetPublicState();
 	if (Current.Phase == EDigetherGameOverPhase::FailureEvent)
 	{

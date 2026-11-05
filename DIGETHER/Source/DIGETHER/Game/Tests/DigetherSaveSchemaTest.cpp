@@ -1,6 +1,6 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
-// 아래 숫자와 ID는 테스트 픽스처, 기획 값 아님.
+// 아래 숫자·ID는 테스트 픽스처, 기획 값 아님
 
 #include "Game/Save/DigetherSaveGame.h"
 #include "Game/Save/DigetherSaveRules.h"
@@ -13,7 +13,7 @@ namespace
 {
 	FDigetherSaveSnapshot MakeSaveFixture()
 	{
-		// 모든 수치·ID는 저장 계약 검사용 픽스처이며 최종 기획 값이 아니다.
+		// 수치·ID는 저장 계약 검사용 픽스처, 기획 값 아님
 		FDigetherSaveSnapshot Snapshot;
 		Snapshot.HostAuthenticatedPlayerKey = TEXT("SAVE_TEST:host");
 		Snapshot.GameId = FGuid(1, 2, 3, 4);
@@ -70,7 +70,7 @@ bool FDigetherSaveRoundTripTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	// 폐기된 출발 기준점이 들어 있는 이전 파일도 같은 형식으로 읽고 다시 써야 한다(저장 형식 유지).
+	// 폐기된 출발 기준점이 든 이전 파일도 같은 형식으로 읽고 다시 쓰기(저장 형식 유지)
 	Slot.DepartureCheckpoint = Snapshot;
 	Slot.bHasDepartureCheckpoint = true;
 	TArray<uint8> Bytes;
@@ -81,7 +81,7 @@ bool FDigetherSaveRoundTripTest::RunTest(const FString& Parameters)
 	}
 	int32 StoredVersion = 0;
 	FMemory::Memcpy(&StoredVersion, Bytes.GetData(), sizeof(StoredVersion));
-	// 첫 int32는 진행 스키마(v3)가 아니라 wire 버전이다. 새 쓰기는 항상 최신 wire다.
+	// 첫 int32는 진행 스키마(v3)가 아닌 wire 버전, 새 쓰기는 항상 최신 wire
 	TestEqual(TEXT("첫 4바이트는 int32 wire 버전"), StoredVersion, DigetherSaveWire::LatestVersion);
 	TestEqual(TEXT("버전 바로 뒤에 기준점 존재 여부 기록"), Bytes[sizeof(int32)], static_cast<uint8>(1));
 	FDigetherSaveSlotData Restored;
@@ -137,7 +137,7 @@ bool FDigetherSaveRejectTest::RunTest(const FString& Parameters)
 	const FDigetherSaveSnapshot Snapshot = MakeSaveFixture();
 	FDigetherSaveSlotData Slot;
 	DigetherSaveRules::TryBuildSlot(Snapshot, nullptr, false, Slot);
-	// 이전 파일처럼 출발 기준점이 들어 있는 바이트로 거절 경로를 검사한다(저장 형식 유지).
+	// 이전 파일처럼 출발 기준점이 든 바이트로 거절 경로 검사(저장 형식 유지)
 	Slot.DepartureCheckpoint = Snapshot;
 	Slot.bHasDepartureCheckpoint = true;
 	TArray<uint8> Bytes;
@@ -187,7 +187,7 @@ bool FDigetherSaveRejectTest::RunTest(const FString& Parameters)
 		== EDigetherSaveResult::CorruptData);
 	TestTrue(TEXT("전체 바이트 상한 거절 시 출력 유지"), Output.Progress.GameId == Sentinel);
 	Corrupt = Bytes;
-	// CRC와 별도로 codec 자체가 필수 값의 의미를 검증한다.
+	// CRC와 별도로 codec 자체가 필수 값 의미 검증
 	const int32 GameIdOffset = sizeof(int32) + sizeof(uint8) + sizeof(int32)
 		+ Snapshot.HostAuthenticatedPlayerKey.Len() * sizeof(uint16);
 	FMemory::Memzero(Corrupt.GetData() + GameIdOffset, sizeof(FGuid));
@@ -213,7 +213,7 @@ bool FDigetherSaveRejectTest::RunTest(const FString& Parameters)
 	}
 	if (TestTrue(TEXT("명시 성분으로 저장한 거점 위치를 찾음"), PositionOffset != INDEX_NONE))
 	{
-		// 위치·회전·크기는 각 double 3개·4개·3개로 기록한다. 비유한 성분은 Transform 생성 전에 거절한다.
+		// 위치·회전·크기는 double 3·4·3개로 기록, 비유한 성분은 Transform 생성 전 거절
 		const int32 ComponentOffsets[] = { 0, 3, 7 };
 		const uint64 NotFiniteBits = 0x7ff8000000000000ULL;
 		for (const int32 ComponentOffset : ComponentOffsets)
@@ -509,7 +509,7 @@ bool FDigetherSaveSlotWriteTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("첫 진행 슬롯 구성"), DigetherSaveRules::TryBuildSlot(Snapshot, nullptr, false, Slot)
 		== EDigetherSaveResult::Success);
 	TestFalse(TEXT("새 슬롯에는 출발 기준점을 만들지 않음"), Slot.bHasDepartureCheckpoint);
-	// 폐기 규칙으로 쓰인 이전 파일: 기준점이 진행과 다른 지갑을 갖고 있다.
+	// 폐기 규칙으로 쓰인 이전 파일: 기준점 지갑이 진행과 다름
 	Slot.DepartureCheckpoint = Snapshot;
 	Slot.DepartureCheckpoint.Players[0].Wallet.BalanceCredits = 10;
 	Slot.bHasDepartureCheckpoint = true;
@@ -526,7 +526,7 @@ bool FDigetherSaveSlotWriteTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("다시 읽은 진행 지갑"), Reloaded.Progress.Players[0].Wallet.BalanceCredits, 60);
 	TestFalse(TEXT("다시 읽어도 기준점 없음"), Reloaded.bHasDepartureCheckpoint);
 
-	// 탐사 중 상태는 저장하지 않는다(S30). 거절해도 이전 슬롯을 보존한다.
+	// 탐사 중 상태는 미저장(S30), 거절해도 이전 슬롯 보존
 	Changed = Snapshot;
 	Changed.RunPublicState.Phase = EDigetherRunPhase::InProgress;
 	const FDigetherSaveSlotData Before = Slot;
@@ -571,10 +571,10 @@ bool FDigetherSaveSlotWriteTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("게임 오버 확정 진행은 저장 가능"), DigetherSaveRules::ValidateSnapshot(Changed) == EDigetherSaveResult::Success);
 	TestTrue(TEXT("게임 오버 확정 진행 슬롯 구성"), DigetherSaveRules::TryBuildSlot(Changed, nullptr, false, Slot)
 		== EDigetherSaveResult::Success);
-	// 슬롯 값 계층은 확정 표시를 그대로 보존한다. 다음 실행에서 같은 슬롯 새 게임으로 바꾸는 것은 GameMode 시작 처리다(S33 240행).
+	// 슬롯 값 계층은 확정 표시 보존, 다음 실행의 같은 슬롯 새 게임 전환은 GameMode 시작 처리(S33 240행)
 	TestTrue(TEXT("게임 오버 확정 표시는 슬롯에 그대로 남음"), Slot.Progress.RunPublicState.bGameOver);
 
-	// 기획 S33: 이번 게임 결과는 게임 오버 확정 진행에만 두며, 같은 게임 ID여야 한다.
+	// 기획 S33: 이번 게임 결과는 게임 오버 확정 진행에만, 같은 게임 ID 필수
 	FDigetherGameResult Result;
 	Result.ResultId = FGuid(51, 52, 53, 54);
 	Result.GameId = Changed.GameId;
@@ -599,7 +599,7 @@ bool FDigetherSaveSlotWriteTest::RunTest(const FString& Parameters)
 	NotGameOver.bHasGameResult = true;
 	NotGameOver.GameResult = Result;
 	TestTrue(TEXT("게임 오버가 아닌 진행의 결과 거절"), DigetherSaveRules::ValidateSnapshot(NotGameOver) == EDigetherSaveResult::InvalidState);
-	// 보관한 이전 결과는 다른 게임 ID이고 결과 ID가 겹치지 않는다.
+	// 보관한 이전 결과는 다른 게임 ID, 결과 ID 중복 없음
 	FDigetherSaveSnapshot Archived = Snapshot;
 	FDigetherGameResult Previous = Result;
 	Previous.GameId = FGuid(71, 72, 73, 74);
