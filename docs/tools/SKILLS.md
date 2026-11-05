@@ -41,11 +41,11 @@ BMAD 전체 목록은 [41종 목록](../../provenance/bmad-install/skills.json)�
 
 ## 실행 조건과 프로젝트 경계
 
-- **Unreal:** 프로젝트 기준은 5.8.2이며 `DIGETHER/DIGETHER.uproject`가 존재한다. ModelContextProtocol·AllToolsets는 프로젝트에 활성화되어 있고 과거 연결 확인 범위는 [MCP 안내](UNREAL_MCP_SETUP.md)에 기록했다. 설치·설정·클라이언트 도구 노출·현재 Editor 연결은 별개이므로 작업 때 실제 도구 조회로 재확인한다. 게임 기능 완료를 뜻하지 않는다.
+- **Unreal:** 프로젝트 기준은 5.8.4이며 `DIGETHER/DIGETHER.uproject`가 존재한다. ModelContextProtocol·AllToolsets는 프로젝트에 활성화되어 있고 과거 연결 확인 범위는 [MCP 안내](UNREAL_MCP_SETUP.md)에 기록했다. 설치·설정·클라이언트 도구 노출·현재 Editor 연결은 별개이므로 작업 때 실제 도구 조회로 재확인한다. 게임 기능 완료를 뜻하지 않는다.
 - **Blender:** 번들은 5.2 LTS 이상 기준이다. 현재 자동 탐지·버전 조회 결과는 **5.1.0**이며 빈 백그라운드 프로세스의 환경 보고만 성공했다. 5.2 전용 API·리깅·내보내기 전체 호환은 검증하지 않았다. 작업 시 버전별 지원을 확인하며 설치 Blender를 자동 업그레이드하지 않는다.
 - **기존 blend 보호:** upstream `run_in_blender.py`는 기본적으로 `--factory-startup`을 사용한다. 기존 `.blend`를 입력하는 작업은 인자 순서와 실제 로드된 `bpy.data.filepath`·내용을 확인한 뒤 작업 사본에서 실행한다. 이번 환경 보고에는 사용자 파일을 열지 않았다.
 - **BMAD:** `_bmad/`의 resolver와 `uv`, Python 3.11 이상이 필요하다. `primary_platform: unreal`은 BMAD의 엔진 분류이며 출시 플랫폼 확정이 아니다. 프로젝트 설정은 Unreal·DIGETHER·한국어로 생성했고 `game_dev_experience: intermediate`는 설치 기본값이지 사용자 숙련도를 확인한 결과가 아니다. 현재 프로젝트에서 검증된 설정과 실제 도구를 우선한다.
-- **기획 원본:** BMAD GDD는 승인된 Notion 기획을 참조하는 작업용 사본이다. `_bmad-output/planning-drafts/`는 미승인 기획 초안, `_bmad-output/implementation-artifacts/`는 기술 작업 산출물이다. 자동 게시나 기존 기획 대체는 하지 않는다. 상세는 [BMAD 프로젝트 경계](../../_bmad/PROJECT_INTEGRATION.md).
+- **기획 원본:** BMAD GDD는 승인된 Notion 기획을 참조하는 작업용 사본이다. `_bmad-output/planning-drafts/`는 미승인 기획 초안, `_bmad-output/implementation-artifacts/`는 기술 작업 산출물이다. `_bmad-output/`은 로컬 전용이며 Git에 커밋하지 않는다(2026-11-04 결정, `.gitignore`). 자동 게시나 기존 기획 대체는 하지 않는다. 상세는 [BMAD 프로젝트 경계](../../_bmad/PROJECT_INTEGRATION.md).
 - **개인 설정:** 신시의 사용자 설정·개인 이름·작업 출력은 이식하지 않았다. `_bmad/custom/*.user.toml` 등 개인 override와 Python 캐시는 Git 제외다.
 
 ## 신시에서 가져온 것과 제외한 것

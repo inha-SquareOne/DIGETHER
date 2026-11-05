@@ -1,8 +1,10 @@
 # DevelopmentWorkbench
 
-UE **5.8.2**용 Editor 플러그인이다. `WorkbenchEditor`는 게임 Runtime과 PCG에 의존하지 않는다. 게임별 연결은 별도 `DigetherWorkbench` 플러그인에서 담당한다.
+UE **5.8.4**용 Editor 플러그인이다. `WorkbenchEditor`는 게임 Runtime과 PCG에 의존하지 않는다. 게임별 연결은 별도 `DigetherWorkbench` 플러그인에서 담당한다.
 
-11종 도구를 구현했다. UE 5.8.2 Editor·Game 빌드, Core 독립 빌드와 자동검사 60개를 통과했다. 멀티 실행 목록의 상태 갱신 수정도 실제 4인 실행에서 재검증했다. 합성 예제의 가격·중량·확률·룸 규격은 게임의 확정 수치가 아니다.
+11종 도구를 구현했다. 2026-10-28 Editor 기본/강제 Unity·Game 빌드와 설정 격리 후 최종 자동검사 64개 성공을 확인했다. 이 중 경고가 있는 테스트는 2개다. DIGETHER 개발 도구 허브 표시·상태 조회·새로고침·바로가기 7종의 실제 UI도 확인했다. 2026-10-27 Core 독립 빌드·자동검사 60개와 멀티 실행의 4인 재검증 등은 아래 과거 기록으로 보존한다. 합성 예제의 가격·중량·확률·룸 규격은 게임의 확정 수치가 아니다.
+
+DIGETHER 전용 **개발 도구** 허브와 Epic 편의 플러그인·자동 저장·검사 실행기 사용법은 [개발 도구 안내](../../../docs/tools/DEVELOPER_TOOLS.md), 책임과 검증 기준은 [에디터 개발 편의 설계](../../../docs/design/EDITOR_PRODUCTIVITY_DESIGN.md)를 따른다. 프로젝트 어댑터는 Core의 11종 도구와 별도로 등록한다.
 
 ## 도구 범위
 
@@ -30,7 +32,7 @@ T01/T08 초안은 원본에 즉시 쓰지 않는다. 적용과 저장은 별도 
 4. 저장 가능한 에셋은 **저장 (패키지)**으로 디스크에 기록한다. 원본이 다른 편집기에서 바뀌었으면 적용·저장이 거부될 수 있으므로 현재 변경을 확인하고 재조회한다.
 5. T08은 도구가 내보낸 기준 정보를 포함한 CSV를 수정한 후 미리보기·적용·저장한다. 누락 열과 빈 셀은 보존이며, 명시 빈 문자열은 `<BLANK>`, Name None은 `<NULL>`이다.
 
-기본 합성 테이블은 검증 UI를 시험하기 위한 의도적 오류 행을 포함한다. 이 특정 예제 에셋은 엔진 DataValidation에서 제외되며, 실제 검증 대상 수로 계산하지 않는다. 다른 합성 행 구조 테이블에는 공통 검증기가 적용된다.
+기본 합성 테이블은 검증 UI를 시험하기 위한 의도적 오류 행을 포함한다. 이 특정 예제 에셋은 Workbench 사용자 검증기에서 제외된다. DataValidation commandlet의 타입별 대상에는 포함될 수 있으므로 commandlet 대상 수와 사용자 검증기 대상 수를 구분한다. 다른 합성 행 구조 테이블에는 공통 검증기가 적용된다.
 
 ## 프로젝트 연결
 
@@ -46,14 +48,18 @@ T01/T08 초안은 원본에 즉시 쓰지 않는다. 적용과 저장은 별도 
 
 ## 빌드
 
-프로젝트 루트와 엔진 설치 위치에 맞춰 실행한다.
+저장소 루트에서 실행한다. 자신의 UE 5.8.4 설치 루트를 `UE_ENGINE_ROOT` 또는 `-EngineRoot`로 지정한다. 실행기 요구 사항·로그·결과 판정은 [개발 도구 안내](../../../docs/tools/DEVELOPER_TOOLS.md#로컬-검사-실행)를 따른다.
 
 ```powershell
-& 'C:/Program Files/Epic Games/UE_5.8/Engine/Build/BatchFiles/Build.bat' DIGETHEREditor Win64 Development '-Project=D:/DIGETHER/DIGETHER/DIGETHER.uproject' -WaitMutex -NoHotReloadFromIDE -DisableUnity
-& 'C:/Program Files/Epic Games/UE_5.8/Engine/Build/BatchFiles/Build.bat' DIGETHER Win64 Development '-Project=D:/DIGETHER/DIGETHER/DIGETHER.uproject' -WaitMutex -NoHotReloadFromIDE -DisableUnity
+.\scripts\Invoke-UnrealChecks.ps1 BuildEditor
+.\scripts\Invoke-UnrealChecks.ps1 BuildGame
 ```
 
 새 모듈을 처음 추가한 뒤에는 Editor를 닫고 빌드한 후 다시 연다. 빌드 성공만으로 저장·재로드·멀티플레이·cook 검증을 대신하지 않는다.
+
+## 현재 재검증 상태 (2026-10-28)
+
+T01/T08 내부 색상 상수 충돌을 수정한 뒤 Editor 기본 Unity 빌드와 `-DisableAdaptiveUnity` 강제 Unity 빌드, Game 빌드가 성공했다. 에디터를 종료하고 사용자 설정 복사본을 지정한 최종 Automation은 기대·실행·성공 각 64개, 실패 0개이며 2개 테스트에 경고가 있었다. 임시 패키지의 Asset Search 해시 경고 5개와 중복 등록 거부 시험 경고 4개다. 최종 DataValidation은 대상 3개 valid·경고/invalid/검사 불가 0개이며 Workbench 사용자 검증기는 2개를 검사했다. 두 실행 전후 원본 사용자 설정 SHA-256이 같다는 독립 비교와 실제 허브 UI 결과는 [개발 도구 안내](../../../docs/tools/DEVELOPER_TOOLS.md#확인-결과와-남은-검증)를 따른다. Live Coding 재등록·실제 저장/복원·멀티플레이·전체 Cook/패키징은 별도 검증이며 과거 실패 기록은 그대로 보존한다.
 
 ## 확인한 범위와 한계 (2026-10-27)
 

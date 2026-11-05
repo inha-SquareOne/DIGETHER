@@ -17,10 +17,10 @@
 
 namespace
 {
-	const FLinearColor ErrorColor(1.f, 0.4f, 0.4f);
-	const FLinearColor WarningColor(1.f, 0.85f, 0.3f);
-	const FLinearColor OkColor(0.5f, 0.9f, 0.5f);
-	const FLinearColor InfoColor(0.75f, 0.75f, 0.75f);
+	const FLinearColor CsvErrorColor(1.f, 0.4f, 0.4f);
+	const FLinearColor CsvWarningColor(1.f, 0.85f, 0.3f);
+	const FLinearColor CsvOkColor(0.5f, 0.9f, 0.5f);
+	const FLinearColor CsvInfoColor(0.75f, 0.75f, 0.75f);
 
 	const void* GetDialogParent()
 	{
@@ -40,7 +40,7 @@ void SWorkbenchCsvPanel::Construct(const FArguments& InArgs)
 			{
 				bPreviewReady = false;
 				Lines.Reset();
-				AddLine(LOCTEXT("TableChanged", "테이블이 바뀌었습니다. 내보내기 또는 CSV 입력 후 미리보기를 실행하세요."), InfoColor);
+				AddLine(LOCTEXT("TableChanged", "테이블이 바뀌었습니다. 내보내기 또는 CSV 입력 후 미리보기를 실행하세요."), CsvInfoColor);
 			})
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(4.f)
@@ -49,7 +49,7 @@ void SWorkbenchCsvPanel::Construct(const FArguments& InArgs)
 			.Text(LOCTEXT("FormatHelp",
 				"형식: 첫 줄(선택) #WorkbenchCsv,버전,기준해시 · 헤더 첫 열 RowId · 빈 셀은 변경 없음 · 헤더에 없는 열은 원본 유지 · "
 				"Name 열 <NULL>, String 열 <BLANK>로 명시적 비움 · 중복 RowId, 알 수 없는 열·행, 로케일 숫자(1,5), NaN은 거부"))
-			.ColorAndOpacity(InfoColor)
+			.ColorAndOpacity(CsvInfoColor)
 			.AutoWrapText(true)
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(4.f)
@@ -160,11 +160,11 @@ FReply SWorkbenchCsvPanel::OnExport()
 	{
 		CsvBox->SetText(FText::FromString(Csv));
 		bPreviewReady = false;
-		AddLine(LOCTEXT("Exported", "현재 테이블 값을 CSV로 채웠습니다. 기준 해시가 메타 줄에 들어 있어 그 뒤 원본이 바뀌면 적용이 거부됩니다."), OkColor);
+		AddLine(LOCTEXT("Exported", "현재 테이블 값을 CSV로 채웠습니다. 기준 해시가 메타 줄에 들어 있어 그 뒤 원본이 바뀌면 적용이 거부됩니다."), CsvOkColor);
 	}
 	else
 	{
-		AddLine(FText::Format(LOCTEXT("ExportFail", "내보내기 실패: {0}"), Error), ErrorColor);
+		AddLine(FText::Format(LOCTEXT("ExportFail", "내보내기 실패: {0}"), Error), CsvErrorColor);
 	}
 	return FReply::Handled();
 }
@@ -174,7 +174,7 @@ FReply SWorkbenchCsvPanel::OnSaveFile()
 	IDesktopPlatform* Platform = FDesktopPlatformModule::Get();
 	if (!Platform)
 	{
-		AddLine(LOCTEXT("NoDialog", "파일 대화상자를 사용할 수 없습니다."), ErrorColor);
+		AddLine(LOCTEXT("NoDialog", "파일 대화상자를 사용할 수 없습니다."), CsvErrorColor);
 		return FReply::Handled();
 	}
 	TArray<FString> Files;
@@ -184,7 +184,7 @@ FReply SWorkbenchCsvPanel::OnSaveFile()
 		AddLine(
 			bOk ? FText::Format(LOCTEXT("FileSaved", "CSV 저장: {0}"), FText::FromString(Files[0]))
 			    : FText::Format(LOCTEXT("FileSaveFail", "CSV 저장 실패: {0}"), FText::FromString(Files[0])),
-			bOk ? OkColor : ErrorColor);
+			bOk ? CsvOkColor : CsvErrorColor);
 	}
 	return FReply::Handled();
 }
@@ -194,7 +194,7 @@ FReply SWorkbenchCsvPanel::OnLoadFile()
 	IDesktopPlatform* Platform = FDesktopPlatformModule::Get();
 	if (!Platform)
 	{
-		AddLine(LOCTEXT("NoDialog2", "파일 대화상자를 사용할 수 없습니다."), ErrorColor);
+		AddLine(LOCTEXT("NoDialog2", "파일 대화상자를 사용할 수 없습니다."), CsvErrorColor);
 		return FReply::Handled();
 	}
 	TArray<FString> Files;
@@ -205,11 +205,11 @@ FReply SWorkbenchCsvPanel::OnLoadFile()
 		{
 			CsvBox->SetText(FText::FromString(Content));
 			bPreviewReady = false;
-			AddLine(FText::Format(LOCTEXT("FileLoaded", "CSV 불러옴: {0}. 미리보기를 실행하세요."), FText::FromString(Files[0])), InfoColor);
+			AddLine(FText::Format(LOCTEXT("FileLoaded", "CSV 불러옴: {0}. 미리보기를 실행하세요."), FText::FromString(Files[0])), CsvInfoColor);
 		}
 		else
 		{
-			AddLine(FText::Format(LOCTEXT("FileLoadFail", "CSV를 읽지 못했습니다: {0}"), FText::FromString(Files[0])), ErrorColor);
+			AddLine(FText::Format(LOCTEXT("FileLoadFail", "CSV를 읽지 못했습니다: {0}"), FText::FromString(Files[0])), CsvErrorColor);
 		}
 	}
 	return FReply::Handled();
@@ -222,7 +222,7 @@ FReply SWorkbenchCsvPanel::OnPreview()
 	const UDataTable* Target = Picker.IsValid() ? Picker->GetTable() : nullptr;
 	if (!Target)
 	{
-		AddLine(LOCTEXT("PreviewNoTable", "대상 테이블이 없습니다."), ErrorColor);
+		AddLine(LOCTEXT("PreviewNoTable", "대상 테이블이 없습니다."), CsvErrorColor);
 		return FReply::Handled();
 	}
 
@@ -232,19 +232,19 @@ FReply SWorkbenchCsvPanel::OnPreview()
 
 	for (const FText& Error : LastManifest.RejectionErrors)
 	{
-		AddLine(FText::Format(LOCTEXT("ManifestError", "거부: {0}"), Error), ErrorColor);
+		AddLine(FText::Format(LOCTEXT("ManifestError", "거부: {0}"), Error), CsvErrorColor);
 	}
 	for (const FText& Warning : LastManifest.Warnings)
 	{
-		AddLine(FText::Format(LOCTEXT("ManifestWarning", "경고: {0}"), Warning), WarningColor);
+		AddLine(FText::Format(LOCTEXT("ManifestWarning", "경고: {0}"), Warning), CsvWarningColor);
 	}
 	for (const FText& Error : LastPreview.Errors)
 	{
-		AddLine(FText::Format(LOCTEXT("PreviewError", "오류: {0}"), Error), ErrorColor);
+		AddLine(FText::Format(LOCTEXT("PreviewError", "오류: {0}"), Error), CsvErrorColor);
 	}
 	for (const FText& Warning : LastPreview.Warnings)
 	{
-		AddLine(FText::Format(LOCTEXT("PreviewWarning", "경고: {0}"), Warning), WarningColor);
+		AddLine(FText::Format(LOCTEXT("PreviewWarning", "경고: {0}"), Warning), CsvWarningColor);
 	}
 	for (const FWorkbenchValidationMessage& Message : LastPreview.Messages)
 	{
@@ -263,7 +263,7 @@ FReply SWorkbenchCsvPanel::OnPreview()
 		    : (LastManifest.IsAcceptable() && LastPreview.Errors.IsEmpty() && LastPreview.Changes.IsEmpty()
 		        ? LOCTEXT("PreviewNoChange", "미리보기 완료: 변경할 셀이 없습니다.")
 		        : LOCTEXT("PreviewBlocked", "미리보기 완료: 오류가 있어 적용할 수 없습니다.")),
-		bOk ? OkColor : WarningColor);
+		bOk ? CsvOkColor : CsvWarningColor);
 	bPreviewReady = LastManifest.IsAcceptable();
 	return FReply::Handled();
 }
@@ -283,13 +283,13 @@ FReply SWorkbenchCsvPanel::OnApply()
 	const FWorkbenchApplyResult Result = WorkbenchDataTableEditAdapter::ApplyCsv(Target, LastManifest);
 	if (Result.bSuccess)
 	{
-		AddLine(FText::Format(LOCTEXT("Applied", "적용했습니다(행 {0}개). 아직 디스크에 저장되지 않았습니다."), FText::AsNumber(Result.AppliedRows.Num())), OkColor);
+		AddLine(FText::Format(LOCTEXT("Applied", "적용했습니다(행 {0}개). 아직 디스크에 저장되지 않았습니다."), FText::AsNumber(Result.AppliedRows.Num())), CsvOkColor);
 	}
 	else
 	{
 		for (const FText& Error : Result.Errors)
 		{
-			AddLine(FText::Format(LOCTEXT("ApplyFail", "적용 실패: {0}"), Error), ErrorColor);
+			AddLine(FText::Format(LOCTEXT("ApplyFail", "적용 실패: {0}"), Error), CsvErrorColor);
 		}
 	}
 	bPreviewReady = false;
@@ -304,22 +304,22 @@ FReply SWorkbenchCsvPanel::OnSavePackage()
 		return FReply::Handled();
 	}
 	const FWorkbenchSaveResult Result = WorkbenchDataTableEditAdapter::SaveTablePackage(Target);
-	AddLine(Result.Message, Result.bSaved ? OkColor : ErrorColor);
+	AddLine(Result.Message, Result.bSaved ? CsvOkColor : CsvErrorColor);
 	if (!Result.JobId.IsEmpty())
 	{
-		AddLine(FText::Format(LOCTEXT("SaveJob", "저장 작업 ID: {0}"), FText::FromString(Result.JobId)), InfoColor);
+		AddLine(FText::Format(LOCTEXT("SaveJob", "저장 작업 ID: {0}"), FText::FromString(Result.JobId)), CsvInfoColor);
 	}
 	if (!Result.BackupPath.IsEmpty())
 	{
-		AddLine(FText::Format(LOCTEXT("Backup", "백업: {0}"), FText::FromString(Result.BackupPath)), InfoColor);
+		AddLine(FText::Format(LOCTEXT("Backup", "백업: {0}"), FText::FromString(Result.BackupPath)), CsvInfoColor);
 	}
 	if (!Result.JournalPath.IsEmpty() && (Result.bSaved || !Result.JobId.IsEmpty()))
 	{
-		AddLine(FText::Format(LOCTEXT("Journal", "저널: {0}"), FText::FromString(Result.JournalPath)), InfoColor);
+		AddLine(FText::Format(LOCTEXT("Journal", "저널: {0}"), FText::FromString(Result.JournalPath)), CsvInfoColor);
 	}
 	if (!Result.bJournalOk)
 	{
-		AddLine(FText::Format(LOCTEXT("JournalWarn", "저널 경고: {0}"), Result.JournalWarning), ErrorColor);
+		AddLine(FText::Format(LOCTEXT("JournalWarn", "저널 경고: {0}"), Result.JournalWarning), CsvErrorColor);
 	}
 	return FReply::Handled();
 }
@@ -332,15 +332,15 @@ FReply SWorkbenchCsvPanel::OnUndo()
 		const UDataTable* Target = Picker.IsValid() ? Picker->GetTable() : nullptr;
 		if (!bUndone)
 		{
-			AddLine(LOCTEXT("NothingToUndo", "되돌릴 트랜잭션이 없습니다."), InfoColor);
+			AddLine(LOCTEXT("NothingToUndo", "되돌릴 트랜잭션이 없습니다."), CsvInfoColor);
 		}
 		else if (Target && WorkbenchDataTableEditAdapter::GetOwnership(Target) == EWorkbenchOwnership::Broken)
 		{
-			AddLine(LOCTEXT("UndoBroken", "되돌린 결과가 Workbench가 적용한 어떤 상태와도 달라 적용·저장을 차단했습니다. 편집기 패널의 '소유권 해제'로 복구하세요."), ErrorColor);
+			AddLine(LOCTEXT("UndoBroken", "되돌린 결과가 Workbench가 적용한 어떤 상태와도 달라 적용·저장을 차단했습니다. 편집기 패널의 '소유권 해제'로 복구하세요."), CsvErrorColor);
 		}
 		else
 		{
-			AddLine(LOCTEXT("Undone", "마지막 트랜잭션을 되돌렸습니다. 적용 이력과 일치해 이어서 작업·저장할 수 있으며, CSV는 다시 미리보기해야 합니다."), WarningColor);
+			AddLine(LOCTEXT("Undone", "마지막 트랜잭션을 되돌렸습니다. 적용 이력과 일치해 이어서 작업·저장할 수 있으며, CSV는 다시 미리보기해야 합니다."), CsvWarningColor);
 		}
 		bPreviewReady = false;
 	}

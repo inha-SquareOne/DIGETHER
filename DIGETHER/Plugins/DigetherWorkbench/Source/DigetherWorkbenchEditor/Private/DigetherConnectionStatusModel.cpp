@@ -50,7 +50,7 @@ TArray<FDigetherConnectionStatusRow> BuildDigetherConnectionStatusRows()
 		FName(TEXT("PlanningRevision")),
 		LOCTEXT("DomainPlanning", "기획 승인 개정"),
 		LOCTEXT("StatusUnregistered_Planning", "미등록"),
-		LOCTEXT("DetailPlanning", "Notion 승인 개정 번호가 이 패널에 등록되지 않았습니다. docs/project/notion의 이관 전 초안만 참조할 수 있습니다."),
+		LOCTEXT("DetailPlanning", "Notion 승인 개정 번호가 이 패널에 등록되지 않았습니다. docs/planning의 이관 전 초안만 참조할 수 있습니다."),
 		false
 	});
 

@@ -1,6 +1,6 @@
 # DIGETHER
 
-**길은 함께 파고, 돈은 각자 챙기는 1~4인 협동 굴착 호러.** Team Square One의 Unreal Engine **5.8.2** 프로젝트입니다.
+**길은 함께 파고, 돈은 각자 챙기는 1~4인 협동 굴착 호러.** Team Square One의 Unreal Engine **5.8.4** 프로젝트입니다.
 
 기획은 **Notion**, 소스 코드·Unreal 에셋·기술 문서는 **GitHub**에서 관리합니다. Issue/PR을 통한 변경 검토 절차는 초기 운영안입니다.
 

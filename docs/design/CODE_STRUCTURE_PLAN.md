@@ -1,6 +1,10 @@
 # 코드 구조 평가와 표준 기능 적용 계획
 
-기준일: 2026-10-29 · **계획, 미구현** · 대상: `prototype` 브랜치 `DIGETHER/Source/DIGETHER/Prototype/`
+기준일: 2026-10-29 · **계획** · 대상: `DIGETHER/Source/DIGETHER/Game/`(평가 기준은 `Prototype/`)
+
+**2026-11-04 결정(사용자): `Prototype/`은 더 이상 수정하지 않는다.** 새 정식 코드는 `Game/` 아래에 프로토타입과 독립적으로 동작하도록 새로 작성한다. 프로토타입은 동작 참고와 회귀 비교 기준으로만 보존하고 새 기능을 받지 않는다. 이에 따라 아래 P2~P6에서 프로토타입 파일을 고치는 부분은 `Game/` 쪽 새 구현으로 바꿔 읽는다(3장 참고). 정리·삭제 시점은 별도로 정한다.
+
+진행 상태(2026-11-03): **P0·P1 적용**(미커밋, `feature/minsung`). 네이티브 태그 4개(`Game/Core/DigetherGameplayTags`), 정의 자산 `UDigetherItemDefinition`·`UDigetherTuningProfile`(`Game/Data/`), DA `DA_Tuning_Prototype`·`DA_Item_PrototypeCargo`, 런 시작 스냅샷, Asset Manager 등록을 넣었다. P0의 결과 코드(`Result.*`)와 나머지 태그 분류는 쓰는 단계(P4·P5)로 미뤘다. 시작 지급·구매·긴급 장치 수치는 P2에서 정의 자산으로 옮긴다. 검증 결과는 로컬 작업 기록에 둔다. P2~P7은 미구현이다.
 
 이 문서는 [전체 시스템 설계](../SYSTEM_DESIGN.md)와 [개발반 구현 설계](DEVELOPMENT_SYSTEM_DESIGN.md)를 코드로 옮길 때의 물리 구조와 단계별 적용 순서다. 공통 기능 규칙은 [표준 엔진 기능](../unreal/STANDARD_FEATURES.md)을 따른다. 아래 클래스 이름은 후보이며 구현·빌드·검증 전이다.
 
@@ -32,7 +36,7 @@
 
 ### 폴더와 이름
 
-`Source/DIGETHER/Game/` 아래에 도메인별 폴더를 두고 새 코드는 `Digether` 접두사를 쓴다. 런타임 모듈은 지금 규모에서 하나로 유지하고, 의존 방향과 공개 API로 경계를 지킨다. 기존 `Prototype/` 클래스는 단계마다 새 구성 요소를 호출하는 얇은 연결층이 되었다가 마지막에 정리한다.
+`Source/DIGETHER/Game/` 아래에 도메인별 폴더를 두고 새 코드는 `Digether` 접두사를 쓴다. 런타임 모듈은 지금 규모에서 하나로 유지하고, 의존 방향과 공개 API로 경계를 지킨다. 새 정식 런타임 코드는 `Prototype/` 클래스를 포함하거나 호출하지 않으며(예외: P1 브리지를 검사하는 기존 `Game/Tests/DigetherDataDefinitionTest.cpp`는 프로토타입 헤더·BP를 읽는 회귀 테스트로 남긴다. 이 테스트는 `Game/` 독립 실행의 증거가 아니다), 프로토타입 클래스도 `Game/` 쪽 새 구성 요소를 호출하도록 바꾸지 않는다(2026-11-04 결정). 프로토타입의 산식·흐름은 참고해서 `Game/`에 새로 작성한다.
 
 ```text
 Game/
@@ -48,11 +52,25 @@ Game/
   Save/        저장·불러오기·스키마 버전·변환
   Input/       Enhanced Input 연결
   Terrain/     굴착 밀도 지형·메시·복제(현재 `Prototype/World/DigetherExcavation*`)
-  Online/      세션 생성·검색·참가(현재 `Prototype/Online/`)
+  Online/      세션 생성·검색·참가(이미 있음: `DigetherSessionSubsystem` 등. 프로토타입 쪽은 `Prototype/Online/`)
+  Monster/     몬스터 체력·피격·사망·굴착로 이동(후보. 근거: Notion DIGETHER 작업 보드 DEV-050~052, 2026-10-30 엑셀 사본이며 승인된 기획 원본 아님).
+               2026-11-04 사용자 결정: 굴착로 이동은 런타임 내비메시 `RuntimeGeneration=Dynamic` + 맵의 제한된 NavMeshBoundsVolume,
+               몬스터 AI(DEV-049)는 Behavior Tree(보드의 '기획자가 직접 편집하는 BT 에디터'와 같은 방식)
   UI/          HUD·위젯(문구는 String Table)
 ```
 
-현재 프로토타입 기능의 이전 위치: 시체(`Corpse`)는 `Life/`, 포탈·광산 장면(`Portal`·`MineScene`)은 `Interaction/`과 월드 배치, 달리기·헤드램프 요청은 Character와 `Input/`, 납부 입력 위젯은 `UI/`로 옮긴다.
+프로토타입 기능에 대응하는 `Game/` 위치(프로토타입 파일은 그대로 두고 새로 작성): 시체(`Corpse`)는 `Life/`, 포탈·광산 장면(`Portal`·`MineScene`)은 `Interaction/`과 월드 배치, 달리기·헤드램프 요청은 Character와 `Input/`, 납부 입력 위젯은 `UI/`.
+
+### 실행 진입점
+
+프로토타입 GameMode를 연결층으로 쓰지 않으므로 `Game/` 쪽에 별도 진입점이 필요하다. 클래스 이름은 후보다.
+
+- GameMode·GameState·PlayerState·PlayerController를 `Game/Framework/`에 새로 둔다(2026-11-04 구현: `ADigetherGameplayGameMode`·`ADigetherGameplayGameState`·`ADigetherGameplayPlayerState`·`ADigetherGameplayPlayerController`. 템플릿의 `ADIGETHERGameMode`·`ADIGETHERPlayerController`와 이름이 대소문자만 달라 UHT·UObject 이름이 충돌하므로 `Gameplay`를 붙였다). GameMode는 로그인·스폰·구성 요소 연결만 맡고 규칙은 아래 배치표의 컴포넌트가 맡는다. 개발 시험 맵은 `/Game/Game/Maps/L_GameTest`이며 공유 레벨이 아니다. 플레이어 Pawn은 정식 캐릭터가 나올 때까지 임시 시험 Pawn `ADigetherTestPawn`(엔진 `ADefaultPawn` 하위, 클라이언트 이동의 서버 전달 없음)을 쓴다.
+- **실행 맵(2026-11-04 사용자 결정): 새 맵을 만든다.** 기존 맵(`L_Prototype` 등)은 바꾸지 않는다. 새 맵의 World Settings에서 `Game/` GameMode를 지정한다. 맵 경로·이름, 레벨 담당과의 조율, 플레이어 Pawn은 아래 항목과 착수 브리프에서 정한다. `.umap` 생성·수정은 에셋 작업이므로 담당·잠금을 확인한다.
+- **두 실행 경로를 구분한다.** (1) 개발 시험용 직접 실행: 맵 + `?game=` 또는 맵의 GameMode 지정. (2) 정식 실행: 메인 메뉴 → `DigetherSessionSubsystem`이 설정의 맵 이름에 `?listen`을 붙여 이동하는 기존 경로. 현재 `DefaultGame.ini`의 GameMap은 템플릿 맵이다. (2)에 새 맵·GameMode를 연결하고 cook 대상에 넣는 일은 진입점이 1인·4인 시나리오를 통과한 뒤 따로 한다.
+- **참가·재접속 계약**: 새 GameMode·Controller는 [전체 설계](../SYSTEM_DESIGN.md)의 인증 ID 기준 참가, 재접속 복원, 초기 지급 재실행 금지를 지킨다. 같은 ID가 다시 들어오면 이전 접속을 끊고 새 접속을 받는다(사용자 결정 2026-11-05, 기획 답변 C2. `PreLoginAsync`로 구현, 자동 테스트 통과, M2 미검증. 교체 대기 5초는 임시값). 교체 시 엔진 `KickPlayer`의 Pawn 파괴를 그대로 쓰지 않는다([네트워크 카탈로그](../unreal/features/NETWORKING.md)). 순서는 로그인 → 세션 레지스트리에서 신규/재접속 판정 → 재접속이면 상태 복원 뒤 기존 Pawn 재빙의(신규 스폰·지급 없음), 신규면 스폰·지급이다. 연결 해제 시 Pawn을 남겨 두는 책임은 Controller의 `PawnLeavingGame` 재정의와 레지스트리가 나눠 맡는다(프로토타입 Controller와 같은 훅을 참고).
+- **미결정**: 플레이어 Pawn·Character. 플레이어 기능은 다른 담당자 범위다. `Game/` 규칙이 의존할 사망 통지·소지품 무게 같은 접점과 Pawn 클래스 지정 방법을 플레이어 담당과 먼저 합의한다.
+- 순수 계산 함수(경제 산식, 슬롯·상태 전이, 저장 변환)는 진입점이 없어도 자동 테스트로 먼저 구현·검증할 수 있다.
 
 ### 배치
 
@@ -101,7 +119,9 @@ Game/
 
 단계 이름 P0~P7은 이 계획의 구조 이전 단계이며, 전체 설계의 기능 우선순위 표기(S34·S35의 P2)와 다른 구분이다. 기능 개발 순서 ①~⑦과는 병행하되, 같은 도메인의 새 기능은 그 도메인의 추출(P4) 뒤에 얹는다.
 
-각 단계는 따로 빌드·검증할 수 있게 나눈다. 동작을 바꾸지 않는 이전을 먼저 하고, 새 기능은 이전 뒤에 얹는다. 단계 사이에는 기존 구조로 값을 복사하는 연결 함수를 남겨 이전 단계와 함께 동작하게 한다.
+각 단계는 따로 빌드·검증할 수 있게 나눈다. 2026-11-04 결정으로 P2 이후 단계는 `Prototype/` 파일을 고치지 않는다. 표의 "바뀌는 파일"에 있는 프로토타입 파일(Types·SaveGame·Character·GameMode·PlayerController·World·HUD)은 같은 역할의 `Game/` 새 파일로 읽고, 완료 조건의 "기존 동작 동일·회귀"는 프로토타입 동작과 같은 시나리오를 `Game/` 진입점에서 비교하는 뜻으로 읽는다. 프로토타입과 새 구조 사이에 값을 복사하는 연결 함수는 두지 않는다. P0·P1에서 이미 프로토타입에 넣은 연결(정의 자산 브리지·런 스냅샷)은 그대로 둔다.
+
+**P2 저장 변환(2026-11-04 사용자 결정): 새 저장 시스템은 v2 세이브를 읽지 않는다.** v2는 프로토타입 타입(`UDigetherPrototypeSaveGame`·`FPrototype*`)으로 저장된 프로토타입 시험 데이터로 보고, `Game/Save/`는 새 형식(v3)만 읽고 쓴다. 변환 도구나 v2 읽기용 구조체는 만들지 않고, 프로토타입으로 한 진행은 새 게임에서 이어지지 않는다. v3는 프로토타입 슬롯과 다른 슬롯 이름을 써서 기존 v2 파일을 덮어쓰지 않는다. 그래서 아래 표 P2 행의 "구버전 구조체를 읽기용으로 유지", "v2 읽기 → 검증 → 명시적 변환 → 전체 반영", 완료 조건의 "v2 불러오기 후 값 일치"·"원본 보존"은 적용하지 않는다. 미래 버전·손상 파일 거부, v3 재저장 → 재시작 → 재로드 일치, 모든 생성 경로의 `DefinitionId` 채움은 그대로 완료 조건이다.
 
 | 단계 | 내용 | 바뀌는 파일·에셋 | 완료 조건 |
 |---|---|---|---|
@@ -109,36 +129,43 @@ Game/
 | P1 정의 데이터 | `UDigetherItemDefinition`(값·무게·특성 태그·소프트 메시), `UDigetherTuningProfile`(런 시작 시 고정할 값: 제한 시간·용량·운행 횟수·사망/복구 비율 등). Asset Manager 타입 등록(`AlwaysCook`), `IsDataValid`. 픽업(`DigetherPrototypeWorld.cpp`)이 정의를 읽어 기존 아이템 구조로 복사, GameMode 런 초기화가 프로필 스냅샷을 사용, Rules 산식이 비율을 인자로 받음. 기존 BP·맵의 GameMode 기본값과 픽업 편집값을 DA로 옮김. 프로필에 정의 버전 필드를 둔다. 튜닝 원본은 DA로 시작하고, 텍스트 원본(CSV/JSON, R14) 비교는 P7에서 한다 | `Game/Data/`, `DefaultGame.ini`, World·GameMode·Rules, 새 `DA_` 에셋, BP·맵 | 옮긴 값이 이전 값과 일치, 런 시작 시 버전과 함께 스냅샷, 패키지에서 정의 로드 |
 | P2 아이템 인스턴스·저장 변환 | 인스턴스 = `InstanceId`(기존 `Id` 보존) + `DefinitionId` + 슬롯 상태. 히든 여부는 정의 특성이 아니라 **슬롯 상태**로 둔다. 저장 스키마 v3, 구버전 구조체를 읽기용으로 유지. **v2 읽기 → 검증 → 명시적 변환 → 전체 반영** 순서. 정의를 찾을 수 없는 항목은 레거시 정의로 매핑하고 경고, 미래 버전·손상 파일은 덮어쓰지 않고 오류. 변환 전 원본 보존 | Types, SaveGame, Save, 인벤토리·HUD, 아이템 생성 경로(픽업·시작 도구·구매·긴급 장치·사망 드롭) | v2 불러오기 후 값 일치, v3 재저장 → 프로세스 재시작 → 재로드 후에도 일치, 모든 생성 경로가 `DefinitionId`를 채움, 손상·미래 버전 거부, 원본 보존. 위험도 중상 |
 | P3 Enhanced Input | `IA_`·`IMC_` 에셋(탐사·거점·관전·UI), Character 바인딩 교체 | `Game/Input/`, Character, 새 입력 에셋 | 실제 입력 경로로 모든 조작 동작, UI 진입·종료, 누르던 행동 취소, 관전·재빙의 뒤 Context 복원 |
-| P4 GameMode 분해 | 아래 추출 순서와 계약 | `Game/*`, GameMode 축소 | 추출마다 1인·4인 회귀, 상태 보존, 비공개 데이터 비전달 확인 |
+| P4 도메인 구성 요소 구현 | 아래 구현 순서와 계약. 프로토타입 GameMode는 축소하지 않는다(2026-11-04) | `Game/*`, `Game/` 새 GameMode | 구성 요소마다 1인·4인 시나리오, 상태 보존, 비공개 데이터 비전달 확인 |
 | P5 요청 경로 | RPC `Server_`·`Client_` 접두사. 구매·납부·해금·출발·**회수·승강** 요청에 클라이언트가 본 `PeriodId`/`RunId`를 담고 서버가 현재 값과 비교. 불러오기 후 클라이언트 ID 갱신. 서버 빈도 제한, 거절은 결과 코드로. 납부 입력 세션(서버 발급 세션 ID·납부대·기간 세대, [미로·폐교 흐름](../prototype/MAZE_SCHOOL_FLOW.md))은 화면 입력의 수명 관리로 유지하며 일반 요청의 준비/확정 단계로 보지 않는다 | PlayerController, 관련 Component | 이전 런·기간의 늦은 최초 요청 거절, 진행 중 행동의 늦은 완료 거절, 연타 차단 |
 | P6 장치·문구 | `EPrototypeStationKind` 분기를 장치 Component로, 화면 문구를 String Table로, 새 위젯은 CommonUI 기준([표준 엔진 기능](../unreal/STANDARD_FEATURES.md))으로 만들고 `CommonUI`·`CommonInput` 모듈 의존 추가 | World, HUD, Build.cs, 새 String Table | 새 장치를 GameMode·Station 수정 없이 추가 |
 | P7 튜닝 레지스트리(후속) | 파라미터 레지스트리(단위·범위·런타임 변경 여부·버전, R09~R10), 호스트 런타임 변경과 클라이언트 동기화(R04) | 별도 설계 | 이 계획 범위 밖. P1은 정의 분리와 런 고정값까지만 다룬다 |
 
-### P4 추출 순서와 연결 계약
+### P4 구현 순서와 연결 계약
 
-| 순서 | 추출 | 입력 | 출력·통지 | 남겨 둘 연결 |
+마지막 열은 동작을 참고할 프로토타입 함수다. 해당 함수는 수정하지 않는다.
+
+| 순서 | 구성 요소 | 입력 | 출력·통지 | 참고할 프로토타입 동작 |
 |---|---|---|---|---|
-| 1 | 저장(Subsystem) | GameMode가 모은 저장 데이터 | 저장·불러오기 결과 코드 | `RequestSave`/`RequestLoad`가 Subsystem 호출 |
-| 2 | 세션 레지스트리 | 로그인·로그아웃, PlayerState | 재접속 복원 완료 | `PostLogin`/`Logout`이 컴포넌트 호출 |
-| 3 | 경제(지갑·구매·납부) | 조율자 명령, 정의·튜닝 | 잔고 변경 통지 | `RequestPurchase`/`RequestDeposit` 위임 |
-| 4 | 인벤토리 | 줍기·버리기 명령 | 슬롯 변경 통지 | `RequestPickupItem`/`RequestDrop` 위임 |
-| 5 | 생존·구조 | 피해·매몰·구조 명령 | 사망·탈출 확정 통지 | `RequestDamage`/`RequestRescue` 등 위임 |
-| 6 | 엘리베이터 | 출발·운행 명령 | 편 성공·취소 통지 | `RequestElevator`·`UpdateElevator` 위임, bool 상태를 enum으로 |
-| 7 | 런 조율자 | 위 통지 | 종료·정산·일차 전환 | GameMode 본체의 `Tick`·`FinishRun`을 조율자 컴포넌트로 이전 |
+| 1 | 저장(Subsystem) | `Game/` GameMode가 모은 저장 데이터 | 저장·불러오기 결과 코드 | `RequestSave`/`RequestLoad` |
+| 2 | 세션 레지스트리 | 로그인·로그아웃, PlayerState | 재접속 복원 완료 | `PostLogin`/`Logout`, `HandleControllerDisconnect` |
+| 3 | 경제(지갑·구매·납부) | 조율자 명령, 정의·튜닝 | 잔고 변경 통지 | `RequestPurchase`/`RequestDeposit` |
+| 4 | 인벤토리 | 줍기·버리기 명령 | 슬롯 변경 통지 | `RequestPickupItem`/`RequestDrop` |
+| 5 | 생존·구조 | 피해·매몰·구조 명령 | 사망·탈출 확정 통지 | `RequestDamage`/`RequestRescue` 등 |
+| 6 | 엘리베이터 | 출발·운행 명령 | 편 성공·취소 통지 | `RequestElevator`·`UpdateElevator`(bool 상태 묶음 대신 enum) |
+| 7 | 런 조율자 | 위 통지 | 종료·정산·일차 전환 | GameMode `Tick`·`FinishRun` |
+
+순수 계산 함수(경제 산식 등)는 순서와 관계없이 먼저 만들 수 있다. 인벤토리·생존은 플레이어 담당 범위와 겹치므로 접점 합의 뒤에 진행한다.
 
 ## 4. 위험과 대응
 
+- 아래 두 항목(이름 변경·RPC 이름 변경)은 프로토타입을 고치던 이전 계획의 위험이다. 2026-11-04 결정 뒤에는 P0·P1에서 이미 바꾼 부분에만 해당하고, 앞으로의 작업은 `Game/` 새 클래스와 새 에셋 연결 기준으로 본다.
 - **이름 변경과 데이터 이전은 다른 일이다.** 같은 타입의 이름 변경은 `DefaultEngine.ini` CoreRedirects로 처리한다. 타입 변환(bool→태그)과 소유 객체 이동(GameMode 속성→DA, 컴포넌트)은 CoreRedirects로 안 된다. 기존 BP 기본값·맵 인스턴스 값을 먼저 수집하고 새 위치로 옮긴 뒤 값을 비교한다. 완료 조건은 BP 컴파일, 맵 로드, 재저장, cook이다. 바이너리 안의 실제 참조·기본값은 아직 확인하지 않았다.
 - **RPC 이름 변경**: 현재 Controller RPC는 `BlueprintCallable`이 아니어서 BP 직접 호출 가능성은 낮지만, 변경 전 BP 참조를 확인한다. 에디터를 닫고 빌드한다.
 - **바이너리 에셋 충돌**: `.uasset`·`.umap` 수정과 새 `DA_`·`IA_` 에셋 생성은 담당자·잠금을 확인한다([에셋 안전](../unreal/ASSET_SAFETY.md)).
 - **저장 호환**: P2는 실제 사용자 세이브 대신 임시 경로로 시험한다([데이터 작업](../unreal/DATA_WORKFLOW.md)).
 - **동작 회귀**: 각 단계 전후 같은 검사를 돌려 비교한다.
 - **범위 확장**: Gameplay Ability System·Game Features·Push Model/Iris는 넣지 않는다(별도 결정).
+- **규칙 중복(2026-11-04 결정의 대가)**: 프로토타입을 고치지 않으므로 같은 규칙이 `Prototype/`과 `Game/` 두 곳에 존재한다. 프로토타입은 새 기능·수치 변경을 받지 않는 고정 기준으로 두고, 기획 변경은 `Game/`에만 반영한다. 반대로 프로토타입 이름 변경·CoreRedirects·RPC 이름 변경 위험은 P2 이후에 생기지 않는다.
+- **공유 정의 데이터로 인한 회귀 기준 변화**: 프로토타입은 `Game/Data/`의 정의 타입과 `DA_Tuning_Prototype`·`DA_Item_PrototypeCargo`를 읽고, `DigetherDataDefinitionTest`는 그 값을 고정 수치로 기대한다. 공유 타입의 동작이나 이 두 DA 값을 바꾸면 프로토타입 동작도 바뀐다. 이 두 DA는 회귀 기준으로 값 변경을 금지하고, 정식 데이터는 별도 ID의 새 DA를 쓴다. 공유 타입에 필드를 추가할 때는 기존 DA의 기본값이 그대로 유지되는지 확인한다.
 
 ## 5. 단계별 검증
 
 - **빌드**: Editor·Game Development 타깃. 헤더 의존을 바꾼 단계는 non-unity 빌드.
 - **자동 테스트**: 등록 이름 `DIGETHER.Prototype.Settlement`·`DIGETHER.Prototype.Excavation.Field`·`DIGETHER.Prototype.DepositInput`과 단계별 새 테스트(`DIGETHER.Game.*`: 태그·정의 검증, 경제 산식, 슬롯 판정, 엘리베이터 상태 전이, 저장 변환). 현재 `scripts/Invoke-UnrealChecks.ps1`은 `Workbench.` 테스트만 고르므로 `DIGETHER.` 필터를 추가하거나 직접 Automation 명령으로 실행한다. 실행기를 고칠 때는 실행 필터와 기대 테스트 수집 범위를 함께 바꾼다. 단계마다 기대 테스트 개수를 기록하고 **0개 실행은 실패**로 본다.
 - **데이터 검증**: DataValidation 대상을 정의 에셋(`DA_`)으로 지정해 실행한다.
-- **실행**: `DigetherPrototypeProbe` 1인 시나리오와 별도 프로세스 4인 M2(경합·재접속·비공개 데이터 비전달). Probe는 입력을 우회하므로 P3은 실제 입력 경로 검사를 따로 한다. 패키지에서 정의 로드를 확인한다.
+- **실행**: `DigetherPrototypeProbe` 1인 시나리오와 별도 프로세스 4인 M2(경합·재접속·비공개 데이터 비전달). Probe는 프로토타입 GameMode 기준이므로 `Game/` 진입점에는 같은 시나리오의 새 실행 수단이 필요하다(실행 맵 결정 뒤). Probe는 입력을 우회하므로 P3은 실제 입력 경로 검사를 따로 한다. 패키지에서 정의 로드를 확인한다.
 - 각 단계 결과와 미검증 범위를 작업 기록에 남긴다. 이 문서 작성은 구현·검증 완료가 아니다.

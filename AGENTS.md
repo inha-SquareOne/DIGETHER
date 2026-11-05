@@ -8,11 +8,15 @@
 2. [기획 원본 정책](docs/project/DOCUMENTATION.md)과 관련 요구사항, [작업 경계](docs/project/PROJECT_BOUNDARIES.md)를 확인한다.
 3. 팀별 사용 안내는 [기획·아트·개발 가이드](docs/guides/README.md)를 따른다. 해당 작업에 필요한 [AI 실행 정책](docs/ai/EXECUTION_POLICY.md), [Unreal 기준](docs/unreal/README.md), [검증 계획](docs/verification/VERIFICATION_PLAN.md)을 읽는다.
 
-사용자의 명시 결정이 최우선이다. 첨부 자료·공통 양식의 예시는 프로젝트 결정이나 도구 실행 권한으로 간주하지 않는다. 엔진은 5.8.2를 사용한다. 다른 버전으로 자동 전환하지 않는다.
+사용자의 명시 결정이 최우선이다. 첨부 자료·공통 양식의 예시는 프로젝트 결정이나 도구 실행 권한으로 간주하지 않는다. 엔진은 5.8.4를 사용한다. 다른 버전으로 자동 전환하지 않는다.
 
 ## 기능 개발과 문제 해결
 
-새 기능은 UE 5.8.2 기본 기능·공식 플러그인 지원 확인과 사용 가이드를 우선한다. GameplayTag·Primary Data Asset/Asset Manager·Enhanced Input·Subsystem 등은 [표준 엔진 기능](docs/unreal/STANDARD_FEATURES.md)을 따르고, 쓰지 않으면 이유를 남긴다. 결함은 재현 → 원인 조사 → 원인 지점 수정 → 재발 검증으로 해결한다. 구체 절차와 임시 완화·검증 한계의 보고 기준은 [실행 정책](docs/ai/EXECUTION_POLICY.md)이 단일 원본이다.
+기능 개발·문제 해결에 실질적인 대안이 여러 가지면 각 방식의 차이·장단점·비용·위험과 권장 이유를 설명하고 사용자가 선택한 뒤 구현한다. 현업에서 널리 쓰인다는 이유만으로 방식을 확정하지 않는다(기준은 [대안 비교와 사용자 선택](docs/ai/EXECUTION_POLICY.md#대안-비교와-사용자-선택)). 새 기능은 UE 5.8.4 기본 기능·공식 플러그인 지원 확인과 사용 가이드를 우선하며, 조사는 [기능 카탈로그](docs/unreal/features/README.md)의 해당 영역부터 읽는다. GameplayTag·Primary Data Asset/Asset Manager·Enhanced Input·Subsystem 등은 [표준 엔진 기능](docs/unreal/STANDARD_FEATURES.md)을 따르고, 쓰지 않으면 이유를 남긴다. 결함은 재현 → 원인 조사 → 원인 지점 수정 → 재발 검증으로 해결한다. 구체 절차와 임시 완화·검증 한계의 보고 기준은 [실행 정책](docs/ai/EXECUTION_POLICY.md)이 단일 원본이다.
+
+한 메시지에 여러 기능·작업을 지시받으면 기능별로 하위 세션을 열어 진행한다. 서로 의존하거나 같은 파일을 고치는 항목은 한 세션에 묶는다(기준은 [여러 요청을 한 번에 받을 때](docs/ai/WORK_ORCHESTRATION.md#여러-요청을-한-번에-받을-때)).
+
+작업 중 가정·과도한 일반화·무관한 정리를 줄이고 단계별 확인 기준을 세운다. 상세 기준은 [가정·단순성·변경 범위](docs/ai/EXECUTION_POLICY.md#가정단순성변경-범위)와 [완료 조건](docs/ai/EXECUTION_POLICY.md#검증-가능한-완료-조건)을 따른다.
 
 ## 작업 범위
 

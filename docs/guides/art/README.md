@@ -9,6 +9,8 @@
 3. [모델·재질 제작과 검수](../../unreal/ART_PRODUCTION.md), Unreal을 직접 편집할 때 [에셋 안전](../../unreal/ASSET_SAFETY.md).
 4. [GitHub 초보 안내](../GITHUB_BEGINNER.md): 파일 전달·오류 보존 방법.
 
+로비 시설 모델을 전달하거나 교체할 때는 [로비 시설 아트 전달과 외형 교체](HUB_FACILITY_ASSET_HANDOFF.md)의 Blueprint 슬롯·치수·기능 연결 기준을 함께 확인한다.
+
 ## 파일 세 종류
 
 | 종류 | 예시 | 전달할 정보 |

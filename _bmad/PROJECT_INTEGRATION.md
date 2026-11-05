@@ -1,8 +1,8 @@
 # DIGETHER BMAD 적용 경계
 
-Unreal Engine **5.8.2**, 한국어, 프로젝트 파일 관리 **GitHub**를 따른다. 플랫폼 선택은 `unreal`이다. 사용자 이름은 신원을 추측하지 않는 `Project contributor` 기본값이다.
+Unreal Engine **5.8.4**, 한국어, 프로젝트 파일 관리 **GitHub**를 따른다. 플랫폼 선택은 `unreal`이다. 사용자 이름은 신원을 추측하지 않는 `Project contributor` 기본값이다.
 
-기획 운영 원본은 **Notion**이며 이관 전 기준은 `docs/GAME_DESIGN.md`다. BMAD의 “GDD canonical source”는 이 프로젝트에서 승인된 Notion 기획과 동기화된 작업용 사본을 뜻한다. 새 출력은 `_bmad-output/planning-drafts/`의 미승인 초안으로 분류하며 기존 기획을 자동 대체하지 않는다. 기술·실행 산출물은 `_bmad-output/implementation-artifacts/`로 분리한다. 기획 동기화·외부 게시·커밋·푸시는 현재 사용자 요청에 따른다.
+기획 운영 원본은 **Notion**이며 이관 전 기준은 `docs/GAME_DESIGN.md`다. BMAD의 “GDD canonical source”는 이 프로젝트에서 승인된 Notion 기획과 동기화된 작업용 사본을 뜻한다. 새 출력은 `_bmad-output/planning-drafts/`의 미승인 초안으로 분류하며 기존 기획을 자동 대체하지 않는다. 기술·실행 산출물은 `_bmad-output/implementation-artifacts/`로 분리한다. `_bmad-output/`은 로컬 전용이며 Git에 커밋하지 않는다(2026-11-04 결정, `.gitignore`). 기획 동기화·외부 게시·푸시는 현재 사용자 요청에 따른다.
 
 사용 전 `AGENTS.md`, `docs/project/PROJECT_PROFILE.md`, `docs/project/DOCUMENTATION.md`, `docs/ai/EXECUTION_POLICY.md`를 확인한다. 스킬의 에이전트·자동화·테스트 안내는 사용 가능한 런타임과 승인 범위에서만 적용한다. 설치 자체는 실행, 위임, 업로드 또는 외부 전송 승인이 아니다. 현재 엔진 프로젝트·환경의 부재는 성공으로 보고하지 않는다. 네트워크와 게임 규칙을 추정해 확정하지 않는다.
 

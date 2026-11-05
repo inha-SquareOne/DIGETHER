@@ -3,6 +3,9 @@ Binaries/
 Intermediate/
 Saved/
 DerivedDataCache/
+# Packaging-generated open-order logs (rest of Build stays tracked)
+/DIGETHER/Build/Windows/FileOpenOrder/CookerOpenOrder.log
+/DIGETHER/Build/Windows/FileOpenOrder/EditorOpenOrder.log
 
 # IDE caches and generated project files
 .vs/
@@ -33,6 +36,8 @@ _bmad/config.user.toml
 _bmad/custom/*.user.toml
 _bmad/core/config.user.yaml
 _bmad/gds/config.user.yaml
+# BMAD 결과물은 로컬 전용이다(2026-11-04 결정).
+/_bmad-output/
 
 # Keep Config, Content, Source, Build, SourceArt and .vsconfig tracked.
 # Required precompiled plugins need explicit Binaries exceptions when introduced.

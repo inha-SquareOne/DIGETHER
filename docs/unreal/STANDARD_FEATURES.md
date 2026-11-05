@@ -54,7 +54,7 @@
 
 ## 설정과 디버그
 
-- 프로젝트 단위 설정은 `UDeveloperSettings` 하위 클래스로 만들어 프로젝트 설정 화면에서 편집한다. 게임 밸런스 값은 설정이 아니라 정의 데이터에 둔다.
+- 프로젝트 단위 설정은 `UDeveloperSettings` 하위 클래스로 만들어 프로젝트 설정 화면에서 편집한다. 게임 밸런스 값은 설정이 아니라 정의 데이터에 둔다. Blueprint 기본값과 정의 데이터의 구분은 [코딩 컨벤션의 Blueprint 규칙](../CODING_CONVENTION.md#6-blueprint와-프로퍼티-노출)을 따른다.
 - 디버그 표시·치트·강제 실행은 콘솔 변수(`TAutoConsoleVariable`)나 콘솔 명령으로 켜고, 출시 빌드에서 빠지도록 빌드 가드를 둔다([개발 패턴](ENGINEERING_PATTERNS.md#빌드-구성)).
 - 로그는 기능별 카테고리를 `DECLARE_LOG_CATEGORY_EXTERN`/`DEFINE_LOG_CATEGORY`로 선언해 쓴다. `LogTemp`는 임시 확인 뒤 지운다.
 
@@ -66,6 +66,7 @@
 ## UI·AI·디버깅 도구
 
 - UI 화면 쌓기·뒤로 가기·게임패드 포커스는 CommonUI의 Activatable Widget과 스택을 쓴다. UI는 표시만 하고 게임 상태를 직접 바꾸지 않는다.
+- C++은 위젯의 동작만 담은 부모 클래스로 두고 `BindWidget`으로 필요한 자식 위젯을 요구한다. 배치는 위젯 블루프린트(`WBP_`), 모양은 CommonUI 스타일 에셋과 텍스처·머티리얼로 만든다. 위젯 트리나 버튼 모양을 C++ 코드로 그리지 않는다.
 - AI·흐름 로직은 StateTree 또는 Behavior Tree로 만든다. 어느 것을 쓸지는 프로젝트 결정을 따른다.
 - 실행 중 상태 확인은 Gameplay Debugger, 시간축 기록은 Visual Logger, 성능은 Unreal Insights를 쓴다([성능](PERFORMANCE.md)).
 
