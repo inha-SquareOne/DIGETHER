@@ -16,7 +16,7 @@ public:
 	void RequestStartGame();
 	void RequestLeave();
 
-	// 개발·시험용 콘솔 명령. 화면 버튼과 같은 함수를 호출한다.
+	// 개발·시험용 콘솔 명령. 화면 버튼과 같은 함수를 호출한다. 출시 빌드에서는 아무 일도 하지 않는다.
 	UFUNCTION(Exec) void LobbyReady(bool bReady);
 	UFUNCTION(Exec) void LobbyStart();
 	UFUNCTION(Exec) void LobbyLeave();

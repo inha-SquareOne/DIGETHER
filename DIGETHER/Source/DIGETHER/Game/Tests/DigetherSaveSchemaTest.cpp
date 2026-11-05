@@ -19,6 +19,7 @@ namespace
 		Snapshot.GameId = FGuid(1, 2, 3, 4);
 		Snapshot.RunId = FGuid(5, 6, 7, 8);
 		Snapshot.Quota.Quota.Day = 1;
+		Snapshot.Quota.Quota.TotalDay = 1;
 		Snapshot.Quota.Quota.TargetCredits = 100;
 		Snapshot.RunTuning.SourceProfile = FPrimaryAssetId(TEXT("DigetherTuningProfile:DA_SaveFixture"));
 		Snapshot.RunTuning.ProfileVersion = 7;
@@ -64,11 +65,14 @@ bool FDigetherSaveRoundTripTest::RunTest(const FString& Parameters)
 {
 	const FDigetherSaveSnapshot Snapshot = MakeSaveFixture();
 	FDigetherSaveSlotData Slot;
-	if (!TestTrue(TEXT("v3 값으로 기준점과 진행을 구성"), DigetherSaveRules::TryBuildSlot(Snapshot, nullptr,
-		false, true, Slot) == EDigetherSaveResult::Success))
+	if (!TestTrue(TEXT("v3 값으로 진행을 구성"), DigetherSaveRules::TryBuildSlot(Snapshot, nullptr,
+		false, Slot) == EDigetherSaveResult::Success))
 	{
 		return false;
 	}
+	// 폐기된 출발 기준점이 들어 있는 이전 파일도 같은 형식으로 읽고 다시 써야 한다(저장 형식 유지).
+	Slot.DepartureCheckpoint = Snapshot;
+	Slot.bHasDepartureCheckpoint = true;
 	TArray<uint8> Bytes;
 	if (!TestTrue(TEXT("월드 없는 메모리 직렬화"),
 		DigetherSaveRules::SerializeSlot(Slot, Bytes) == EDigetherSaveResult::Success))
@@ -77,7 +81,8 @@ bool FDigetherSaveRoundTripTest::RunTest(const FString& Parameters)
 	}
 	int32 StoredVersion = 0;
 	FMemory::Memcpy(&StoredVersion, Bytes.GetData(), sizeof(StoredVersion));
-	TestEqual(TEXT("첫 4바이트는 int32 스키마 버전"), StoredVersion, DigetherSaveTuning::SchemaVersion);
+	// 첫 int32는 진행 스키마(v3)가 아니라 wire 버전이다. 새 쓰기는 항상 최신 wire다.
+	TestEqual(TEXT("첫 4바이트는 int32 wire 버전"), StoredVersion, DigetherSaveWire::LatestVersion);
 	TestEqual(TEXT("버전 바로 뒤에 기준점 존재 여부 기록"), Bytes[sizeof(int32)], static_cast<uint8>(1));
 	FDigetherSaveSlotData Restored;
 	TestTrue(TEXT("v3 메모리 역직렬화"), DigetherSaveRules::DeserializeSlot(Bytes, Restored) == EDigetherSaveResult::Success);
@@ -86,6 +91,8 @@ bool FDigetherSaveRoundTripTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("진행·기준점의 모든 저장 필드가 동일"), Bytes == EncodedAgain);
 	TestEqual(TEXT("미접속 참가자도 보존"), Restored.Progress.Players.Num(), 2);
 	TestEqual(TEXT("고정 튜닝 버전 보존"), Restored.Progress.RunTuning.ProfileVersion, 7);
+	TestEqual(TEXT("전체 일차 보존"), Restored.Progress.Quota.Quota.TotalDay, 1);
+	TestEqual(TEXT("기준점 전체 일차 보존"), Restored.DepartureCheckpoint.Quota.Quota.TotalDay, 1);
 	TestEqual(TEXT("고정 튜닝 실제 값 보존"), Restored.Progress.RunTuning.RunSeconds, 120.f);
 	TestTrue(TEXT("고정 튜닝 출처 보존"), Restored.Progress.RunTuning.SourceProfile == Snapshot.RunTuning.SourceProfile);
 	TestTrue(TEXT("완료 정산 기록 보존"), Restored.Progress.CompletedSettlementRunIds == Snapshot.CompletedSettlementRunIds);
@@ -129,7 +136,10 @@ bool FDigetherSaveRejectTest::RunTest(const FString& Parameters)
 {
 	const FDigetherSaveSnapshot Snapshot = MakeSaveFixture();
 	FDigetherSaveSlotData Slot;
-	DigetherSaveRules::TryBuildSlot(Snapshot, nullptr, false, true, Slot);
+	DigetherSaveRules::TryBuildSlot(Snapshot, nullptr, false, Slot);
+	// 이전 파일처럼 출발 기준점이 들어 있는 바이트로 거절 경로를 검사한다(저장 형식 유지).
+	Slot.DepartureCheckpoint = Snapshot;
+	Slot.bHasDepartureCheckpoint = true;
 	TArray<uint8> Bytes;
 	if (!TestTrue(TEXT("거절 검사용 v3 바이트 구성"),
 		DigetherSaveRules::SerializeSlot(Slot, Bytes) == EDigetherSaveResult::Success))
@@ -139,9 +149,9 @@ bool FDigetherSaveRejectTest::RunTest(const FString& Parameters)
 	FDigetherSaveSlotData Output = Slot;
 	const FGuid Sentinel(91, 92, 93, 94);
 	Output.Progress.GameId = Sentinel;
-	for (const int32 Version : { -1, 0, 2, 4 })
+	for (const int32 Version : { -1, 0, 2, DigetherSaveWire::LatestVersion + 1 })
 	{
-		const EDigetherSaveResult Expected = Version > DigetherSaveTuning::SchemaVersion
+		const EDigetherSaveResult Expected = Version > DigetherSaveWire::LatestVersion
 			? EDigetherSaveResult::UnsupportedVersion : EDigetherSaveResult::CorruptData;
 		TArray<uint8> WrongVersion = Bytes;
 		FMemory::Memcpy(WrongVersion.GetData(), &Version, sizeof(Version));
@@ -220,7 +230,7 @@ bool FDigetherSaveRejectTest::RunTest(const FString& Parameters)
 	FDigetherSaveSnapshot Invalid = Snapshot;
 	Invalid.Players[1].GameplayPlayerId = Invalid.Players[0].GameplayPlayerId;
 	TArray<uint8> UnchangedBytes = { 7, 8, 9 };
-	TestTrue(TEXT("중복 참가자 GUID 저장 거절"), DigetherSaveRules::TryBuildSlot(Invalid, nullptr, false, false, Output)
+	TestTrue(TEXT("중복 참가자 GUID 저장 거절"), DigetherSaveRules::TryBuildSlot(Invalid, nullptr, false, Output)
 		== EDigetherSaveResult::InvalidState);
 	TestTrue(TEXT("구성 실패 시 출력 유지"), Output.Progress.GameId == Sentinel);
 	for (const int32 Version : { -1, 0, 2, 4 })
@@ -435,7 +445,7 @@ bool FDigetherSaveSettlementTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("미접속 지급"), Settled.Players[1].Wallet.BalanceCredits, 95);
 	TestTrue(TEXT("지급과 함께 완료 RunId 기록"), Settled.CompletedSettlementRunIds.Contains(Snapshot.RunId));
 	FDigetherSaveSlotData Slot;
-	DigetherSaveRules::TryBuildSlot(Settled, nullptr, false, true, Slot);
+	DigetherSaveRules::TryBuildSlot(Settled, nullptr, false, Slot);
 	TArray<uint8> Bytes;
 	DigetherSaveRules::SerializeSlot(Slot, Bytes);
 	FDigetherSaveSlotData Reloaded;
@@ -488,69 +498,120 @@ bool FDigetherSaveReconnectRecordTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSaveCheckpointTest,
-	"DIGETHER.Game.Save.Checkpoint.DepartureAndExplicitReset",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSaveSlotWriteTest,
+	"DIGETHER.Game.Save.Slot.ProgressWriteDropsLegacyCheckpointAndExplicitReset",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FDigetherSaveCheckpointTest::RunTest(const FString& Parameters)
+bool FDigetherSaveSlotWriteTest::RunTest(const FString& Parameters)
 {
 	const FDigetherSaveSnapshot Snapshot = MakeSaveFixture();
 	FDigetherSaveSlotData Slot;
-	DigetherSaveRules::TryBuildSlot(Snapshot, nullptr, false, false, Slot);
-	TestTrue(TEXT("기준점이 없으면 출발 거절"), DigetherSaveRules::CanDepartWithCheckpoint(Snapshot, Slot)
-		== EDigetherSaveResult::CheckpointMissing);
-	DigetherSaveRules::TryBuildSlot(Snapshot, &Slot, false, true, Slot);
-	TestTrue(TEXT("현재 일차 기준점 저장 뒤 출발 허용"), DigetherSaveRules::CanDepartWithCheckpoint(Snapshot, Slot)
+	TestTrue(TEXT("첫 진행 슬롯 구성"), DigetherSaveRules::TryBuildSlot(Snapshot, nullptr, false, Slot)
 		== EDigetherSaveResult::Success);
+	TestFalse(TEXT("새 슬롯에는 출발 기준점을 만들지 않음"), Slot.bHasDepartureCheckpoint);
+	// 폐기 규칙으로 쓰인 이전 파일: 기준점이 진행과 다른 지갑을 갖고 있다.
+	Slot.DepartureCheckpoint = Snapshot;
+	Slot.DepartureCheckpoint.Players[0].Wallet.BalanceCredits = 10;
+	Slot.bHasDepartureCheckpoint = true;
 	FDigetherSaveSnapshot Changed = Snapshot;
 	Changed.Players[0].Wallet.BalanceCredits = 60;
-	DigetherSaveRules::TryBuildSlot(Changed, &Slot, false, false, Slot);
-	TestEqual(TEXT("수동 진행 저장은 기준점 지갑을 덮지 않음"), Slot.DepartureCheckpoint.Players[0].Wallet.BalanceCredits, 70);
-	TestTrue(TEXT("기준점 후 값이 바뀌면 새 기준점 저장 전 출발 거절"), DigetherSaveRules::CanDepartWithCheckpoint(Changed, Slot)
-		== EDigetherSaveResult::CheckpointMismatch);
-	Changed = Snapshot;
-	Changed.Quota.Quota.Day = 2;
-	TestTrue(TEXT("전날 기준점으로 현재 일차 출발을 허용하지 않음"), DigetherSaveRules::CanDepartWithCheckpoint(Changed, Slot)
-		== EDigetherSaveResult::CheckpointMismatch);
+	TestTrue(TEXT("이전 기준점이 있는 슬롯에 같은 게임 진행 쓰기"), DigetherSaveRules::TryBuildSlot(Changed, &Slot, false, Slot)
+		== EDigetherSaveResult::Success);
+	TestEqual(TEXT("진행은 최신 저장 시점 값"), Slot.Progress.Players[0].Wallet.BalanceCredits, 60);
+	TestFalse(TEXT("새로 쓴 슬롯은 이전 기준점을 옮기지 않음"), Slot.bHasDepartureCheckpoint);
+	TArray<uint8> Bytes;
+	FDigetherSaveSlotData Reloaded;
+	TestTrue(TEXT("기준점 없는 슬롯 직렬화"), DigetherSaveRules::SerializeSlot(Slot, Bytes) == EDigetherSaveResult::Success);
+	TestTrue(TEXT("기준점 없는 슬롯 역직렬화"), DigetherSaveRules::DeserializeSlot(Bytes, Reloaded) == EDigetherSaveResult::Success);
+	TestEqual(TEXT("다시 읽은 진행 지갑"), Reloaded.Progress.Players[0].Wallet.BalanceCredits, 60);
+	TestFalse(TEXT("다시 읽어도 기준점 없음"), Reloaded.bHasDepartureCheckpoint);
+
+	// 탐사 중 상태는 저장하지 않는다(S30). 거절해도 이전 슬롯을 보존한다.
 	Changed = Snapshot;
 	Changed.RunPublicState.Phase = EDigetherRunPhase::InProgress;
-	const FGuid PreviousProgress = Slot.Progress.GameId;
-	TestTrue(TEXT("진행 중 임의 저장 거절"), DigetherSaveRules::TryBuildSlot(Changed, &Slot, false, true, Slot)
+	const FDigetherSaveSlotData Before = Slot;
+	TestTrue(TEXT("탐사 중 진행 저장 거절"), DigetherSaveRules::TryBuildSlot(Changed, &Slot, false, Slot)
 		== EDigetherSaveResult::UnsafePhase);
-	TestTrue(TEXT("기준점 구성 실패 시 이전 슬롯 보존"), Slot.Progress.GameId == PreviousProgress);
+	TestEqual(TEXT("거절 시 이전 진행 지갑 보존"), Slot.Progress.Players[0].Wallet.BalanceCredits,
+		Before.Progress.Players[0].Wallet.BalanceCredits);
+	TestTrue(TEXT("거절 시 이전 진행 게임 보존"), Slot.Progress.GameId == Before.Progress.GameId);
 
 	Changed = Snapshot;
 	Changed.Quota.Quota.Day = 4;
-	TestTrue(TEXT("4일차 거점 귀환은 출발 전 마감 표시가 false여도 유효"), DigetherSaveRules::ValidateSnapshot(Changed)
+	TestTrue(TEXT("4일차 거점 진행은 마감 표시가 false여도 유효"), DigetherSaveRules::ValidateSnapshot(Changed)
 		== EDigetherSaveResult::Success);
 	Changed.RunPublicState.bPaymentDeadline = true;
-	TestTrue(TEXT("4일차 출발에서 확정한 마감 표시도 유효"), DigetherSaveRules::ValidateSnapshot(Changed)
+	TestTrue(TEXT("4일차 게이지 완료에서 기록한 마감 표시도 유효"), DigetherSaveRules::ValidateSnapshot(Changed)
 		== EDigetherSaveResult::Success);
+	TestTrue(TEXT("기록한 마감은 진행 저장에 그대로 남음"), DigetherSaveRules::TryBuildSlot(Changed, &Slot, false, Slot)
+		== EDigetherSaveResult::Success && Slot.Progress.RunPublicState.bPaymentDeadline);
 	Changed.Quota.Quota.Day = 3;
 	TestTrue(TEXT("다른 일차에 마감 표시를 쓰면 거절"), DigetherSaveRules::ValidateSnapshot(Changed)
 		== EDigetherSaveResult::InvalidState);
 
 	Changed = Snapshot;
 	Changed.GameId = FGuid(41, 42, 43, 44);
-	TestTrue(TEXT("일반 쓰기로 다른 게임을 덮지 않음"), DigetherSaveRules::TryBuildSlot(Changed, &Slot, false, false, Slot)
+	TestTrue(TEXT("일반 쓰기로 다른 게임을 덮지 않음"), DigetherSaveRules::TryBuildSlot(Changed, &Slot, false, Slot)
 		== EDigetherSaveResult::InvalidState);
-	TestTrue(TEXT("명시 새 게임은 슬롯 전체 초기화"), DigetherSaveRules::TryBuildSlot(Changed, &Slot, true, false, Slot)
+	Slot.DepartureCheckpoint = Slot.Progress;
+	Slot.bHasDepartureCheckpoint = true;
+	TestTrue(TEXT("명시 새 게임은 슬롯 전체 초기화"), DigetherSaveRules::TryBuildSlot(Changed, &Slot, true, Slot)
 		== EDigetherSaveResult::Success);
 	TestTrue(TEXT("명시 초기화 뒤 이전 기준점 제거"), !Slot.bHasDepartureCheckpoint);
 	Slot.Progress.SchemaVersion = 4;
-	TestTrue(TEXT("미래 버전은 일반 쓰기 거절"), DigetherSaveRules::TryBuildSlot(Changed, &Slot, false, false, Slot)
+	TestTrue(TEXT("미래 버전은 일반 쓰기 거절"), DigetherSaveRules::TryBuildSlot(Changed, &Slot, false, Slot)
 		== EDigetherSaveResult::UnsupportedVersion);
 	TestTrue(TEXT("명시 초기화 값 후보 구성(디스크 쓰기 권한은 별도 판정)"),
-		DigetherSaveRules::TryBuildSlot(Changed, &Slot, true, true, Slot)
+		DigetherSaveRules::TryBuildSlot(Changed, &Slot, true, Slot)
 		== EDigetherSaveResult::Success);
 	Changed = Snapshot;
 	Changed.Quota.Quota.Day = 5;
 	Changed.RunPublicState.bGameOver = true;
 	Changed.RunPublicState.bPaymentDeadline = true;
-	DigetherSaveRules::TryBuildSlot(Changed, nullptr, false, true, Slot);
-	TestTrue(TEXT("실패 대기는 저장 가능"), DigetherSaveRules::ValidateSnapshot(Changed) == EDigetherSaveResult::Success);
-	TestTrue(TEXT("불러온 실패 대기를 일반 출발로 풀지 않음"), DigetherSaveRules::CanDepartWithCheckpoint(Changed, Slot)
-		== EDigetherSaveResult::UnsafePhase);
+	TestTrue(TEXT("게임 오버 확정 진행은 저장 가능"), DigetherSaveRules::ValidateSnapshot(Changed) == EDigetherSaveResult::Success);
+	TestTrue(TEXT("게임 오버 확정 진행 슬롯 구성"), DigetherSaveRules::TryBuildSlot(Changed, nullptr, false, Slot)
+		== EDigetherSaveResult::Success);
+	// 슬롯 값 계층은 확정 표시를 그대로 보존한다. 다음 실행에서 같은 슬롯 새 게임으로 바꾸는 것은 GameMode 시작 처리다(S33 240행).
+	TestTrue(TEXT("게임 오버 확정 표시는 슬롯에 그대로 남음"), Slot.Progress.RunPublicState.bGameOver);
+
+	// 기획 S33: 이번 게임 결과는 게임 오버 확정 진행에만 두며, 같은 게임 ID여야 한다.
+	FDigetherGameResult Result;
+	Result.ResultId = FGuid(51, 52, 53, 54);
+	Result.GameId = Changed.GameId;
+	Result.FinalTotalDay = 5;
+	FDigetherGameResultPlayer& ResultPlayer = Result.Players.AddDefaulted_GetRef();
+	ResultPlayer.DisplayName = TEXT("Host");
+	ResultPlayer.JoinOrder = 1;
+	ResultPlayer.EarnedCredits = 30;
+	ResultPlayer.HiddenCredits = 15;
+	Result.TotalEarnedCredits = 30;
+	Changed.bHasGameResult = true;
+	Changed.GameResult = Result;
+	TestTrue(TEXT("게임 오버 확정 진행에 결과 기록 저장 가능"), DigetherSaveRules::ValidateSnapshot(Changed)
+		== EDigetherSaveResult::Success);
+	FDigetherSaveSnapshot WrongGame = Changed;
+	WrongGame.GameResult.GameId = FGuid(61, 62, 63, 64);
+	TestTrue(TEXT("다른 게임 ID의 결과 거절"), DigetherSaveRules::ValidateSnapshot(WrongGame) == EDigetherSaveResult::InvalidState);
+	FDigetherSaveSnapshot WrongTotal = Changed;
+	WrongTotal.GameResult.TotalEarnedCredits = 45;
+	TestTrue(TEXT("히든을 다시 더한 전체 획득 거절"), DigetherSaveRules::ValidateSnapshot(WrongTotal) == EDigetherSaveResult::InvalidState);
+	FDigetherSaveSnapshot NotGameOver = Snapshot;
+	NotGameOver.bHasGameResult = true;
+	NotGameOver.GameResult = Result;
+	TestTrue(TEXT("게임 오버가 아닌 진행의 결과 거절"), DigetherSaveRules::ValidateSnapshot(NotGameOver) == EDigetherSaveResult::InvalidState);
+	// 보관한 이전 결과는 다른 게임 ID이고 결과 ID가 겹치지 않는다.
+	FDigetherSaveSnapshot Archived = Snapshot;
+	FDigetherGameResult Previous = Result;
+	Previous.GameId = FGuid(71, 72, 73, 74);
+	Archived.ArchivedGameResults.Add(Previous);
+	TestTrue(TEXT("이전 게임 결과 보관 가능"), DigetherSaveRules::ValidateSnapshot(Archived) == EDigetherSaveResult::Success);
+	Archived.ArchivedGameResults.Add(Previous);
+	TestTrue(TEXT("같은 결과 ID 중복 보관 거절"), DigetherSaveRules::ValidateSnapshot(Archived) == EDigetherSaveResult::InvalidState);
+	Archived.ArchivedGameResults.Reset();
+	FDigetherGameResult SameGame = Previous;
+	SameGame.GameId = Snapshot.GameId;
+	Archived.ArchivedGameResults.Add(SameGame);
+	TestTrue(TEXT("현재 게임 ID의 보관 결과 거절"), DigetherSaveRules::ValidateSnapshot(Archived) == EDigetherSaveResult::InvalidState);
 	return true;
 }
 

@@ -1,8 +1,8 @@
 #include "Game/Life/DigetherLifeStateComponent.h"
 
+#include "Game/Core/DigetherAuthority.h"
 #include "Game/Life/DigetherLifeLog.h"
 #include "Game/Life/DigetherLifeRules.h"
-#include "GameFramework/Actor.h"
 #include "Net/UnrealNetwork.h"
 
 UDigetherLifeStateComponent::UDigetherLifeStateComponent()
@@ -26,16 +26,10 @@ FDigetherLifeComponentState UDigetherLifeStateComponent::CaptureState() const
 	return State;
 }
 
-bool UDigetherLifeStateComponent::HasAuthorityOwner() const
-{
-	const AActor* OwnerActor = GetOwner();
-	return IsValid(OwnerActor) && OwnerActor->HasAuthority();
-}
-
 EDigetherLifeResult UDigetherLifeStateComponent::RestoreState(const FDigetherLifeComponentState& State,
 	const bool bNotify)
 {
-	if (!HasAuthorityOwner())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherLifeResult::NotAuthority;
 	}
@@ -57,7 +51,7 @@ EDigetherLifeResult UDigetherLifeStateComponent::RestoreState(const FDigetherLif
 EDigetherLifeResult UDigetherLifeStateComponent::ApplyUpdate(const FDigetherLifeUpdateResult& Update,
 	const bool bNotify)
 {
-	if (!HasAuthorityOwner())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherLifeResult::NotAuthority;
 	}
@@ -97,7 +91,7 @@ EDigetherLifeResult UDigetherLifeStateComponent::SelectSpectateTarget(
 	const TArray<FDigetherSpectateCandidate>& Candidates, const FString& SelfPlayerKey,
 	const EDigetherSpectateDirection Direction, const bool bNotify)
 {
-	if (!HasAuthorityOwner())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherLifeResult::NotAuthority;
 	}
@@ -123,7 +117,7 @@ EDigetherLifeResult UDigetherLifeStateComponent::SelectSpectateTarget(
 
 EDigetherLifeResult UDigetherLifeStateComponent::NotifyStateChanged()
 {
-	if (!HasAuthorityOwner())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherLifeResult::NotAuthority;
 	}

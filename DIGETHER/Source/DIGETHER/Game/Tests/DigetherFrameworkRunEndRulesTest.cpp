@@ -10,8 +10,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkRunPlayerLocationTest,
 bool FDigetherFrameworkRunPlayerLocationTest::RunTest(const FString& Parameters)
 {
 	using DigetherFrameworkRules::MakeRunPlayerLocation;
+	// 기획 A3: 문이 닫히는 동안에도 탈 수 있다.
 	const EDigetherElevatorPhase BoardingPhases[] = {
-		EDigetherElevatorPhase::InitialDescent, EDigetherElevatorPhase::BottomWaiting };
+		EDigetherElevatorPhase::InitialDescent, EDigetherElevatorPhase::BottomWaiting, EDigetherElevatorPhase::DoorClosing };
 	const EDigetherElevatorPhase LeftPhases[] = {
 		EDigetherElevatorPhase::HubWaiting, EDigetherElevatorPhase::Ascending, EDigetherElevatorPhase::UpperStop,
 		EDigetherElevatorPhase::ReturnDescent, EDigetherElevatorPhase::FinalAscent, EDigetherElevatorPhase::Finished };

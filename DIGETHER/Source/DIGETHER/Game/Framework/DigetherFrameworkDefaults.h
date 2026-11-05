@@ -21,7 +21,4 @@ namespace DigetherFrameworkDefaults
 	// 임시값: 기획 미정(시험 Pawn의 탑승·귀환 배치 간격과 관전 전환 시간), 2026-11-04
 	inline constexpr double PlayerSpacingCm = 100.0;
 	inline constexpr float SpectateBlendSeconds = 0.2f;
-
-	// 임시값: 기획 미정(결과 크레딧 화면 연결 전), 2026-11-04
-	inline constexpr bool bAnyoneWatchingResultCredits = false;
 }

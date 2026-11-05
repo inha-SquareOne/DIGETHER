@@ -7,6 +7,7 @@
 class UCommonTextBlock;
 class UDynamicEntryBox;
 class UDigetherButtonWidget;
+class AGameStateBase;
 class ADigetherLobbyGameState;
 class ADigetherLobbyPlayerController;
 class ADigetherLobbyPlayerState;
@@ -50,6 +51,9 @@ private:
 	void HandleLeave();
 	void ClearLocalNotice();
 	void BindGameState();
+	// 클라이언트는 화면이 GameState 복제보다 먼저 뜰 수 있어, 월드에 GameState가 설정될 때 다시 연결한다.
+	void HandleGameStateSet(AGameStateBase* GameState);
+	void StopWaitingForGameState();
 	void Refresh();
 	ADigetherLobbyGameState* GetLobbyGameState() const;
 	ADigetherLobbyPlayerController* GetLobbyController() const;
@@ -59,6 +63,8 @@ private:
 	FDelegateHandle LobbyChangedHandle;
 	FDelegateHandle StatusChangedHandle;
 	FTimerHandle NoticeTimer;
-	FTimerHandle GameStateWaitTimer;
+	// UWorld::GameStateSetEvent 구독. 구독한 월드에서 해제한다.
+	TWeakObjectPtr<UWorld> GameStateWaitWorld;
+	FDelegateHandle GameStateSetHandle;
 	FText LocalNotice;
 };

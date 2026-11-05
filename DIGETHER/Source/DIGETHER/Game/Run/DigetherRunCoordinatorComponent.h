@@ -33,8 +33,12 @@ public:
 	// 약참조이므로 GameState 교체 때 새 공개 컴포넌트를 다시 연결한다. nullptr는 연결 해제다.
 	EDigetherRunResult SetPublicStateComponent(UDigetherRunPublicStateComponent* Component);
 	// Tick과 주입 시각의 원점이 다르면 단조성 검사에 막히므로 같은 월드의 GetTimeSeconds를 쓴다.
+	// bStartClock이 거짓이면 제한 시간은 StartClock(갱도 첫 도착) 전까지 흐르지 않는다.
 	EDigetherRunResult StartRun(const FDigetherRunTuning& Tuning,
-		const FDigetherRunRuleTuning& RuleTuning, double ServerSeconds);
+		const FDigetherRunRuleTuning& RuleTuning, double ServerSeconds, bool bStartClock = true);
+	// 기획: 제한 시간은 최초 하강을 마치고 갱도에 도착한 순간부터 흐른다.
+	EDigetherRunResult StartClock(double ServerSeconds);
+	bool IsClockStarted() const;
 	// P3가 확정한 상승 사건당 한 번 호출한다. 운행 한도·사건 중복 판정은 P3/호출자가 맡는다.
 	EDigetherRunResult RecordConfirmedAscent();
 	EDigetherRunResult UpdateTime(double ServerSeconds);

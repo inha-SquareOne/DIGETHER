@@ -62,6 +62,12 @@ void UDigetherSettingsPanelWidget::NativeOnInitialized()
 	for (const EWindowMode::Type Mode : WindowModes) Combo_WindowMode->AddOption(WindowModeName(Mode).ToString());
 	for (int32 Level = 0; Level < QualityLevelCount; ++Level) Combo_Quality->AddOption(QualityName(Level).ToString());
 	for (const float Limit : FrameLimits) Combo_FrameLimit->AddOption(FrameLimitName(Limit).ToString());
+	if (Combo_MicrophoneMode)
+	{
+		Combo_MicrophoneMode->ClearOptions();
+		Combo_MicrophoneMode->AddOption(LOCTEXT("MicAlwaysOn", "항상 켜짐").ToString());
+		Combo_MicrophoneMode->AddOption(LOCTEXT("MicPushToTalk", "누르고 말하기").ToString());
+	}
 
 	Slider_Master->OnValueChanged.AddDynamic(this, &ThisClass::HandleSliderChanged);
 	Slider_Effects->OnValueChanged.AddDynamic(this, &ThisClass::HandleSliderChanged);
@@ -137,6 +143,14 @@ void UDigetherSettingsPanelWidget::LoadFromSettings()
 	Slider_Music->SetValue(Settings->GetMusicVolume());
 	Slider_Sensitivity->SetValue(Settings->GetMouseSensitivity());
 	Check_InvertY->SetIsChecked(Settings->IsMouseYInverted());
+	if (Combo_MicrophoneMode)
+	{
+		Combo_MicrophoneMode->SetSelectedIndex(static_cast<int32>(Settings->GetMicrophoneMode()));
+	}
+	if (Check_ReduceShake)
+	{
+		Check_ReduceShake->SetIsChecked(Settings->IsCameraShakeReduced());
+	}
 	Text_Notice->SetText(FText::GetEmpty());
 	UpdateValueTexts();
 }
@@ -159,9 +173,18 @@ void UDigetherSettingsPanelWidget::Apply()
 	Settings->SetMusicVolume(Slider_Music->GetValue());
 	Settings->SetMouseSensitivity(Slider_Sensitivity->GetValue());
 	Settings->SetMouseYInverted(Check_InvertY->IsChecked());
+	if (Combo_MicrophoneMode && Combo_MicrophoneMode->GetSelectedIndex() >= 0
+		&& Combo_MicrophoneMode->GetSelectedIndex() <= static_cast<int32>(EDigetherMicrophoneMode::PushToTalk))
+	{
+		Settings->SetMicrophoneMode(static_cast<EDigetherMicrophoneMode>(Combo_MicrophoneMode->GetSelectedIndex()));
+	}
+	if (Check_ReduceShake)
+	{
+		Settings->SetCameraShakeReduced(Check_ReduceShake->IsChecked());
+	}
 	// ApplySettings는 해상도·품질을 적용한 뒤 GameUserSettings.ini에 저장한다.
 	Settings->ApplySettings(false);
-	Text_Notice->SetText(LOCTEXT("Applied", "설정을 적용하고 저장했습니다."));
+	Text_Notice->SetText(LOCTEXT("Applied", "설정을 저장했습니다."));
 }
 
 void UDigetherSettingsPanelWidget::ResetToDefaults()

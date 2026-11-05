@@ -11,8 +11,9 @@ namespace
 			return Result;
 		}
 
+		const double ElapsedSeconds = State.bClockStarted ? ServerSeconds - State.StartedAtSeconds : 0.0;
 		const FDigetherRunTimeResult Time = FDigetherRunRules::CalculateRemainingTime(
-			State.Tuning.RunSeconds, ServerSeconds - State.StartedAtSeconds,
+			State.Tuning.RunSeconds, ElapsedSeconds,
 			State.ConfirmedAscentCount, State.Tuning.AscentPenaltySeconds);
 		if (Time.Result != EDigetherRunResult::Success)
 		{
@@ -46,7 +47,8 @@ namespace
 }
 
 FDigetherRunAdvanceResult FDigetherRunCoordinatorRules::StartRun(FDigetherRunCoordinatorState& State,
-	const FDigetherRunTuning& Tuning, const FDigetherRunRuleTuning& RuleTuning, const double ServerSeconds)
+	const FDigetherRunTuning& Tuning, const FDigetherRunRuleTuning& RuleTuning, const double ServerSeconds,
+	const bool bStartClock)
 {
 	if (State.Phase == EDigetherRunPhase::InProgress)
 	{
@@ -65,7 +67,38 @@ FDigetherRunAdvanceResult FDigetherRunCoordinatorRules::StartRun(FDigetherRunCoo
 	Candidate.Phase = EDigetherRunPhase::InProgress;
 	Candidate.StartedAtSeconds = ServerSeconds;
 	Candidate.LastUpdatedAtSeconds = ServerSeconds;
+	Candidate.bClockStarted = bStartClock;
 	const FDigetherRunAdvanceResult Result = AdvanceCandidate(Candidate, ServerSeconds);
+	if (Result.Result == EDigetherRunResult::Success)
+	{
+		State = Candidate;
+	}
+	return Result;
+}
+
+FDigetherRunAdvanceResult FDigetherRunCoordinatorRules::StartClock(FDigetherRunCoordinatorState& State,
+	const double ServerSeconds)
+{
+	FDigetherRunAdvanceResult Result;
+	Result.Result = CheckInProgress(State);
+	if (Result.Result != EDigetherRunResult::Success)
+	{
+		return Result;
+	}
+	if (State.bClockStarted)
+	{
+		Result.Result = EDigetherRunResult::AlreadyInProgress;
+		return Result;
+	}
+	if (!FMath::IsFinite(ServerSeconds) || ServerSeconds < State.LastUpdatedAtSeconds)
+	{
+		return FDigetherRunAdvanceResult();
+	}
+	// 출발부터 도착까지 확정된 상승 페널티는 없으므로 도착 시각을 새 기준점으로 삼는다.
+	FDigetherRunCoordinatorState Candidate = State;
+	Candidate.StartedAtSeconds = ServerSeconds;
+	Candidate.bClockStarted = true;
+	Result = AdvanceCandidate(Candidate, ServerSeconds);
 	if (Result.Result == EDigetherRunResult::Success)
 	{
 		State = Candidate;

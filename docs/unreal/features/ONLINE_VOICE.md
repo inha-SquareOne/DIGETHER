@@ -15,9 +15,9 @@
 ## DIGETHER에서 쓰이는 곳
 | 관련 기능 | 현재 프로젝트 상태 |
 |---|---|
-| S01 세션 | `UDigetherSessionSubsystem`(`Game/Online`): `IOnlineSession` 사용. Steam 모드는 로비, `-nosteam`은 LAN/Null. 최대 4인(`DigetherRoomProtocol::MaxPlayers`). 방 코드·이름을 세션 설정에 기록. 초대는 `IOnlineExternalUI` |
-| 접속 거절 | `DigetherJoinRules` + `PreLogin`: Steam 모드에서 Steam ID 요구, 만석·탐사 중 신규 거절, 동일 ID 중복 거절 |
-| S28 음성 | **엔진 기본 VoIP 선택(2026-11-04 사용자 결정), 미구현.** `DefaultEngine.ini [OnlineSubsystem] bHasVoiceEnabled=false`, 세션 설정 `bUseLobbiesVoiceChatIfAvailable=false`. `uproject`에 `EOSVoiceChat` 활성(설정 없음). D-009의 제공자 미결 표시는 이전 상태이며 PQ-13의 호스트 음성 활동 검증은 남아 있다 |
+| S01 세션 | `UDigetherSessionSubsystem`(`Game/Online`): `IOnlineSession` 사용. Steam 모드는 로비, `-nosteam`은 LAN/Null. 최대 4인(`DigetherRoomProtocol::MaxPlayers`). 방 코드·이름을 세션 설정에 기록. 초대는 `IOnlineExternalUI`. Steam 초대와 방 코드를 모두 쓰는 방향은 2026-11-04 기획 답변(초안, 확정)이며 게임 안 친구 목록은 UI 시안 뒤 검토 |
+| 접속 거절 | `DigetherJoinRules` + `PreLogin`: Steam 모드에서 Steam ID 요구, 만석·신규 참가 차단 구간 거절. 문 닫힘 중 참가 잠금과 참가 실패 문구 6종은 구현(실행 검증 일부). 같은 ID는 이전 접속 종료 후 새 접속 수락(사용자 결정 2026-11-05)이며 기획 기준(구현 진행 중)([NETWORKING.md](NETWORKING.md) 재접속 절) |
+| S28 음성 | **엔진 기본 VoIP 선택(2026-11-04 사용자 결정), 미구현.** `DefaultEngine.ini [OnlineSubsystem] bHasVoiceEnabled=false`, 세션 설정 `bUseLobbiesVoiceChatIfAvailable=false`. `uproject`에 `EOSVoiceChat` 활성(설정 없음). D-009의 제공자 미결 표시는 이전 상태이며 PQ-13의 호스트 음성 활동 검증은 남아 있다. 거리 시험값은 아래 [기획 시험값](#기획-시험값-2026-11-04-답변-초안) |
 | S30 저장 | Steam Cloud 사용 여부 미결. `UserCloud`는 OSS Steam에 구현돼 있다 |
 | 플러그인 | 이 영역에서 `uproject`가 직접 활성화한 플러그인은 `SteamSockets`, `EOSVoiceChat`이다. `OnlineSubsystemSteam`·`SteamShared`·`OnlineSubsystem`·`OnlineSubsystemUtils`·`OnlineServices`·`EOSShared`·`VoiceChat`는 이 플러그인들의 의존성에 포함된다(소스 각 `.uplugin`의 `Plugins`). 실제 모듈 로드는 타깃·플랫폼 조건에 따른다 |
 | 모듈 | `DIGETHER.Build.cs`: `CoreOnline`, `OnlineSubsystem`, `OnlineSubsystemUtils`. `OnlineSubsystemSteam`을 `DynamicallyLoadedModuleNames`로 넣지는 않았다(문서는 추가를 안내). 현재 동작 영향은 미확인 |
@@ -110,6 +110,21 @@
 - EOS RTC 설정: `[EOSVoiceChat]`의 `bEnabled`(코드 기본 true), `PlatformConfigName`, `ProductId`, `SandboxId`, `DeploymentId`, `ClientId`, `ClientSecret`, `ClientEncryptionKey`, `RTCBackgroundMode`, `RTCSettings`. 프로젝트에는 이 섹션이 없다. 설정이 비었을 때 초기화 결과는 미확인. `InsecureGetLoginToken`/`InsecureGetJoinToken`은 이름 그대로 개발용(클라이언트 비밀 사용)이며 출시에는 서버가 발급하는 토큰 경로가 필요하다. (소스 `EOSVoiceChat.cpp`, `VoiceChat.h`)
 - EOS 방 단위 음성은 두 방법이다. ① OSS EOS 세션에서 `bUseLobbiesVoiceChatIfAvailable`를 켜면 로비 RTC 방이 생긴다(소스 `OnlineSessionEOS.cpp`). ② 게임이 직접 `JoinChannel`로 방을 관리한다.
 - 호스트가 다른 사람의 음성 활동을 알 수 있는가는 이 API상 **채널에 속한 각 클라이언트가 이벤트를 받는 구조**로 보이며, 서버 권위로 모든 발화를 판정하려면 별도 검증이 필요하다. 미검증(PQ-13).
+
+### 기획 시험값 (2026-11-04 답변 초안)
+
+2026-11-04 기획 답변(초안, G **제안**)의 시험값이다. 플레이테스트에서 조정하며 Notion 승인본이 아니다. 근거리 음성을 쓰는 모든 곳(같은 구역의 생존자끼리, 로비, 실패 연출)에 같은 값을 쓴다. 상태별 규칙은 기획 공유 사양 2026-11-05를 따른다(기획 기준(구현 진행 중)): 같은 구역 생존자는 근거리 음성(벽·층 추가 감쇠 없음), 갱도↔던전은 입구 바로 안팎에서도 양방향 차단, 관전자(사망·1차 탈출·긴급 탈출)는 관전자끼리 대화하고 생존자 목소리를 듣지만 생존자는 관전자 목소리를 듣지 못함, 검은 정산 화면까지 구분 유지·거점 복귀 순간 해제, 로비·실패 연출·흡입 대기는 근거리, 결과 크레딧 시작 순간 전원 음성, 생존자 화면에는 발화자 이름·마이크 아이콘·위치 화살표 없음(관전자 화면에는 다른 관전자 발화자만), 매몰자는 먹먹하게 처리하고 던전 경계 차단이 감쇠보다 우선, 마이크가 없거나 끊겨도 세션 유지. 기획 문장은 음성 구현 방식을 "아직 미정"으로 적었지만, 프로젝트의 구현 방식은 **2026-11-04 사용자 결정으로 엔진 기본 VoIP**이며 이 답변이 그 결정을 바꾸지 않는다.
+
+| 항목 | 시험값 | ID |
+|---|---|---|
+| 원래 크기로 들리는 거리 | 3m까지 | `VOICE_RANGE_FULL`(새로 만들 예시 이름) |
+| 최대 거리 | 25m, 그보다 멀면 들리지 않음 | `VOICE_RANGE_MAX`(시트 기존) |
+| 줄어드는 방식 | 가까울 때 빠르게, 멀수록 천천히 작아지는 자연 감쇠. 곡선(R11)과 런타임 조정(R04)으로 만들면 시험 중 바로 맞출 수 있음 | `VOICE_FALLOFF_CURVE`(예시) |
+| 방향감 | 켬. 화면에 말하는 사람 표시 없이 목소리로 동료 위치를 찾는 것이 기획 의도 | — |
+| 벽·층 | 같은 구역 안에서는 더 줄이지 않음. 갱도와 던전 사이는 거리와 무관하게 들리지 않음 | — |
+| 매몰된 사람 | 먹먹하게(고음 감소), 최대 거리 절반(약 12m) | `VOICE_BURIED_RANGE_RATIO`(예시) |
+
+예시 ID 이름은 개발 규칙에 맞춰 바꿀 수 있다. 엔진 VoIP 경로에서는 거리·방향감은 수신자 `UVOIPTalker`의 감쇠 설정, 구역 차단은 서버 중계 필터 후보와 연결된다(아래 고려점). 실제 동작은 M3로 확인한다.
 
 ### 근거리 음성 구현 시 고려점 (정책은 확정하지 않음)
 - 엔진 VoIP 경로: 서버 중계 필터(`ReplicateVoicePacket`)와 수신자 재생 감쇠(`UVOIPTalker`)를 분리해 생각한다. 서버 필터는 네트워크 비용·정보 노출을, 클라 감쇠는 들리는 방식을 정한다.

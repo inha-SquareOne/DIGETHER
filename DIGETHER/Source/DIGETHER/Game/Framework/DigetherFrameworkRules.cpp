@@ -35,7 +35,8 @@ EDigetherRunElevatorState DigetherFrameworkRules::MakeRunElevatorState(const EDi
 	{
 		return EDigetherRunElevatorState::InTransit;
 	}
-	return Phase == EDigetherElevatorPhase::BottomWaiting
+	// 거점 문 닫힘은 출발 처리 전에만 있으므로 런 종료 판정에 오는 DoorClosing은 갱도 문 닫힘이다(기획 A3).
+	return Phase == EDigetherElevatorPhase::BottomWaiting || Phase == EDigetherElevatorPhase::DoorClosing
 		? EDigetherRunElevatorState::StoppedInMine : EDigetherRunElevatorState::AtBase;
 }
 
@@ -46,8 +47,10 @@ EDigetherRunPlayerLocation DigetherFrameworkRules::MakeRunPlayerLocation(const E
 	{
 		return EDigetherRunPlayerLocation::Base;
 	}
+	// 문이 닫히는 동안에도 탈 수 있다(기획 A3).
 	const bool bBoardingPhase = ElevatorPhase == EDigetherElevatorPhase::InitialDescent
-		|| ElevatorPhase == EDigetherElevatorPhase::BottomWaiting;
+		|| ElevatorPhase == EDigetherElevatorPhase::BottomWaiting
+		|| ElevatorPhase == EDigetherElevatorPhase::DoorClosing;
 	return bInBoardingVolume && bBoardingPhase
 		? EDigetherRunPlayerLocation::Elevator : EDigetherRunPlayerLocation::MineOrDungeon;
 }
@@ -82,6 +85,96 @@ bool DigetherFrameworkRules::IsDepositClosed(const FDigetherRunPublicState& Run,
 {
 	return Run.bGameOver || Run.bPaymentDeadline || Run.Phase == EDigetherRunPhase::InProgress
 		|| ElevatorPhase != EDigetherElevatorPhase::HubWaiting;
+}
+
+bool DigetherFrameworkRules::IsNewJoinLocked(const FDigetherRunPublicState& Run,
+	const EDigetherElevatorPhase ElevatorPhase)
+{
+	// 기획 C3: 출발 레버 게이지가 찬 순간(거점 문 닫힘 시작)부터 잠근다. 문이 다시 열리면 풀린다.
+	// 기획 S33·04 9~10행: 게임 오버(실패 사건·크레딧)에도 신규 참가를 열지 않는다. 새 게임이 시작되면 풀린다.
+	return Run.Phase == EDigetherRunPhase::InProgress || Run.bGameOver
+		|| ElevatorPhase == EDigetherElevatorPhase::DoorClosing;
+}
+
+FDigetherRunResult DigetherFrameworkRules::MakeRunResult(const FGuid RunId, const int32 CompletedDay,
+	const FDigetherFrameworkPlayerReturn& Returned)
+{
+	FDigetherRunResult Result;
+	Result.RunId = RunId;
+	Result.CompletedDay = CompletedDay;
+	Result.Outcome = Returned.ReturnOutcome;
+	Result.GeneralCredits = Returned.Settlement.GeneralCredits;
+	Result.HiddenCredits = Returned.Settlement.HiddenCredits;
+	Result.DeathLossCredits = Returned.DeathLossCredits;
+	Result.CorpseRefundCredits = Returned.Settlement.CorpseRefundCredits;
+	Result.PayoutCredits = Returned.Settlement.PayoutCredits;
+	Result.FinalBalanceCredits = Returned.SettledWallet.BalanceCredits;
+	return Result;
+}
+
+bool DigetherFrameworkRules::TryPlanChainSummon(const FVector& BoxExtent, const double SpacingCm,
+	const TArray<FVector>& OccupiedLocal, const int32 SummonCount, TArray<FVector>& OutLocations)
+{
+	if (SummonCount < 0 || !FMath::IsFinite(SpacingCm) || SpacingCm <= 0.0 || BoxExtent.ContainsNaN()
+		|| BoxExtent.X <= 0.0 || BoxExtent.Y <= 0.0)
+	{
+		return false;
+	}
+	for (const FVector& Occupied : OccupiedLocal)
+	{
+		if (Occupied.ContainsNaN())
+		{
+			return false;
+		}
+	}
+	// 볼륨 경계에서 반 칸 안쪽까지만 쓴다. 중심 칸을 포함하는 대칭 격자이며 Z는 볼륨 중심 높이(0)다.
+	const double HalfSpacing = SpacingCm / 2.0;
+	const int32 HalfX = FMath::FloorToInt32((BoxExtent.X - HalfSpacing) / SpacingCm);
+	const int32 HalfY = FMath::FloorToInt32((BoxExtent.Y - HalfSpacing) / SpacingCm);
+	TArray<FVector> Candidates;
+	for (int32 X = -HalfX; X <= HalfX; ++X)
+	{
+		for (int32 Y = -HalfY; Y <= HalfY; ++Y)
+		{
+			Candidates.Emplace(X * SpacingCm, Y * SpacingCm, 0.0);
+		}
+	}
+	// 같은 입력이면 같은 배치가 나오도록 거리·X·Y 순으로 정렬한다.
+	Candidates.Sort([](const FVector& Left, const FVector& Right)
+	{
+		const double LeftDistance = Left.SizeSquared2D();
+		const double RightDistance = Right.SizeSquared2D();
+		if (LeftDistance != RightDistance)
+		{
+			return LeftDistance < RightDistance;
+		}
+		return Left.X != Right.X ? Left.X < Right.X : Left.Y < Right.Y;
+	});
+	TArray<FVector> Taken = OccupiedLocal;
+	TArray<FVector> Planned;
+	const double MinDistanceSquared = FMath::Square(SpacingCm) - UE_KINDA_SMALL_NUMBER;
+	for (const FVector& Candidate : Candidates)
+	{
+		if (Planned.Num() == SummonCount)
+		{
+			break;
+		}
+		const bool bFree = !Taken.ContainsByPredicate([&Candidate, MinDistanceSquared](const FVector& Other)
+		{
+			return FVector::DistSquared2D(Candidate, Other) < MinDistanceSquared;
+		});
+		if (bFree)
+		{
+			Planned.Add(Candidate);
+			Taken.Add(Candidate);
+		}
+	}
+	if (Planned.Num() != SummonCount)
+	{
+		return false;
+	}
+	OutLocations = MoveTemp(Planned);
+	return true;
 }
 
 bool DigetherFrameworkRules::TryPlanReturn(const FDigetherRunTerminationInput& Input,
@@ -133,6 +226,14 @@ bool DigetherFrameworkRules::TryPlanReturn(const FDigetherRunTerminationInput& I
 		}
 		FDigetherPlayerSettlementInput Settlement;
 		Settlement.bDied = Returned.LifeAtEnd.PublicState.Life == EDigetherLifeState::Dead;
+		if (Settlement.bDied)
+		{
+			Returned.ReturnOutcome = Outcome.Outcome == EDigetherRunPlayerOutcome::MissingDeath
+				? EDigetherRunReturnOutcome::Missing : EDigetherRunReturnOutcome::Died;
+			// 누적 손실은 int32에서 포화될 수 있다. 이번 런의 사망 전 잔고로 같은 손실 규칙을 계산한다.
+			Returned.DeathLossCredits = FDigetherEconomyRules::CalculateDeathLoss(
+				Returned.WalletAtEnd.LastPreDeathBalanceCredits, Tuning.DeathLossPercent).LossCredits;
+		}
 		Settlement.bSurvived = !Settlement.bDied;
 		Settlement.PreDeathBalanceCredits = Returned.WalletAtEnd.LastPreDeathBalanceCredits;
 		SettlementInputs.Add(Settlement);
@@ -163,6 +264,7 @@ bool DigetherFrameworkRules::TryPlanReturn(const FDigetherRunTerminationInput& I
 		}
 		Returned.SettledWallet = Payout.State;
 		Returned.RevivedLife = Revived.State;
+		Returned.Settlement = Settlement.Players[Index];
 	}
 	Plan.ReturnedQuota = Day.State;
 	Plan.bGameOver = Evaluated.bGameOver;

@@ -17,6 +17,9 @@ struct DIGETHER_API FDigetherRunCoordinatorState
 	int32 ConfirmedAscentCount = 0;
 	int32 AftershockStage = 0;
 	bool bTimeExpiredNotified = false;
+	// 제한 시간이 흐르기 시작했는지다. 기획: 최초 하강을 마치고 갱도에 도착한 순간부터 흐른다.
+	// 시작 전에는 경과 0으로 계산해 전체 제한 시간을 유지한다.
+	bool bClockStarted = false;
 };
 
 struct DIGETHER_API FDigetherRunAdvanceResult
@@ -28,8 +31,12 @@ struct DIGETHER_API FDigetherRunAdvanceResult
 class DIGETHER_API FDigetherRunCoordinatorRules
 {
 public:
+	// bStartClock이 거짓이면 런만 시작하고 제한 시간은 StartClock 전까지 흐르지 않는다.
 	static FDigetherRunAdvanceResult StartRun(FDigetherRunCoordinatorState& State,
-		const FDigetherRunTuning& Tuning, const FDigetherRunRuleTuning& RuleTuning, double ServerSeconds);
+		const FDigetherRunTuning& Tuning, const FDigetherRunRuleTuning& RuleTuning, double ServerSeconds,
+		bool bStartClock = true);
+	// 진행 중이고 시계가 아직 멈춘 런의 제한 시간을 ServerSeconds부터 흐르게 한다. 이미 흐르면 AlreadyInProgress다.
+	static FDigetherRunAdvanceResult StartClock(FDigetherRunCoordinatorState& State, double ServerSeconds);
 	static FDigetherRunAdvanceResult RecordConfirmedAscent(FDigetherRunCoordinatorState& State);
 	static FDigetherRunAdvanceResult UpdateTime(FDigetherRunCoordinatorState& State, double ServerSeconds);
 	static FDigetherRunTerminationResult CompleteRun(FDigetherRunCoordinatorState& State,

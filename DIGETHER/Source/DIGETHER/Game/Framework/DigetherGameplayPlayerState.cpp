@@ -7,12 +7,19 @@
 #include "Game/Life/DigetherLifeRules.h"
 #include "Game/Life/DigetherLifeStateComponent.h"
 #include "GameFramework/Pawn.h"
+#include "Net/UnrealNetwork.h"
 
 ADigetherGameplayPlayerState::ADigetherGameplayPlayerState()
 {
 	bReplicates = true;
 	WalletComponent = CreateDefaultSubobject<UDigetherWalletComponent>(TEXT("WalletComponent"));
 	LifeComponent = CreateDefaultSubobject<UDigetherLifeStateComponent>(TEXT("LifeComponent"));
+}
+
+void ADigetherGameplayPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME_CONDITION(ADigetherGameplayPlayerState, LastRunResult, COND_OwnerOnly);
 }
 
 void ADigetherGameplayPlayerState::CopyProperties(APlayerState* PlayerState)
@@ -60,8 +67,11 @@ bool ADigetherGameplayPlayerState::CopyGameplayStateTo(ADigetherGameplayPlayerSt
 	}
 	Target->GameplayPlayerId = GameplayPlayerId;
 	Target->bGameplayInitialized = bGameplayInitialized;
+	Target->JoinOrder = JoinOrder;
+	Target->LastRunResult = LastRunResult;
 	Target->WalletComponent->NotifyStateChanged();
 	Target->LifeComponent->NotifyStateChanged();
+	Target->OnRep_LastRunResult();
 	return true;
 }
 
@@ -132,6 +142,14 @@ void ADigetherGameplayPlayerState::MarkGameplayInitialized()
 	}
 }
 
+void ADigetherGameplayPlayerState::SetJoinOrder(const int32 InJoinOrder)
+{
+	if (HasAuthority())
+	{
+		JoinOrder = FMath::Max(0, InJoinOrder);
+	}
+}
+
 void ADigetherGameplayPlayerState::RetainPawn(APawn* Pawn)
 {
 	if (HasAuthority() && (Pawn == nullptr || (IsValid(Pawn) && Pawn->GetWorld() == GetWorld())))
@@ -159,4 +177,32 @@ FDigetherWalletState ADigetherGameplayPlayerState::CaptureState() const
 EDigetherEconomyResult ADigetherGameplayPlayerState::RestoreState(const FDigetherWalletState& State, const bool bNotify)
 {
 	return WalletComponent->RestoreState(State, bNotify);
+}
+
+bool ADigetherGameplayPlayerState::PublishRunResult(const FDigetherRunResult& Result)
+{
+	if (!HasAuthority() || !Result.IsValid() || !IsValid(WalletComponent)
+		|| Result.FinalBalanceCredits != WalletComponent->CaptureState().BalanceCredits)
+	{
+		return false;
+	}
+	LastRunResult = Result;
+	ForceNetUpdate();
+	OnRep_LastRunResult();
+	return true;
+}
+
+void ADigetherGameplayPlayerState::ClearRunResult()
+{
+	if (HasAuthority() && LastRunResult.RunId.IsValid())
+	{
+		LastRunResult = FDigetherRunResult();
+		ForceNetUpdate();
+		OnRep_LastRunResult();
+	}
+}
+
+void ADigetherGameplayPlayerState::OnRep_LastRunResult()
+{
+	OnRunResultChanged.Broadcast(LastRunResult);
 }

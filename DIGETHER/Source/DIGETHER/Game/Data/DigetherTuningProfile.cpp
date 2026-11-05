@@ -1,5 +1,7 @@
 #include "Game/Data/DigetherTuningProfile.h"
 
+#include "Game/Elevator/DigetherElevatorRules.h"
+
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
 #endif
@@ -24,7 +26,7 @@ bool FDigetherRunTuning::CollectProblems(TArray<FText>& OutProblems) const
 	Require(RunSeconds >= 1.f, LOCTEXT("RunSeconds", "RunSeconds는 1초 이상이어야 합니다."));
 	Require(InteractionDistanceCm >= 1.f, LOCTEXT("Distance", "InteractionDistanceCm는 1 이상이어야 합니다."));
 	Require(ElevatorCapacityKg >= 1.f, LOCTEXT("Capacity", "ElevatorCapacityKg는 1 이상이어야 합니다."));
-	Require(ElevatorTripLimit >= 1 && ElevatorTripLimit <= 2, LOCTEXT("Trips", "ElevatorTripLimit은 1 또는 2여야 합니다."));
+	Require(DigetherElevatorRules::IsValidTripLimit(ElevatorTripLimit), LOCTEXT("Trips", "ElevatorTripLimit은 2여야 합니다(일반 상승 2회 확정)."));
 	Require(AscentPenaltySeconds >= 0.f, LOCTEXT("Penalty", "AscentPenaltySeconds는 0 이상이어야 합니다."));
 	Require(ElevatorTravelSeconds >= 0.1f, LOCTEXT("Travel", "ElevatorTravelSeconds는 0.1초 이상이어야 합니다."));
 	Require(DepositIntervalSeconds >= 0.1f, LOCTEXT("Deposit", "DepositIntervalSeconds는 0.1초 이상이어야 합니다."));

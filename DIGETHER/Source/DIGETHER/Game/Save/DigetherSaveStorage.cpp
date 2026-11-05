@@ -1,6 +1,7 @@
 #include "Game/Save/DigetherSaveStorage.h"
 
 #include "Game/Save/DigetherSaveGame.h"
+#include "Game/Save/DigetherSaveLog.h"
 #include "Game/Save/DigetherSaveRules.h"
 #include "Game/Save/DigetherSaveTuning.h"
 #include "Kismet/GameplayStatics.h"
@@ -9,8 +10,6 @@
 #include "Serialization/CustomVersion.h"
 #include "Serialization/MemoryReader.h"
 #include "UObject/ObjectVersion.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogDigetherSave, Log, All);
 
 namespace
 {
@@ -124,15 +123,52 @@ namespace
 		return DigetherSaveRules::SerializeSlot(ReadBack, ReadBackPayload) == EDigetherSaveResult::Success
 			&& ReadBackPayload == ExpectedPayload ? EDigetherSaveResult::Success : EDigetherSaveResult::IoFailure;
 	}
+
+	// 한 슬롯의 쓰기와 읽기 검증이다. 쓰기 실패는 IoFailure, 검증 실패는 검증 결과를 돌려준다.
+	EDigetherSaveResult WriteAndVerifySlot(const FString& SlotName, const FString& HostKey,
+		const TArray<uint8>& Bytes, const TArray<uint8>& ExpectedPayload)
+	{
+		if (!UGameplayStatics::SaveDataToSlot(Bytes, SlotName, SaveUserIndex))
+		{
+			return EDigetherSaveResult::IoFailure;
+		}
+		return VerifyWrittenSlot(SlotName, HostKey, ExpectedPayload);
+	}
+
+	EDigetherSaveResult ValidateWriteRequest(const FDigetherSaveSlotNames& Names, const FString& HostKey,
+		const FDigetherSaveSlotData& Slot)
+	{
+		if (!IsInGameThread() || Names.Primary.IsEmpty() || Names.Backup.IsEmpty() || Names.Primary == Names.Backup)
+		{
+			return EDigetherSaveResult::InvalidState;
+		}
+		if (Slot.Progress.HostAuthenticatedPlayerKey != HostKey)
+		{
+			return EDigetherSaveResult::HostIdentityMismatch;
+		}
+		return EDigetherSaveResult::Success;
+	}
 }
 
-FDigetherSaveSlotNames DigetherSaveStorage::MakeSlotNames(const FString& HostKey)
+FDigetherSaveSlotNames DigetherSaveStorage::MakeSlotNames(const FString& HostKey, const int32 SlotIndex)
 {
+	FDigetherSaveSlotNames Names;
+	if (!DigetherSaveRules::IsValidSlotIndex(SlotIndex))
+	{
+		return Names;
+	}
 	const FTCHARToUTF8 HostBytes(*HostKey);
 	const FSHAHash HostHash = FSHA1::HashBuffer(HostBytes.Get(), HostBytes.Length());
-	FDigetherSaveSlotNames Names;
 	// 확장자·저장 경로는 엔진이 정한다. v2 슬롯과 인증 ID 원문을 노출하는 이름은 사용하지 않는다.
-	Names.Primary = TEXT("Digether_HostProgress_v3_") + HostHash.ToString();
+	// 슬롯 0은 "Digether_HostProgress_v3_<해시>"로 슬롯 도입 전 파일을 그대로 찾는다. 슬롯 1 이상은 "_S<번호>"를 붙인다.
+	// 이름의 버전은 SlotNameVersion이다. 스키마·wire 버전을 올려도 이름이 바뀌지 않는다.
+	Names.Primary = FString::Printf(TEXT("Digether_HostProgress_v%d_"), DigetherSaveTuning::SlotNameVersion)
+		+ HostHash.ToString();
+	if (SlotIndex > 0)
+	{
+		Names.Primary += FString::Printf(TEXT("_S%d"), SlotIndex);
+	}
+	// 백업은 주 이름 뒤에 붙인다. 슬롯 0 백업("…_Backup")과 슬롯 N 주("…_SN")는 접미사가 달라 겹치지 않는다.
 	Names.Backup = Names.Primary + TEXT("_Backup");
 	return Names;
 }
@@ -156,19 +192,30 @@ EDigetherSaveResult DigetherSaveStorage::ReadSlot(const FString& SlotName, const
 	return DecodeEngineSave(Bytes, HostKey, OutSlot);
 }
 
+FDigetherSaveSlotReads DigetherSaveStorage::ReadSlots(const FDigetherSaveSlotNames& Names, const FString& HostKey)
+{
+	FDigetherSaveSlotReads Reads;
+	Reads.PrimaryResult = ReadSlot(Names.Primary, HostKey, Reads.Primary);
+	// 주 슬롯이 유효해도 백업의 미래 버전 보호 여부를 반드시 확인한다.
+	Reads.BackupResult = ReadSlot(Names.Backup, HostKey, Reads.Backup);
+	return Reads;
+}
+
 EDigetherSaveResult DigetherSaveStorage::Read(const FDigetherSaveSlotNames& Names, const FString& HostKey,
 	FDigetherSaveSlotData& OutSlot, bool& bOutRecoveredFromBackup)
 {
-	FDigetherSaveSlotData Primary;
-	FDigetherSaveSlotData Backup;
-	const EDigetherSaveResult PrimaryResult = ReadSlot(Names.Primary, HostKey, Primary);
-	// 주 슬롯이 유효해도 백업의 미래 버전 보호 여부를 반드시 확인한다.
-	const EDigetherSaveResult BackupResult = ReadSlot(Names.Backup, HostKey, Backup);
+	return Read(ReadSlots(Names, HostKey), OutSlot, bOutRecoveredFromBackup);
+}
+
+EDigetherSaveResult DigetherSaveStorage::Read(const FDigetherSaveSlotReads& Reads,
+	FDigetherSaveSlotData& OutSlot, bool& bOutRecoveredFromBackup)
+{
 	bool bUseBackup = false;
-	const EDigetherSaveResult Result = DigetherSaveRules::SelectReadableSlot(PrimaryResult, BackupResult, bUseBackup);
+	const EDigetherSaveResult Result = DigetherSaveRules::SelectReadableSlot(Reads.PrimaryResult, Reads.BackupResult,
+		bUseBackup);
 	if (Result == EDigetherSaveResult::Success)
 	{
-		OutSlot = bUseBackup ? MoveTemp(Backup) : MoveTemp(Primary);
+		OutSlot = bUseBackup ? Reads.Backup : Reads.Primary;
 		bOutRecoveredFromBackup = bUseBackup;
 		if (bUseBackup)
 		{
@@ -181,19 +228,24 @@ EDigetherSaveResult DigetherSaveStorage::Read(const FDigetherSaveSlotNames& Name
 EDigetherSaveResult DigetherSaveStorage::Write(const FDigetherSaveSlotNames& Names, const FString& HostKey,
 	const FDigetherSaveSlotData& Slot, const bool bExplicitNewGame)
 {
-	if (!IsInGameThread() || Names.Primary.IsEmpty() || Names.Backup.IsEmpty() || Names.Primary == Names.Backup)
+	const EDigetherSaveResult RequestResult = ValidateWriteRequest(Names, HostKey, Slot);
+	if (RequestResult != EDigetherSaveResult::Success)
 	{
-		return EDigetherSaveResult::InvalidState;
+		return RequestResult;
 	}
-	if (Slot.Progress.HostAuthenticatedPlayerKey != HostKey)
+	return Write(Names, HostKey, Slot, bExplicitNewGame, ReadSlots(Names, HostKey));
+}
+
+EDigetherSaveResult DigetherSaveStorage::Write(const FDigetherSaveSlotNames& Names, const FString& HostKey,
+	const FDigetherSaveSlotData& Slot, const bool bExplicitNewGame, const FDigetherSaveSlotReads& Reads)
+{
+	const EDigetherSaveResult RequestResult = ValidateWriteRequest(Names, HostKey, Slot);
+	if (RequestResult != EDigetherSaveResult::Success)
 	{
-		return EDigetherSaveResult::HostIdentityMismatch;
+		return RequestResult;
 	}
-	FDigetherSaveSlotData ExistingPrimary;
-	FDigetherSaveSlotData ExistingBackup;
-	const EDigetherSaveResult PrimaryResult = ReadSlot(Names.Primary, HostKey, ExistingPrimary);
-	const EDigetherSaveResult BackupResult = ReadSlot(Names.Backup, HostKey, ExistingBackup);
-	const EDigetherSaveResult Permission = DigetherSaveRules::CanWriteSlots(PrimaryResult, BackupResult, bExplicitNewGame);
+	const EDigetherSaveResult Permission = DigetherSaveRules::CanWriteSlots(Reads.PrimaryResult, Reads.BackupResult,
+		bExplicitNewGame);
 	if (Permission != EDigetherSaveResult::Success)
 	{
 		return Permission;
@@ -204,6 +256,7 @@ EDigetherSaveResult DigetherSaveStorage::Write(const FDigetherSaveSlotNames& Nam
 	{
 		return SetResult;
 	}
+	// SetSlotData가 만든 바이트를 재사용한다. SaveGameToMemory 안의 Serialize도 같은 바이트를 쓴다.
 	TArray<uint8> ExpectedPayload;
 	const EDigetherSaveResult EncodeResult = SaveGame->EncodeToMemory(ExpectedPayload);
 	if (EncodeResult != EDigetherSaveResult::Success)
@@ -222,40 +275,15 @@ EDigetherSaveResult DigetherSaveStorage::Write(const FDigetherSaveSlotNames& Nam
 	{
 		return MemoryResult;
 	}
-	// 단계 이름의 Backup은 "먼저 쓰는 슬롯", Primary는 "나중에 쓰는 슬롯"이다.
 	// 평소에는 백업 → 주 순서다. 주 슬롯이 무효이고 백업만 유효하면 그 유일한 유효본을 지키려고 주 → 백업 순서로 쓴다.
-	// 먼저 쓴 슬롯의 쓰기·검증이 성공하기 전에는 나중 슬롯을 건드리지 않는다.
-	const bool bPrimaryFirst = DigetherSaveRules::ShouldWritePrimaryFirst(PrimaryResult, BackupResult);
+	// 먼저 쓴 슬롯의 쓰기·검증이 성공하기 전에는 나중 슬롯을 건드리지 않는다(EDigetherSaveWriteStep 순서와 같다).
+	const bool bPrimaryFirst = DigetherSaveRules::ShouldWritePrimaryFirst(Reads.PrimaryResult, Reads.BackupResult);
 	const FString& FirstSlot = bPrimaryFirst ? Names.Primary : Names.Backup;
 	const FString& SecondSlot = bPrimaryFirst ? Names.Backup : Names.Primary;
-	EDigetherSaveWriteStep Step = EDigetherSaveWriteStep::WriteBackup;
-	while (Step != EDigetherSaveWriteStep::Complete && Step != EDigetherSaveWriteStep::Failed)
+	const EDigetherSaveResult FirstResult = WriteAndVerifySlot(FirstSlot, HostKey, Bytes, ExpectedPayload);
+	if (FirstResult != EDigetherSaveResult::Success)
 	{
-		EDigetherSaveResult Result = EDigetherSaveResult::IoFailure;
-		switch (Step)
-		{
-		case EDigetherSaveWriteStep::WriteBackup:
-			Result = UGameplayStatics::SaveDataToSlot(Bytes, FirstSlot, SaveUserIndex)
-				? EDigetherSaveResult::Success : EDigetherSaveResult::IoFailure;
-			break;
-		case EDigetherSaveWriteStep::VerifyBackup:
-			Result = VerifyWrittenSlot(FirstSlot, HostKey, ExpectedPayload);
-			break;
-		case EDigetherSaveWriteStep::WritePrimary:
-			Result = UGameplayStatics::SaveDataToSlot(Bytes, SecondSlot, SaveUserIndex)
-				? EDigetherSaveResult::Success : EDigetherSaveResult::IoFailure;
-			break;
-		case EDigetherSaveWriteStep::VerifyPrimary:
-			Result = VerifyWrittenSlot(SecondSlot, HostKey, ExpectedPayload);
-			break;
-		default:
-			return EDigetherSaveResult::InvalidState;
-		}
-		Step = DigetherSaveRules::AdvanceWriteStep(Step, Result == EDigetherSaveResult::Success);
-		if (Step == EDigetherSaveWriteStep::Failed)
-		{
-			return Result;
-		}
+		return FirstResult;
 	}
-	return EDigetherSaveResult::Success;
+	return WriteAndVerifySlot(SecondSlot, HostKey, Bytes, ExpectedPayload);
 }

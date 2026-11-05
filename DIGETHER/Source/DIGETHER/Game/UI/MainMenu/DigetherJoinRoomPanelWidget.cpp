@@ -116,8 +116,8 @@ void UDigetherJoinRoomPanelWidget::JoinByCode()
 {
 	if (UDigetherSessionSubsystem* Session = UDigetherSessionSubsystem::Get(this))
 	{
-		// 자동 생성 코드는 대문자이므로 입력을 대문자로 맞춘다.
-		Session->JoinByCode(Input_Code->GetText().ToString().TrimStartAndEnd().ToUpper());
+		// 공백 제거·대문자 정규화는 서브시스템 입구(JoinByCode)가 콘솔 명령과 같은 경로로 맡는다.
+		Session->JoinByCode(Input_Code->GetText().ToString());
 	}
 }
 
@@ -132,7 +132,7 @@ void UDigetherJoinRoomPanelWidget::JoinSelected()
 void UDigetherJoinRoomPanelWidget::RefreshState()
 {
 	const UDigetherSessionSubsystem* Session = UDigetherSessionSubsystem::Get(this);
-	const bool bReady = Session && !Session->IsBusy() && Session->IsOnlineAvailable();
+	const bool bReady = Session && Session->CanStartRoomRequest();
 	Btn_JoinCode->SetIsEnabled(bReady && !Input_Code->GetText().IsEmpty());
 	Btn_Refresh->SetIsEnabled(bReady);
 	Btn_JoinSelected->SetIsEnabled(bReady && SelectedRoomIndex != INDEX_NONE);

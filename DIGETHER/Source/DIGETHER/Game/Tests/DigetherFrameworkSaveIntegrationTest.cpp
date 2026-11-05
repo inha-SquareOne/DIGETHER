@@ -12,28 +12,44 @@
 #include "Game/Economy/DigetherQuotaStateComponent.h"
 #include "Game/Elevator/DigetherElevatorActor.h"
 #include "Game/Elevator/DigetherElevatorComponent.h"
+#include "Game/Elevator/DigetherElevatorLeverActor.h"
+#include "Game/Elevator/DigetherElevatorLeverComponent.h"
+#include "Game/Elevator/DigetherElevatorRules.h"
 #include "Game/Dev/DigetherCheatManager.h"
 #include "Game/Dev/DigetherDevCommands.h"
+#include "Game/Framework/DigetherFrameworkDefaults.h"
 #include "Game/Framework/DigetherGameplayGameMode.h"
 #include "Game/Framework/DigetherGameplayGameState.h"
 #include "Game/Framework/DigetherGameplayPlayerController.h"
 #include "Game/Framework/DigetherGameplayPlayerState.h"
 #include "Game/Framework/DigetherTestPawn.h"
+#include "Game/Hub/DigetherHubWellActor.h"
 #include "Game/Life/DigetherLifeStateComponent.h"
+#include "Game/Run/DigetherGameOverFlowComponent.h"
+#include "Game/Run/DigetherGameOverPublicStateComponent.h"
+#include "Game/Run/DigetherGameOverRules.h"
+#include "Game/Online/DigetherJoinRules.h"
+#include "Game/Online/DigetherSessionText.h"
 #include "Game/Run/DigetherRunCoordinatorComponent.h"
 #include "Game/Save/DigetherSaveGame.h"
 #include "Game/Save/DigetherSaveRules.h"
 #include "Game/Save/DigetherSaveStorage.h"
+#include "Game/Save/DigetherSaveSubsystem.h"
 #include "Game/Save/DigetherSaveTuning.h"
 #include "GameFramework/GameMode.h"
 #include "GameFramework/GameState.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/PawnMovementComponent.h"
 #include "GameFramework/PlayerStart.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/AutomationTest.h"
 #include "OnlineSubsystemTypes.h"
 #include "OnlineSubsystem.h"
+#include "Templates/Function.h"
+#include "TimerManager.h"
 #include "UObject/Class.h"
+#include "UObject/EnumProperty.h"
+#include "UObject/UnrealType.h"
 
 // 테스트 준비와 관찰만 노출한다. 출발·정산·로그인·재빙의는 제품의 실제 함수를 호출한다.
 class FDigetherFrameworkSaveIntegrationAccess
@@ -60,6 +76,18 @@ public:
 				== EDigetherElevatorResult::Success;
 	}
 	static void Depart(ADigetherGameplayGameMode& Mode) { Mode.ProcessDeparture(); }
+	// 게임 맵 시작(StartPlay·PostLogin)의 저장 분기와 같은 함수다. 새 게임을 시도했으면 true다.
+	static bool RunStartupSaveAction(ADigetherGameplayGameMode& Mode, ADigetherGameplayPlayerController* Host)
+	{
+		return Mode.RunStartupSaveAction(Host);
+	}
+	// 맵 배치와 같은 레버·신호 연결을 제품 함수로 만든다.
+	static bool InitializeRunActors(ADigetherGameplayGameMode& Mode) { return Mode.InitializeRunActors(); }
+	// 레버 게이지 완료 처리와 같은 진입점이다. 레버 없이 문 닫힘 실패 경로를 검사할 때 쓴다.
+	static void BeginDoorClose(ADigetherGameplayGameMode& Mode, const EDigetherElevatorLeverKind Kind)
+	{
+		Mode.BeginDoorClose(Kind);
+	}
 	static void Finish(ADigetherGameplayGameMode& Mode)
 	{
 		Mode.FinishRunAndReturn(EDigetherRunTerminationTrigger::TimeExpired);
@@ -86,6 +114,77 @@ public:
 	static bool Capture(const ADigetherGameplayGameMode& Mode, FDigetherSaveSnapshot& Out)
 	{
 		return Mode.CaptureProgress(Out);
+	}
+	static bool Restore(ADigetherGameplayGameMode& Mode, const FDigetherSaveSnapshot& Snapshot,
+		const bool bValidateOnly = false)
+	{
+		return Mode.RestoreProgress(Snapshot, bValidateOnly);
+	}
+	// 출발 소집·이동 없이 런 단계만 진행 중으로 둔다. 거점 이탈(자리 반환)과 탐사 중 이탈(보존)을 가르는 기준만 필요한
+	// 시험용이다. 실제 출발 인원·정산은 Depart로 검사한다.
+	static bool ForceRunInProgress(ADigetherGameplayGameMode& Mode)
+	{
+		const ADigetherGameplayGameState* State = Mode.GetGameState<ADigetherGameplayGameState>();
+		if (!IsValid(State))
+		{
+			return false;
+		}
+		Mode.RunCoordinatorComponent->HandleDepartureLeverCompleted(State->GetQuotaComponent()->CaptureState().Quota);
+		return Mode.RunCoordinatorComponent->StartRun(Mode.RunTuning, Mode.FixedRunRuleTuning,
+				Mode.GetWorld()->GetTimeSeconds(), false) == EDigetherRunResult::Success
+			&& Mode.RunCoordinatorComponent->CapturePublicState().Phase == EDigetherRunPhase::InProgress;
+	}
+	static bool IsJoinSpectator(const ADigetherGameplayGameMode& Mode, const APlayerController* Controller)
+	{
+		return Mode.IsJoinSpectator(Controller);
+	}
+	static bool FindSavedRecord(const ADigetherGameplayGameMode& Mode, const FUniqueNetIdRepl& Id,
+		FDigetherSavePlayerRecord& OutRecord)
+	{
+		bool bSkipInitialGrant = false;
+		return DigetherSaveRules::TryResolveReturningPlayer(Mode.SavedPlayerRecords, Id, OutRecord, bSkipInitialGrant)
+			== EDigetherSaveResult::Success;
+	}
+	// 시험 컨트롤러에는 실제 연결이 없어 타이머 대신 같은 판정 함수를 원하는 시각으로 부른다.
+	static void PollLoginReplacementsAt(ADigetherGameplayGameMode& Mode, const double NowSeconds)
+	{
+		Mode.PollLoginReplacementsAt(NowSeconds);
+	}
+	static int32 PendingLoginReplacements(const ADigetherGameplayGameMode& Mode)
+	{
+		return Mode.LoginReplacements.Num();
+	}
+	// 자동 저장 시점(할당량 달성·탐사 정상 완료)과 같은 제품 함수다.
+	static void RequestAutosave(ADigetherGameplayGameMode& Mode) { Mode.RequestAutosave(TEXT("IntegrationTest")); }
+	static bool HasPendingAutosave(const ADigetherGameplayGameMode& Mode)
+	{
+		return Mode.PendingAutosave.IsSet() || Mode.bAutosaveRecapturePending;
+	}
+	static int32 PendingAutosaveDay(const ADigetherGameplayGameMode& Mode)
+	{
+		return Mode.PendingAutosave.IsSet() ? Mode.PendingAutosave->Quota.Quota.Day : INDEX_NONE;
+	}
+	static bool IsAutosaveRetryScheduled(const ADigetherGameplayGameMode& Mode)
+	{
+		return Mode.GetWorldTimerManager().IsTimerActive(Mode.AutosaveRetryTimer);
+	}
+	// 시험 월드는 타이머를 진행하지 않으므로 재시도 타이머가 부르는 함수를 직접 부른다.
+	static void RetryAutosave(ADigetherGameplayGameMode& Mode) { Mode.RetryPendingAutosave(); }
+	static bool SaveOnHostExit(ADigetherGameplayGameMode& Mode) { return Mode.SaveOnHostExit(); }
+	static void BeginWorldTearDown(ADigetherGameplayGameMode& Mode, UWorld* World) { Mode.HandleWorldBeginTearDown(World); }
+	// 시험 월드는 시계가 흐르지 않는다. 게임 오버 Tick이 쓰는 같은 함수를 원하는 서버 시각으로 부른다.
+	static void TickGameOverAt(ADigetherGameplayGameMode& Mode, const double NowSeconds) { Mode.TickGameOverAt(NowSeconds); }
+	static bool SetCreditFastForwardAt(ADigetherGameplayGameMode& Mode, ADigetherGameplayPlayerController* Requester,
+		const bool bFastForward, const double NowSeconds)
+	{
+		return Mode.SetCreditFastForwardAt(Requester, bFastForward, NowSeconds);
+	}
+	static bool CreateNextGameAfterCredits(ADigetherGameplayGameMode& Mode) { return Mode.CreateNextGameAfterCredits(); }
+	static bool IsNewJoinLocked(const ADigetherGameplayGameMode& Mode) { return Mode.IsNewJoinLockedNow(); }
+	static FGuid GetGameId(const ADigetherGameplayGameMode& Mode) { return Mode.GameId; }
+	static const TArray<FDigetherGameResult>& GetArchivedResults(const ADigetherGameplayGameMode& Mode)
+	{
+		return Mode.ArchivedGameResults;
 	}
 };
 
@@ -187,8 +286,15 @@ namespace
 			{
 				return false;
 			}
-			const FDigetherSaveSlotNames Names = DigetherSaveStorage::MakeSlotNames(Key);
-			for (const FString& Slot : { Names.Primary, Names.Backup })
+			// 진행 슬롯 선택 시험이 슬롯 1 이상에도 쓰므로 모든 진행 슬롯의 주·백업을 추적한다.
+			TArray<FString> Candidates;
+			for (int32 SlotIndex = 0; SlotIndex < DigetherSaveTuning::MaxProgressSlots; ++SlotIndex)
+			{
+				const FDigetherSaveSlotNames Names = DigetherSaveStorage::MakeSlotNames(Key, SlotIndex);
+				Candidates.Add(Names.Primary);
+				Candidates.Add(Names.Backup);
+			}
+			for (const FString& Slot : Candidates)
 			{
 				if (!Test->TestFalse(TEXT("고유 호스트 ID의 슬롯은 새 시험 전 없음"), UGameplayStatics::DoesSaveGameExist(Slot, 0)))
 				{
@@ -196,8 +302,7 @@ namespace
 					return false;
 				}
 			}
-			TemporarySlots.Add(Names.Primary);
-			TemporarySlots.Add(Names.Backup);
+			TemporarySlots.Append(Candidates);
 			return true;
 		}
 
@@ -225,6 +330,13 @@ namespace
 		}
 		if (IsValid(Player))
 		{
+			// 실제 로그인은 엔진이 겹치지 않는 PlayerId를 준다. 직접 만든 시험 플레이어도 같게 맞춘다
+			// (게임 오버 흡입·관전 대상은 PlayerId로 구분한다).
+			static int32 NextIntegrationPlayerId = 1000;
+			if (Player->GetPlayerId() == 0)
+			{
+				Player->SetPlayerId(NextIntegrationPlayerId++);
+			}
 			Player->SetOwner(Controller);
 			Controller->SetPlayerState(Player);
 			GameState->AddPlayerState(Player);
@@ -314,13 +426,35 @@ namespace
 		return Pawn;
 	}
 
+	// 엔진 연결 정리 순서(PawnLeavingGame → Logout의 AddInactivePlayer → CleanupPlayerState의 OnDeactivated)를 재현한다.
+	// 비활성으로 보관한 PS는 OnDeactivated가 남기고, 거점 이탈처럼 보관하지 않은 PS는 엔진 기본대로 파괴된다.
 	void DisconnectIntegrationPlayer(ADigetherGameplayGameMode& Mode, ADigetherGameplayPlayerController& Controller)
 	{
 		ADigetherGameplayPlayerState* Player = Controller.GetPlayerState<ADigetherGameplayPlayerState>();
 		Controller.PawnLeavingGame();
 		Mode.AddInactivePlayer(Player, &Controller);
+		if (IsValid(Player))
+		{
+			Player->OnDeactivated();
+		}
 		Controller.SetPlayerState(nullptr);
 		Controller.Destroy();
+	}
+
+	// PreLoginAsync 완료 콜백 관찰용. 월드 종료 정리에서 늦게 불려도 안전하도록 공유 상태로 받는다.
+	struct FDigetherAsyncLoginResult
+	{
+		bool bCompleted = false;
+		FString Error;
+	};
+
+	AGameModeBase::FOnPreLoginCompleteDelegate MakeAsyncLoginObserver(const TSharedRef<FDigetherAsyncLoginResult>& Result)
+	{
+		return AGameModeBase::FOnPreLoginCompleteDelegate::CreateLambda([Result](const FString& Error)
+		{
+			Result->bCompleted = true;
+			Result->Error = Error;
+		});
 	}
 
 	void UpdateIntegrationOverlaps(ADigetherElevatorActor& Elevator, APawn* Pawn)
@@ -348,6 +482,153 @@ namespace
 	bool IntegrationStatesEqual(const TState& Left, const TState& Right)
 	{
 		return TState::StaticStruct()->CompareScriptStruct(&Left, &Right, 0);
+	}
+
+	// 맵 배치 인스턴스 전용 설정(EditInstanceOnly)을 배치한 레버와 같은 값으로 채운다.
+	ADigetherElevatorLeverActor* SpawnIntegrationLever(FDigetherSaveIntegrationWorld& Fixture,
+		ADigetherElevatorActor& Elevator, const EDigetherElevatorLeverKind Kind,
+		const EDigetherElevatorLeverPlacement Placement = EDigetherElevatorLeverPlacement::Inside)
+	{
+		ADigetherElevatorLeverActor* Lever = Fixture.GetWorld()->SpawnActor<ADigetherElevatorLeverActor>();
+		FEnumProperty* KindProperty = FindFProperty<FEnumProperty>(ADigetherElevatorLeverActor::StaticClass(), TEXT("LeverKind"));
+		FEnumProperty* PlacementProperty = FindFProperty<FEnumProperty>(ADigetherElevatorLeverActor::StaticClass(), TEXT("Placement"));
+		FObjectPropertyBase* ElevatorProperty = FindFProperty<FObjectPropertyBase>(
+			ADigetherElevatorLeverActor::StaticClass(), TEXT("ElevatorActor"));
+		if (!IsValid(Lever) || KindProperty == nullptr || PlacementProperty == nullptr || ElevatorProperty == nullptr)
+		{
+			return nullptr;
+		}
+		*KindProperty->ContainerPtrToValuePtr<EDigetherElevatorLeverKind>(Lever) = Kind;
+		*PlacementProperty->ContainerPtrToValuePtr<EDigetherElevatorLeverPlacement>(Lever) = Placement;
+		ElevatorProperty->SetObjectPropertyValue_InContainer(Lever, &Elevator);
+		return Lever;
+	}
+
+	// 맵 배치와 같은 엘리베이터 기준 상대 위치다. 안쪽 레버는 탑승 영역 안, 밖 레버는 탑승 영역(반폭 250cm) 밖이다.
+	const FVector IntegrationDepartureLeverOffsetCm(-100.0, 0.0, 0.0);
+	const FVector IntegrationInsideLeverOffsetCm(100.0, 0.0, 0.0);
+	const FVector IntegrationOutsideLeverOffsetCm(400.0, 0.0, 0.0);
+
+	struct FDigetherIntegrationLevers
+	{
+		ADigetherElevatorLeverActor* Departure = nullptr;
+		ADigetherElevatorLeverActor* AscentInside = nullptr;
+		ADigetherElevatorLeverActor* AscentOutside = nullptr;
+		bool IsReady() const { return IsValid(Departure) && IsValid(AscentInside) && IsValid(AscentOutside); }
+	};
+
+	// 출발 1·상승 안 1·상승 밖 1을 맵 배치 위치로 만든다(기획 S15 레버 구성).
+	FDigetherIntegrationLevers SpawnIntegrationLeverSet(FDigetherSaveIntegrationWorld& Fixture, ADigetherElevatorActor& Elevator)
+	{
+		FDigetherIntegrationLevers Levers;
+		const FVector ElevatorLocation = Elevator.GetActorLocation();
+		Levers.Departure = SpawnIntegrationLever(Fixture, Elevator, EDigetherElevatorLeverKind::Departure);
+		Levers.AscentInside = SpawnIntegrationLever(Fixture, Elevator, EDigetherElevatorLeverKind::Ascent);
+		Levers.AscentOutside = SpawnIntegrationLever(Fixture, Elevator, EDigetherElevatorLeverKind::Ascent,
+			EDigetherElevatorLeverPlacement::Outside);
+		if (IsValid(Levers.Departure)) Levers.Departure->SetActorLocation(ElevatorLocation + IntegrationDepartureLeverOffsetCm);
+		if (IsValid(Levers.AscentInside)) Levers.AscentInside->SetActorLocation(ElevatorLocation + IntegrationInsideLeverOffsetCm);
+		if (IsValid(Levers.AscentOutside)) Levers.AscentOutside->SetActorLocation(ElevatorLocation + IntegrationOutsideLeverOffsetCm);
+		return Levers;
+	}
+
+	// 실제 GameMode Tick을 짧은 간격으로 돌린다. 게이지 완료 Tick과 문 닫힘 완료 Tick을 구별해 관찰한다.
+	constexpr float IntegrationTickSeconds = 0.5f;
+	// INDEX_NONE는 이름 없는 enum이라 TestNotEqual의 int32 비교와 형이 맞지 않는다.
+	constexpr int32 IntegrationTickTimedOut = -1;
+
+	int32 TickIntegrationUntil(ADigetherGameplayGameMode& Mode, const TFunctionRef<bool()> Done, const int32 MaxTicks)
+	{
+		for (int32 Count = 1; Count <= MaxTicks; ++Count)
+		{
+			Mode.Tick(IntegrationTickSeconds);
+			if (Done())
+			{
+				return Count;
+			}
+		}
+		return IntegrationTickTimedOut;
+	}
+
+	int32 ToIntegrationTicks(const float Seconds)
+	{
+		return FMath::CeilToInt32(Seconds / IntegrationTickSeconds);
+	}
+
+	struct FDigetherDoorIntegrationRun
+	{
+		ADigetherElevatorActor* Elevator = nullptr;
+		ADigetherElevatorLeverActor* DepartureLever = nullptr;
+		// 엘리베이터 안쪽 상승 레버다.
+		ADigetherElevatorLeverActor* AscentLever = nullptr;
+		// 엘리베이터 밖 상승 레버다(기획 S15·T93).
+		ADigetherElevatorLeverActor* OutsideAscentLever = nullptr;
+		ADigetherGameplayPlayerController* Host = nullptr;
+		APawn* HostPawn = nullptr;
+	};
+
+	bool PrepareDoorIntegrationRun(FDigetherSaveIntegrationWorld& Fixture, FDigetherDoorIntegrationRun& OutRun)
+	{
+		OutRun.Elevator = PrepareIntegrationRun(Fixture);
+		if (!IsValid(OutRun.Elevator))
+		{
+			return false;
+		}
+		// 맵 배치처럼 레버와 조작자를 같은 탑승 공간에 둔다. 원점 레버는 출발 후 20m 밖에 남는다.
+		const FDigetherIntegrationLevers Levers = SpawnIntegrationLeverSet(Fixture, *OutRun.Elevator);
+		OutRun.DepartureLever = Levers.Departure;
+		OutRun.AscentLever = Levers.AscentInside;
+		OutRun.OutsideAscentLever = Levers.AscentOutside;
+		const FVector ElevatorLocation = OutRun.Elevator->GetActorLocation();
+		OutRun.Host = MakeRuntimeIntegrationPlayer(Fixture, MakeRuntimeIntegrationNetId(), true);
+		if (!Levers.IsReady() || !IsValid(OutRun.Host)
+			|| !FDigetherFrameworkSaveIntegrationAccess::InitializeRunActors(*Fixture.GetGameMode()))
+		{
+			return false;
+		}
+		OutRun.HostPawn = GiveIntegrationPawn(Fixture, OutRun.Host, ElevatorLocation + FVector(0.0, 0.0, 100.0));
+		return IsValid(OutRun.HostPawn);
+	}
+
+	EDigetherElevatorPhase GetIntegrationElevatorPhase(const ADigetherElevatorActor& Elevator)
+	{
+		return Elevator.GetElevatorComponent()->GetPublicState().Phase;
+	}
+
+	// 출발 레버를 실제 요청 경로로 당겨 거점 문 닫힘까지 진행한다. 거점 문 닫힘이 시작된 Tick 수를 반환한다.
+	int32 PullDepartureUntilDoorClosing(ADigetherGameplayGameMode& Mode, const FDigetherDoorIntegrationRun& Run)
+	{
+		if (!Mode.BeginLeverPull(Run.Host, Run.DepartureLever))
+		{
+			return IntegrationTickTimedOut;
+		}
+		const float HoldSeconds = DigetherElevatorRules::CalculateDepartureDuration(
+			Mode.GetGameState<ADigetherGameplayGameState>()->GetQuotaComponent()->CaptureState().Quota.Day,
+			FDigetherElevatorTuning());
+		return TickIntegrationUntil(Mode,
+			[&Run]() { return GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::DoorClosing; },
+			ToIntegrationTicks(HoldSeconds) + 1);
+	}
+
+	// 출발 레버 → 거점 문 닫힘 → 출발 → 첫 하강 → 하부 대기까지 실제 경로로 진행한다.
+	bool AdvanceDoorIntegrationRunToBottom(ADigetherGameplayGameMode& Mode, const FDigetherDoorIntegrationRun& Run)
+	{
+		return PullDepartureUntilDoorClosing(Mode, Run) != IntegrationTickTimedOut
+			&& TickIntegrationUntil(Mode, [&Mode]()
+				{
+					return Mode.GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress;
+				}, ToIntegrationTicks(FDigetherElevatorTuning().HubDoorCloseSeconds) + 1) != IntegrationTickTimedOut
+			&& TickIntegrationUntil(Mode,
+				[&Run]() { return GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::BottomWaiting; },
+				ToIntegrationTicks(MakeIntegrationTuning().ElevatorTravelSeconds) + 1) != IntegrationTickTimedOut;
+	}
+
+	// 갱도에서 밖 상승 레버 옆(탑승 영역 밖)으로 옮기고 탑승 겹침을 다시 계산한다.
+	void MovePawnToOutsideLever(const FDigetherDoorIntegrationRun& Run, APawn& Pawn)
+	{
+		Pawn.SetActorLocation(Run.OutsideAscentLever->GetActorLocation() + FVector(0.0, 0.0, 100.0), false, nullptr,
+			ETeleportType::TeleportPhysics);
+		UpdateIntegrationOverlaps(*Run.Elevator, &Pawn);
 	}
 }
 
@@ -404,7 +685,9 @@ bool FDigetherFrameworkInactiveRegistryTest::RunTest(const FString& Parameters)
 	UWorld* World = Fixture.GetWorld();
 	ADigetherGameplayGameMode* GameMode = Fixture.GetGameMode();
 	ADigetherGameplayGameState* GameState = Fixture.GetGameState();
-	if (!TestNotNull(TEXT("실제 재빙의 시작 훅용 런 구성"), PrepareIntegrationRun(Fixture)))
+	// 비활성 PS 보관은 탐사 출발 후 이탈에만 적용한다(거점 이탈은 자리 반환, S01).
+	if (!TestNotNull(TEXT("실제 재빙의 시작 훅용 런 구성"), PrepareIntegrationRun(Fixture))
+		|| !TestTrue(TEXT("탐사 진행 중 단계"), FDigetherFrameworkSaveIntegrationAccess::ForceRunInProgress(*GameMode)))
 	{
 		return false;
 	}
@@ -492,15 +775,17 @@ bool FDigetherFrameworkInactiveRegistryTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkHubInactiveDepartureTest,
-	"DIGETHER.Game.Framework.SaveIntegration.HubInactiveExcludedFromDepartureAndSettlement",
+	"DIGETHER.Game.Framework.SaveIntegration.HubDepartureReleasesSeatAndRemovesBody",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FDigetherFrameworkHubInactiveDepartureTest::RunTest(const FString& Parameters)
 {
+	// S01·T77: 거점에서 퇴장·연결 끊김은 캐릭터를 제거하고 자리를 반환한다. 장부는 저장 명단에 남는다.
+	// 소지 장비를 그 자리에 실물로 남기는 부분은 인벤토리 시스템이 없어 이 시험 범위 밖이다(TODO).
 	for (const bool bRetainPawn : { true, false })
 	{
 		FDigetherSaveIntegrationWorld Fixture(this);
-		if (!TestTrue(TEXT("거점 비활성 출발 시험 월드"), Fixture.IsReady()))
+		if (!TestTrue(TEXT("거점 이탈 시험 월드"), Fixture.IsReady()))
 		{
 			return false;
 		}
@@ -516,7 +801,7 @@ bool FDigetherFrameworkHubInactiveDepartureTest::RunTest(const FString& Paramete
 		}
 		APawn* HostPawn = GiveIntegrationPawn(Fixture, Host, FVector(0.0, 0.0, 200.0));
 		APawn* OfflinePawn = bRetainPawn ? GiveIntegrationPawn(Fixture, Leaving, FVector(500.0, 0.0, 200.0)) : nullptr;
-		if (!TestNotNull(TEXT("호스트 출발 Pawn"), HostPawn) || (bRetainPawn && !TestNotNull(TEXT("거점 보존 Pawn"), OfflinePawn)))
+		if (!TestNotNull(TEXT("호스트 출발 Pawn"), HostPawn) || (bRetainPawn && !TestNotNull(TEXT("거점 이탈자 Pawn"), OfflinePawn)))
 		{
 			return false;
 		}
@@ -525,52 +810,46 @@ bool FDigetherFrameworkHubInactiveDepartureTest::RunTest(const FString& Paramete
 		Wallet.BalanceCredits = 80;
 		Wallet.LastRunPayoutCredits = 19;
 		Offline->RestoreState(Wallet);
-		const FDigetherLifeComponentState Life = Offline->GetLifeComponent()->CaptureState();
-		const FVector OfflineLocation = IsValid(OfflinePawn) ? OfflinePawn->GetActorLocation() : FVector::ZeroVector;
+		const FGuid OfflineGameplayId = Offline->GetGameplayPlayerId();
 		DisconnectIntegrationPlayer(*Mode, *Leaving);
-		if (IsValid(OfflinePawn))
+		TestFalse(TEXT("거점 이탈은 비활성 PS로 자리를 예약하지 않음"), Mode->InactivePlayerArray.Contains(Offline));
+		TestFalse(TEXT("거점 이탈자의 PS는 엔진 정리로 파괴됨"), IsValid(Offline));
+		TestEqual(TEXT("반환 뒤 활성 명단은 호스트 한 명"), Fixture.GetGameState()->PlayerArray.Num(), 1);
+		if (bRetainPawn)
 		{
-			OfflinePawn->SetActorLocation(Elevator->GetBoardingVolume()->GetComponentLocation());
-			UpdateIntegrationOverlaps(*Elevator, OfflinePawn);
-			TArray<APawn*> Overlapping;
-			Elevator->GetOverlappingPawns(Overlapping);
-			TestTrue(TEXT("거점 inactive Pawn의 실제 탑승 overlap 구성"), Overlapping.Contains(OfflinePawn));
-			FDigetherElevatorPullContext Context;
-			if (TestTrue(TEXT("거점 대기 탑승 컨텍스트 구성"), FDigetherFrameworkSaveIntegrationAccess::PullContext(*Mode, Context)))
-			{
-				TestTrue(TEXT("거점 inactive는 출발 전 탑승 명단에서도 제외"), Context.LoadEntries.IsEmpty());
-			}
-			OfflinePawn->SetActorLocation(OfflineLocation);
-			UpdateIntegrationOverlaps(*Elevator, OfflinePawn);
+			TestFalse(TEXT("거점 이탈자의 캐릭터 제거"), IsValid(OfflinePawn));
+		}
+		FDigetherSavePlayerRecord Record;
+		if (TestTrue(TEXT("거점 이탈자의 장부를 저장 명단에 남김"),
+			FDigetherFrameworkSaveIntegrationAccess::FindSavedRecord(*Mode, OfflineId, Record)))
+		{
+			TestTrue(TEXT("남긴 장부는 이탈 시점 최신 값"), IntegrationStatesEqual(Record.Wallet, Wallet));
+			TestEqual(TEXT("남긴 기록의 서버 GUID 유지"), Record.GameplayPlayerId, OfflineGameplayId);
+			TestFalse(TEXT("몸을 제거했으므로 거점 위치는 남기지 않음"), Record.bHasHubTransform);
 		}
 		FDigetherFrameworkSaveIntegrationAccess::Depart(*Mode);
-		if (!TestTrue(bRetainPawn ? TEXT("거점 inactive Pawn이 있어도 실제 출발 성공") : TEXT("거점 inactive Pawn이 없어도 실제 출발 성공"),
+		if (!TestTrue(TEXT("거점 이탈자를 뺀 실제 출발 성공"),
 			Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress))
 		{
 			return false;
 		}
 		TestEqual(TEXT("실제 출발 인원은 연결자 한 명"), FDigetherFrameworkSaveIntegrationAccess::DepartureCount(*Mode), 1);
-		TestFalse(TEXT("거점 inactive는 런 참가자로 캡처하지 않음"), FDigetherFrameworkSaveIntegrationAccess::IsParticipant(*Mode, Offline));
-		if (IsValid(OfflinePawn))
-		{
-			TestTrue(TEXT("출발은 보존 Pawn을 거점에 유지"), OfflinePawn->GetActorLocation().Equals(OfflineLocation));
-			// 보존 Pawn을 실제 겹침에 넣어도 출발에 참여하지 않은 ID는 탑승 명단에서 제외한다.
-			OfflinePawn->SetActorLocation(Elevator->GetBoardingVolume()->GetComponentLocation());
-			UpdateIntegrationOverlaps(*Elevator, OfflinePawn);
-			UpdateIntegrationOverlaps(*Elevator, HostPawn);
-			TArray<APawn*> Overlapping;
-			Elevator->GetOverlappingPawns(Overlapping);
-			TestTrue(TEXT("보존 Pawn은 실제 엘리베이터 overlap에 있음"), Overlapping.Contains(OfflinePawn));
-			FDigetherElevatorPullContext Context;
-			if (TestTrue(TEXT("탐사 탑승 컨텍스트 구성"), FDigetherFrameworkSaveIntegrationAccess::PullContext(*Mode, Context)))
-			{
-				TestEqual(TEXT("탑승 명단도 출발 참가자 한 명"), Context.LoadEntries.Num(), 1);
-			}
-		}
 		FDigetherFrameworkSaveIntegrationAccess::Finish(*Mode);
 		TestTrue(TEXT("실제 귀환으로 탐사 종료"), Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase != EDigetherRunPhase::InProgress);
-		TestTrue(TEXT("거점 inactive 장부는 런 정산과 사망 손실에서 제외"), IntegrationStatesEqual(Offline->CaptureState(), Wallet));
-		TestTrue(TEXT("거점 inactive 생존 상태는 런 종료 영향 없음"), IntegrationStatesEqual(Offline->GetLifeComponent()->CaptureState(), Life));
+		if (FDigetherFrameworkSaveIntegrationAccess::FindSavedRecord(*Mode, OfflineId, Record))
+		{
+			TestTrue(TEXT("거점 이탈자 장부는 런 정산·사망 손실에서 제외"), IntegrationStatesEqual(Record.Wallet, Wallet));
+		}
+
+		// T77: 반환한 자리를 다른 사람들이 채우면 기존 참가자도 정원을 넘어 들어오지 못한다.
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			TestNotNull(TEXT("반환된 자리를 채운 참가자"), MakeRuntimeIntegrationPlayer(Fixture, MakeRuntimeIntegrationNetId()));
+		}
+		FString Error;
+		Mode->PreLogin(FString(), FString(), OfflineId, Error);
+		TestEqual(TEXT("자리가 찼으면 기존 참가자도 정원 초과"), Error,
+			DigetherJoinRules::MakeRejectionMessage(EDigetherSessionText::RoomFull));
 	}
 	return true;
 }
@@ -660,7 +939,10 @@ bool FDigetherFrameworkLoginReservationsTest::RunTest(const FString& Parameters)
 		if (bInactiveReservation)
 		{
 			ADigetherGameplayPlayerController* Leaving = MakeRuntimeIntegrationPlayer(Fixture, FirstId);
-			if (!TestNotNull(TEXT("네 번째 자리 예약자"), Leaving))
+			// 자리 예약은 탐사 출발 후 끊긴 참가자에게만 있다(거점 이탈은 자리 반환, S01).
+			if (!TestNotNull(TEXT("네 번째 자리 예약자"), Leaving)
+				|| !TestNotNull(TEXT("예약 시험 런 구성"), PrepareIntegrationRun(Fixture))
+				|| !TestTrue(TEXT("탐사 진행 중 단계"), FDigetherFrameworkSaveIntegrationAccess::ForceRunInProgress(*Mode)))
 			{
 				return false;
 			}
@@ -710,7 +992,7 @@ bool FDigetherFrameworkLoginReservationsTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkStoredRecordAdmissionTest,
-	"DIGETHER.Game.Framework.SaveIntegration.StoredRecordOnlyJoinsAtHubWithoutRepeatedGrant",
+	"DIGETHER.Game.Framework.SaveIntegration.StoredRecordSpectatesDuringRunWithoutRepeatedGrant",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FDigetherFrameworkStoredRecordAdmissionTest::RunTest(const FString& Parameters)
@@ -740,30 +1022,33 @@ bool FDigetherFrameworkStoredRecordAdmissionTest::RunTest(const FString& Paramet
 	{
 		return false;
 	}
+	// S01: 이 진행의 기존 참가자(저장 명단)가 탐사 중 돌아오면 그날 탐사에 넣지 않고 관전하며 기다린다.
 	FString Error;
 	Mode->PreLogin(FString(), FString(), StoredId, Error);
-	TestFalse(TEXT("저장 명단만 있는 ID는 탐사 중 PreLogin 거절"), Error.IsEmpty());
-	Error.Reset();
-	TestNull(TEXT("저장 명단만 있는 ID는 탐사 중 실제 Login 거절"),
-		Mode->Login(nullptr, ROLE_AutonomousProxy, FString(), FString(), StoredId, Error));
-	FDigetherFrameworkSaveIntegrationAccess::Finish(*Mode);
-	Error.Reset();
+	TestTrue(TEXT("저장 명단 ID는 탐사 중 관전 합류로 PreLogin 수락"), Error.IsEmpty());
 	APlayerController* Joining = Mode->Login(nullptr, ROLE_AutonomousProxy, FString(), FString(), StoredId, Error);
-	if (!TestNotNull(TEXT("거점 귀환 후 저장 명단 ID 실제 Login 허용"), Joining))
+	if (!TestNotNull(TEXT("저장 명단 ID의 탐사 중 실제 Login 수락"), Joining))
 	{
 		AddError(Error);
 		return false;
 	}
+	TestTrue(TEXT("탐사 중 확정은 관전 합류자"), FDigetherFrameworkSaveIntegrationAccess::IsJoinSpectator(*Mode, Joining));
 	Mode->HandleStartingNewPlayer_Implementation(Joining);
 	ADigetherGameplayPlayerState* Player = Joining->GetPlayerState<ADigetherGameplayPlayerState>();
-	if (!TestNotNull(TEXT("저장 명단 ID 복원 상태"), Player))
+	if (!TestNotNull(TEXT("저장 명단 ID 상태"), Player))
 	{
 		return false;
 	}
-	TestTrue(TEXT("실제 시작 훅이 저장 장부 전체 복원"), IntegrationStatesEqual(Player->CaptureState(), Record.Wallet));
+	TestNull(TEXT("관전 합류자는 탐사 중 몸을 만들지 않음"), Joining->GetPawn());
+	TestFalse(TEXT("관전 합류자는 그날 탐사 참가자가 아님"), FDigetherFrameworkSaveIntegrationAccess::IsParticipant(*Mode, Player));
+
+	FDigetherFrameworkSaveIntegrationAccess::Finish(*Mode);
+	TestTrue(TEXT("실제 귀환으로 탐사 종료"), Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase != EDigetherRunPhase::InProgress);
+	TestFalse(TEXT("귀환하면 관전 합류 해제"), FDigetherFrameworkSaveIntegrationAccess::IsJoinSpectator(*Mode, Joining));
+	TestTrue(TEXT("귀환 때 일반 참가자로 몸 생성"), Joining->GetPawn() != nullptr);
+	TestTrue(TEXT("저장 장부 전체를 복원하고 정산·시작 지급은 적용하지 않음"), IntegrationStatesEqual(Player->CaptureState(), Record.Wallet));
 	TestEqual(TEXT("저장 GUID를 새 지급 없이 복원"), Player->GetGameplayPlayerId(), Record.GameplayPlayerId);
 	TestTrue(TEXT("저장 명단 복원은 지급 완료로 표시"), Player->IsGameplayInitialized());
-	TestTrue(TEXT("거점 복원 후 일반 Pawn 스폰"), Joining->GetPawn() != nullptr);
 	FDigetherWalletState Latest = Player->CaptureState();
 	Latest.BalanceCredits = 123;
 	Player->RestoreState(Latest);
@@ -773,25 +1058,41 @@ bool FDigetherFrameworkStoredRecordAdmissionTest::RunTest(const FString& Paramet
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkReconnectWithoutPawnTest,
-	"DIGETHER.Game.Framework.SaveIntegration.ReconnectWithoutPawnUsesNormalSpawn",
+	"DIGETHER.Game.Framework.SaveIntegration.ReconnectWithoutPawnSpectatesThenSpawnsAtReturn",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FDigetherFrameworkReconnectWithoutPawnTest::RunTest(const FString& Parameters)
 {
 	FDigetherSaveIntegrationWorld Fixture(this);
+	ADigetherElevatorActor* Elevator = Fixture.IsReady() ? PrepareIntegrationRun(Fixture) : nullptr;
 	if (!TestTrue(TEXT("보존 Pawn 없는 재접속 월드"), Fixture.IsReady())
-		|| !TestNotNull(TEXT("일반 스폰 준비"), PrepareIntegrationRun(Fixture)))
+		|| !TestNotNull(TEXT("일반 스폰 준비"), Elevator))
 	{
 		return false;
 	}
 	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	ADigetherGameplayPlayerController* Host = MakeRuntimeIntegrationPlayer(Fixture, MakeRuntimeIntegrationNetId(), true);
 	const FUniqueNetIdRepl Id = MakeRuntimeIntegrationNetId();
 	ADigetherGameplayPlayerController* Leaving = MakeRuntimeIntegrationPlayer(Fixture, Id);
-	if (!TestNotNull(TEXT("Pawn 없는 기존 연결"), Leaving))
+	if (!TestNotNull(TEXT("호스트"), Host) || !TestNotNull(TEXT("끊길 참가자"), Leaving)
+		|| !TestNotNull(TEXT("호스트 Pawn"), GiveIntegrationPawn(Fixture, Host, FVector(0.0, 0.0, 200.0))))
+	{
+		return false;
+	}
+	APawn* LostPawn = GiveIntegrationPawn(Fixture, Leaving, FVector(500.0, 0.0, 200.0));
+	if (!TestNotNull(TEXT("출발용 참가자 Pawn"), LostPawn))
 	{
 		return false;
 	}
 	ADigetherGameplayPlayerState* Original = Leaving->GetPlayerState<ADigetherGameplayPlayerState>();
+	FDigetherFrameworkSaveIntegrationAccess::Depart(*Mode);
+	if (!TestTrue(TEXT("두 명의 실제 출발"), Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress))
+	{
+		return false;
+	}
+	// 탐사 중 몸이 사라진 뒤 끊긴 경우다. 비활성 PS·자리는 보존되지만 재빙의할 Pawn이 없다.
+	Leaving->UnPossess();
+	LostPawn->Destroy();
 	DisconnectIntegrationPlayer(*Mode, *Leaving);
 	FString Error;
 	APlayerController* Joining = Mode->Login(nullptr, ROLE_AutonomousProxy, FString(), FString(), Id, Error);
@@ -801,9 +1102,12 @@ bool FDigetherFrameworkReconnectWithoutPawnTest::RunTest(const FString& Paramete
 		return false;
 	}
 	TestTrue(TEXT("시작 훅 전 재접속 표식"), FDigetherFrameworkSaveIntegrationAccess::IsReconnectPending(*Mode, Original));
+	TestFalse(TEXT("탐사 출발 후 끊긴 참가자의 재접속은 관전 합류가 아님"), FDigetherFrameworkSaveIntegrationAccess::IsJoinSpectator(*Mode, Joining));
 	Mode->HandleStartingNewPlayer_Implementation(Joining);
-	TestTrue(TEXT("실제 시작 훅은 보존 Pawn이 없으면 일반 스폰"), Joining->GetPawn() != nullptr);
+	TestNull(TEXT("탐사 중에는 보존 Pawn이 없어도 새 몸을 만들지 않음"), Joining->GetPawn());
 	TestFalse(TEXT("보존 Pawn이 없어도 pending 표식 제거"), FDigetherFrameworkSaveIntegrationAccess::IsReconnectPending(*Mode, Original));
+	FDigetherFrameworkSaveIntegrationAccess::Finish(*Mode);
+	TestTrue(TEXT("귀환 때 일반 스폰"), Joining->GetPawn() != nullptr);
 	TestTrue(TEXT("이후 엔진 재시작 요청을 표식이 영구 차단하지 않음"), Mode->PlayerCanRestart_Implementation(Joining));
 	APawn* FirstPawn = Joining->GetPawn();
 	if (IsValid(FirstPawn))
@@ -817,13 +1121,13 @@ bool FDigetherFrameworkReconnectWithoutPawnTest::RunTest(const FString& Paramete
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkHubReconnectNextDepartureTest,
-	"DIGETHER.Game.Framework.SaveIntegration.HubReconnectJoinsNextDeparture",
+	"DIGETHER.Game.Framework.SaveIntegration.HubLeaverReturnsDuringRunAsSpectatorThenJoinsNextDeparture",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FDigetherFrameworkHubReconnectNextDepartureTest::RunTest(const FString& Parameters)
 {
 	FDigetherSaveIntegrationWorld Fixture(this);
-	if (!TestTrue(TEXT("거점 이탈 후 탐사 재접속 월드"), Fixture.IsReady()))
+	if (!TestTrue(TEXT("거점 이탈 후 탐사 중 복귀 월드"), Fixture.IsReady()))
 	{
 		return false;
 	}
@@ -839,39 +1143,164 @@ bool FDigetherFrameworkHubReconnectNextDepartureTest::RunTest(const FString& Par
 	}
 	APawn* HostPawn = GiveIntegrationPawn(Fixture, Host, FVector(0.0, 0.0, 200.0));
 	APawn* Pawn = GiveIntegrationPawn(Fixture, Leaving, FVector(500.0, 0.0, 200.0));
-	if (!TestNotNull(TEXT("다음 출발 호스트 Pawn"), HostPawn) || !TestNotNull(TEXT("거점에 보존할 Pawn"), Pawn))
+	if (!TestNotNull(TEXT("다음 출발 호스트 Pawn"), HostPawn) || !TestNotNull(TEXT("거점 이탈자 Pawn"), Pawn))
 	{
 		return false;
 	}
 	ADigetherGameplayPlayerState* Original = Leaving->GetPlayerState<ADigetherGameplayPlayerState>();
+	const FGuid GameplayId = Original->GetGameplayPlayerId();
 	FDigetherWalletState Wallet;
 	Wallet.BalanceCredits = 80;
 	Wallet.LastRunPayoutCredits = 19;
 	Original->RestoreState(Wallet);
 	DisconnectIntegrationPlayer(*Mode, *Leaving);
+	TestFalse(TEXT("거점 이탈로 캐릭터 제거"), IsValid(Pawn));
 	FDigetherFrameworkSaveIntegrationAccess::Depart(*Mode);
 	if (!TestTrue(TEXT("거점 이탈자를 제외한 실제 출발"), Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress))
 	{
 		return false;
 	}
 	FString Error;
+	Mode->PreLogin(FString(), FString(), Id, Error);
+	TestTrue(TEXT("거점 이탈자의 탐사 중 PreLogin은 관전 합류로 수락"), Error.IsEmpty());
 	APlayerController* Joining = Mode->Login(nullptr, ROLE_AutonomousProxy, FString(), FString(), Id, Error);
-	if (!TestNotNull(TEXT("탐사 중에도 거점 이탈 예약 ID 실제 Login 허용"), Joining))
+	if (!TestNotNull(TEXT("탐사 중 거점 이탈자의 실제 Login 수락"), Joining))
 	{
 		AddError(Error);
 		return false;
 	}
+	ADigetherGameplayPlayerState* Returned = Joining->GetPlayerState<ADigetherGameplayPlayerState>();
+	TestTrue(TEXT("탐사 중 복귀는 관전 합류자"), FDigetherFrameworkSaveIntegrationAccess::IsJoinSpectator(*Mode, Joining));
 	Mode->HandleStartingNewPlayer_Implementation(Joining);
-	TestTrue(TEXT("실제 시작 훅이 같은 거점 Pawn 재빙의"), Joining->GetPawn() == Pawn);
-	TestFalse(TEXT("탐사 중 재빙의 성공 후 pending 표식 소비"), FDigetherFrameworkSaveIntegrationAccess::IsReconnectPending(*Mode, Original));
-	TestTrue(TEXT("재접속에 초기 지급·장부 변경 없음"), IntegrationStatesEqual(Original->CaptureState(), Wallet));
-	TestFalse(TEXT("재접속해도 진행 중 런 참가자로 소급하지 않음"), FDigetherFrameworkSaveIntegrationAccess::IsParticipant(*Mode, Original));
+	TestNull(TEXT("관전 중에는 몸이 없음"), Joining->GetPawn());
+	TestFalse(TEXT("출발 인원에 소급하지 않음"), FDigetherFrameworkSaveIntegrationAccess::IsParticipant(*Mode, Returned));
 	FDigetherFrameworkSaveIntegrationAccess::Finish(*Mode);
-	TestTrue(TEXT("이번 런 귀환의 정산도 거점 이탈자에게 적용하지 않음"), IntegrationStatesEqual(Original->CaptureState(), Wallet));
+	TestTrue(TEXT("귀환 뒤 일반 참가자로 몸 생성"), Joining->GetPawn() != nullptr);
+	TestEqual(TEXT("같은 서버 GUID로 복귀"), Returned->GetGameplayPlayerId(), GameplayId);
+	TestTrue(TEXT("복귀에 초기 지급·이번 런 정산 없음"), IntegrationStatesEqual(Returned->CaptureState(), Wallet));
 	FDigetherFrameworkSaveIntegrationAccess::Depart(*Mode);
-	TestTrue(TEXT("다음 실제 출발에 재접속자를 포함"), Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress
-		&& FDigetherFrameworkSaveIntegrationAccess::IsParticipant(*Mode, Original));
-	TestEqual(TEXT("다음 출발 인원에 재접속자 포함"), FDigetherFrameworkSaveIntegrationAccess::DepartureCount(*Mode), 2);
+	TestTrue(TEXT("다음 실제 출발에 복귀자를 포함"), Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress
+		&& FDigetherFrameworkSaveIntegrationAccess::IsParticipant(*Mode, Returned));
+	TestEqual(TEXT("다음 출발 인원에 복귀자 포함"), FDigetherFrameworkSaveIntegrationAccess::DepartureCount(*Mode), 2);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkGaugeLateJoinSpectatorTest,
+	"DIGETHER.Game.Framework.SaveIntegration.JoinAcceptedBeforeGaugeConfirmedAfterSpectates",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkGaugeLateJoinSpectatorTest::RunTest(const FString& Parameters)
+{
+	// T76: 수락은 게이지 완료 전·확정(Login)은 완료 후인 참가자는 관전으로 합류하고 그날 출발 인원에서 빠진다.
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("게이지 후 확정 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	FDigetherDoorIntegrationRun Run;
+	if (!TestTrue(TEXT("레버·문 신호를 제품 초기화로 연결"), PrepareDoorIntegrationRun(Fixture, Run)))
+	{
+		return false;
+	}
+	const FUniqueNetIdRepl LateId = MakeRuntimeIntegrationNetId();
+	FString Error;
+	Mode->PreLogin(FString(), FString(), LateId, Error);
+	if (!TestTrue(TEXT("게이지 완료 전 PreLogin 수락"), Error.IsEmpty()))
+	{
+		return false;
+	}
+	if (!TestNotEqual(TEXT("수락 뒤 게이지 완료로 거점 문 닫힘"), PullDepartureUntilDoorClosing(*Mode, Run), IntegrationTickTimedOut))
+	{
+		return false;
+	}
+	// 게이지 완료 뒤에 수락된 요청은 거절한다(PreLogin 자체가 잠금 중, Login 재검사도 같음).
+	const FUniqueNetIdRepl AfterGaugeId = MakeRuntimeIntegrationNetId();
+	const FString InProgressMessage = DigetherJoinRules::MakeRejectionMessage(EDigetherSessionText::RunInProgress);
+	Error.Reset();
+	Mode->PreLogin(FString(), FString(), AfterGaugeId, Error);
+	TestEqual(TEXT("게이지 완료 후 수락 요청은 ③ 거절"), Error, InProgressMessage);
+	Error.Reset();
+	TestNull(TEXT("게이지 완료 후 수락 요청의 Login도 거절"),
+		Mode->Login(nullptr, ROLE_AutonomousProxy, FString(), FString(), AfterGaugeId, Error));
+	TestEqual(TEXT("Login 거절도 ③"), Error, InProgressMessage);
+
+	Error.Reset();
+	APlayerController* Late = Mode->Login(nullptr, ROLE_AutonomousProxy, FString(), FString(), LateId, Error);
+	if (!TestNotNull(TEXT("수락 전 게이지 → 확정 후 게이지의 실제 Login 수락"), Late))
+	{
+		AddError(Error);
+		return false;
+	}
+	ADigetherGameplayPlayerState* LatePlayer = Late->GetPlayerState<ADigetherGameplayPlayerState>();
+	TestTrue(TEXT("잠금 중 확정은 관전 합류"), FDigetherFrameworkSaveIntegrationAccess::IsJoinSpectator(*Mode, Late));
+	Mode->HandleStartingNewPlayer_Implementation(Late);
+	TestNull(TEXT("문 닫힘 중 관전 합류자는 몸 없음"), Late->GetPawn());
+	TestFalse(TEXT("관전 중에는 시작 지급 없음"), LatePlayer->IsGameplayInitialized());
+
+	const int32 DepartureTicks = TickIntegrationUntil(*Mode, [Mode]()
+		{
+			return Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress;
+		}, ToIntegrationTicks(FDigetherElevatorTuning().HubDoorCloseSeconds) + 1);
+	if (!TestNotEqual(TEXT("관전 합류자가 있어도 출발 확정"), DepartureTicks, IntegrationTickTimedOut))
+	{
+		return false;
+	}
+	TestEqual(TEXT("그날 출발 인원에서 관전 합류자 제외"), FDigetherFrameworkSaveIntegrationAccess::DepartureCount(*Mode), 1);
+	TestFalse(TEXT("관전 합류자는 런 참가자가 아님"), FDigetherFrameworkSaveIntegrationAccess::IsParticipant(*Mode, LatePlayer));
+	TestTrue(TEXT("탐사 중에도 관전 유지"), FDigetherFrameworkSaveIntegrationAccess::IsJoinSpectator(*Mode, Late) && Late->GetPawn() == nullptr);
+
+	FDigetherFrameworkSaveIntegrationAccess::Finish(*Mode);
+	TestFalse(TEXT("귀환하면 관전 해제"), FDigetherFrameworkSaveIntegrationAccess::IsJoinSpectator(*Mode, Late));
+	TestTrue(TEXT("귀환 때 캐릭터 생성"), Late->GetPawn() != nullptr);
+	TestTrue(TEXT("귀환 때 시작 지급 한 번"), LatePlayer->IsGameplayInitialized()
+		&& LatePlayer->CaptureState().BalanceCredits == DigetherFrameworkDefaults::StartingBalanceCredits);
+	TestEqual(TEXT("관전한 탐사의 결과는 받지 않음"), LatePlayer->GetLastRunResult().RunId, FGuid());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkDoorReopenReleasesJoinSpectatorTest,
+	"DIGETHER.Game.Framework.SaveIntegration.DoorReopenReleasesJoinSpectatorToHub",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkDoorReopenReleasesJoinSpectatorTest::RunTest(const FString& Parameters)
+{
+	// 출발이 실패해 문이 다시 열리면 잠금이 풀리므로 관전 합류자는 바로 거점 참가자가 된다.
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("문 재개방 관전 해제 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	ADigetherElevatorActor* Elevator = PrepareIntegrationRun(Fixture);
+	if (!TestNotNull(TEXT("재개방 엘리베이터"), Elevator)
+		|| !TestTrue(TEXT("출발·상승 안·밖 레버"), SpawnIntegrationLeverSet(Fixture, *Elevator).IsReady())
+		|| !TestNotNull(TEXT("Pawn 없는 호스트"), MakeRuntimeIntegrationPlayer(Fixture, MakeRuntimeIntegrationNetId(), true))
+		|| !TestTrue(TEXT("문 신호를 제품 초기화로 연결"), FDigetherFrameworkSaveIntegrationAccess::InitializeRunActors(*Mode)))
+	{
+		return false;
+	}
+	const FUniqueNetIdRepl LateId = MakeRuntimeIntegrationNetId();
+	FString Error;
+	Mode->PreLogin(FString(), FString(), LateId, Error);
+	TestTrue(TEXT("문 닫힘 전 PreLogin 수락"), Error.IsEmpty());
+	FDigetherFrameworkSaveIntegrationAccess::BeginDoorClose(*Mode, EDigetherElevatorLeverKind::Departure);
+	APlayerController* Late = Mode->Login(nullptr, ROLE_AutonomousProxy, FString(), FString(), LateId, Error);
+	if (!TestNotNull(TEXT("문 닫힘 중 확정"), Late))
+	{
+		AddError(Error);
+		return false;
+	}
+	Mode->HandleStartingNewPlayer_Implementation(Late);
+	TestTrue(TEXT("문 닫힘 중에는 관전"), FDigetherFrameworkSaveIntegrationAccess::IsJoinSpectator(*Mode, Late) && Late->GetPawn() == nullptr);
+	// Pawn 없는 호스트 때문에 출발이 실패하고 문이 다시 열린다(기존 출발 실패 시험과 같은 경로).
+	AddExpectedError(TEXT("Departure rejected: active player Pawn unavailable."), EAutomationExpectedErrorFlags::Contains, 1);
+	TestNotEqual(TEXT("닫힘 완료 뒤 출발 실패로 문 재개방"), TickIntegrationUntil(*Mode,
+		[Elevator]() { return GetIntegrationElevatorPhase(*Elevator) == EDigetherElevatorPhase::HubWaiting; },
+		ToIntegrationTicks(FDigetherElevatorTuning().HubDoorCloseSeconds) + 1), IntegrationTickTimedOut);
+	Mode->Tick(IntegrationTickSeconds);
+	TestFalse(TEXT("잠금이 풀리면 관전 해제"), FDigetherFrameworkSaveIntegrationAccess::IsJoinSpectator(*Mode, Late));
+	TestTrue(TEXT("잠금이 풀리면 거점에 캐릭터 생성"), Late->GetPawn() != nullptr);
 	return true;
 }
 
@@ -904,7 +1333,7 @@ bool FDigetherFrameworkFutureSaveNewGameTest::RunTest(const FString& Parameters)
 	TArray<uint8> CurrentBytes;
 	UDigetherSaveGame* SaveGame = NewObject<UDigetherSaveGame>();
 	if (!TestTrue(TEXT("실제 GameMode 진행 캡처"), FDigetherFrameworkSaveIntegrationAccess::Capture(*Mode, Snapshot))
-		|| !TestTrue(TEXT("실제 진행으로 기준점 슬롯 구성"), DigetherSaveRules::TryBuildSlot(Snapshot, nullptr, false, true, Slot) == EDigetherSaveResult::Success)
+		|| !TestTrue(TEXT("실제 진행으로 슬롯 구성"), DigetherSaveRules::TryBuildSlot(Snapshot, nullptr, false, Slot) == EDigetherSaveResult::Success)
 		|| !TestTrue(TEXT("미래 버전 주입용 payload"), DigetherSaveRules::SerializeSlot(Slot, Payload) == EDigetherSaveResult::Success)
 		|| !TestTrue(TEXT("엔진 SaveGame 설정"), SaveGame->SetSlotData(Slot) == EDigetherSaveResult::Success)
 		|| !TestTrue(TEXT("엔진 헤더 포함 현재 저장 바이트"), UGameplayStatics::SaveGameToMemory(SaveGame, CurrentBytes)))
@@ -926,7 +1355,7 @@ bool FDigetherFrameworkFutureSaveNewGameTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TArray<uint8> FutureBytes = CurrentBytes;
-	const int32 FutureVersion = DigetherSaveTuning::SchemaVersion + 1;
+	const int32 FutureVersion = DigetherSaveWire::LatestVersion + 1;
 	FMemory::Memcpy(FutureBytes.GetData() + PayloadOffset, &FutureVersion, sizeof(FutureVersion));
 	const FDigetherSaveSlotNames Names = DigetherSaveStorage::MakeSlotNames(Snapshot.HostAuthenticatedPlayerKey);
 	if (!TestTrue(TEXT("고유 시험 주 슬롯에 미래 버전 저장"), UGameplayStatics::SaveDataToSlot(FutureBytes, Names.Primary, 0))
@@ -947,6 +1376,55 @@ bool FDigetherFrameworkFutureSaveNewGameTest::RunTest(const FString& Parameters)
 			TestTrue(TEXT("새 게임 거절 뒤 주·백업 바이트 보존"), Actual == (bPrimary ? FutureBytes : CurrentBytes));
 		}
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkRestoreClearsRunResultTest,
+	"DIGETHER.Game.Framework.SaveIntegration.RestoreClearsRunResult",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkRestoreClearsRunResultTest::RunTest(const FString& Parameters)
+{
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("결과 복원 경계 시험 월드"), Fixture.IsReady())
+		|| !TestNotNull(TEXT("결과 복원 경계 런 준비"), PrepareIntegrationRun(Fixture)))
+	{
+		return false;
+	}
+	ADigetherGameplayPlayerController* Host = MakeRuntimeIntegrationPlayer(Fixture, MakeRuntimeIntegrationNetId(), true);
+	if (!TestNotNull(TEXT("결과 복원 경계 호스트"), Host)
+		|| !TestNotNull(TEXT("결과 복원 경계 Pawn"), GiveIntegrationPawn(Fixture, Host, FVector(0.0, 0.0, 200.0))))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	ADigetherGameplayPlayerState* Player = Host->GetPlayerState<ADigetherGameplayPlayerState>();
+	FDigetherWalletState Wallet;
+	Wallet.BalanceCredits = 67;
+	Player->RestoreState(Wallet);
+	FDigetherSaveSnapshot Snapshot;
+	if (!TestTrue(TEXT("복원할 실제 진행 캡처"), FDigetherFrameworkSaveIntegrationAccess::Capture(*Mode, Snapshot)))
+	{
+		return false;
+	}
+	FDigetherRunResult PreviousResult;
+	PreviousResult.RunId = FGuid::NewGuid();
+	PreviousResult.CompletedDay = 1;
+	PreviousResult.FinalBalanceCredits = Wallet.BalanceCredits;
+	if (!TestTrue(TEXT("복원 전에 화면에 남은 결과 발행"), Player->PublishRunResult(PreviousResult)))
+	{
+		return false;
+	}
+	TestTrue(TEXT("사전 복원 검사는 유효 진행 수락"),
+		FDigetherFrameworkSaveIntegrationAccess::Restore(*Mode, Snapshot, true));
+	TestTrue(TEXT("검사만 한 경우 현재 결과 보존"), IntegrationStatesEqual(Player->GetLastRunResult(), PreviousResult));
+	FDigetherSaveSnapshot Invalid = Snapshot;
+	Invalid.GameId.Invalidate();
+	TestFalse(TEXT("손상 진행 복원 거절"), FDigetherFrameworkSaveIntegrationAccess::Restore(*Mode, Invalid));
+	TestTrue(TEXT("거절한 복원은 현재 결과 보존"), IntegrationStatesEqual(Player->GetLastRunResult(), PreviousResult));
+	TestTrue(TEXT("유효 진행 최종 복원 성공"), FDigetherFrameworkSaveIntegrationAccess::Restore(*Mode, Snapshot));
+	TestFalse(TEXT("불러오기·새게임의 성공 복원은 이전 결과 제거"), Player->GetLastRunResult().RunId.IsValid());
+	TestEqual(TEXT("결과 제거와 별개로 복원 지갑 적용"), Player->CaptureState().BalanceCredits, Wallet.BalanceCredits);
 	return true;
 }
 
@@ -987,6 +1465,1492 @@ bool FDigetherFrameworkSaveCommandContractTest::RunTest(const FString& Parameter
 	if (TestNotNull(TEXT("소유 클라이언트 저장 결과 등록"), Result))
 	{
 		TestTrue(TEXT("결과는 reliable 클라이언트 RPC"), Result->HasAllFunctionFlags(FUNC_Net | FUNC_NetClient | FUNC_NetReliable));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkDoorClosingDepartureAndAscentTest,
+	"DIGETHER.Game.Framework.SaveIntegration.DepartureAndAscentWaitForDoorClose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkDoorClosingDepartureAndAscentTest::RunTest(const FString& Parameters)
+{
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("문 닫힘 출발·상승 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	FDigetherDoorIntegrationRun Run;
+	if (!TestTrue(TEXT("레버·문 신호를 제품 초기화로 연결"), PrepareDoorIntegrationRun(Fixture, Run)))
+	{
+		return false;
+	}
+	const FDigetherElevatorTuning ElevatorTuning;
+	const int32 DoorTicks = ToIntegrationTicks(ElevatorTuning.HubDoorCloseSeconds);
+	const int32 MineDoorTicks = ToIntegrationTicks(ElevatorTuning.MineDoorCloseSeconds);
+
+	// 기획 A3·C3: 출발 게이지가 차면 거점 문이 닫히기 시작하고 그때부터 새 참가를 막는다.
+	if (!TestNotEqual(TEXT("출발 게이지 완료 뒤 거점 문 닫힘"), PullDepartureUntilDoorClosing(*Mode, Run), IntegrationTickTimedOut))
+	{
+		return false;
+	}
+	TestTrue(TEXT("문 닫힘 중에는 아직 출발 전"),
+		Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase != EDigetherRunPhase::InProgress);
+	TestTrue(TEXT("문 닫힘 중 레버를 놓아도 닫힘 유지"), Mode->ReleaseLeverPull(Run.Host, Run.DepartureLever) == false
+		&& GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::DoorClosing);
+	FString JoinError;
+	Mode->PreLogin(FString(), FString(), MakeRuntimeIntegrationNetId(), JoinError);
+	TestFalse(TEXT("거점 문 닫힘부터 새 참가 PreLogin 거절"), JoinError.IsEmpty());
+	// 게이지 완료 Tick에서 문이 이미 한 간격 닫혔으므로 남은 간격 뒤에 출발한다.
+	const int32 DepartureTicks = TickIntegrationUntil(*Mode, [Mode]()
+		{
+			return Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress;
+		}, DoorTicks + 1);
+	TestEqual(TEXT("문 닫힘 시간이 다 지난 Tick에 출발 확정"), DepartureTicks, DoorTicks - 1);
+	TestEqual(TEXT("출발 확정 뒤 첫 하강"), GetIntegrationElevatorPhase(*Run.Elevator), EDigetherElevatorPhase::InitialDescent);
+	TestEqual(TEXT("출발 인원은 호스트 한 명"), FDigetherFrameworkSaveIntegrationAccess::DepartureCount(*Mode), 1);
+	TestEqual(TEXT("출발 뒤 출발 게이지 0"), Run.DepartureLever->GetLeverComponent()->GetPublicState().Progress, 0.f);
+
+	// 바닥 도착 뒤 상승 레버도 문 닫힘을 거친다.
+	TestNotEqual(TEXT("첫 하강 뒤 하부 대기"), TickIntegrationUntil(*Mode,
+		[&Run]() { return GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::BottomWaiting; },
+		ToIntegrationTicks(MakeIntegrationTuning().ElevatorTravelSeconds) + 1), IntegrationTickTimedOut);
+	UpdateIntegrationOverlaps(*Run.Elevator, Run.HostPawn);
+	ADigetherGameplayPlayerState* HostState = Run.Host->GetPlayerState<ADigetherGameplayPlayerState>();
+	if (!TestTrue(TEXT("상승 레버 실제 요청"), Mode->BeginLeverPull(Run.Host, Run.AscentLever)))
+	{
+		return false;
+	}
+	TestNotEqual(TEXT("상승 게이지 완료 뒤 갱도 문 닫힘"), TickIntegrationUntil(*Mode,
+		[&Run]() { return GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::DoorClosing; },
+		ToIntegrationTicks(ElevatorTuning.AscentHoldSeconds) + 1), IntegrationTickTimedOut);
+	TestEqual(TEXT("문 닫힘 중 탑승자는 아직 탈출 전"),
+		HostState->GetLifeComponent()->CaptureState().PublicState.Life, EDigetherLifeState::Active);
+	TestEqual(TEXT("문 닫힘 중 상승 횟수 기록 없음"), Mode->GetRunCoordinatorComponent()->GetConfirmedAscentCount(), 0);
+	const int32 AscentTicks = TickIntegrationUntil(*Mode, [HostState]()
+		{
+			return HostState->GetLifeComponent()->CaptureState().PublicState.Life == EDigetherLifeState::Escaped;
+		}, MineDoorTicks + 1);
+	TestEqual(TEXT("문 닫힘 시간이 다 지난 Tick에 상승 확정"), AscentTicks, MineDoorTicks - 1);
+	TestEqual(TEXT("닫힌 순간 탑승자로 첫 편 기록"), Mode->GetRunCoordinatorComponent()->GetConfirmedAscentCount(), 1);
+	TestEqual(TEXT("2회 설정 첫 편은 일반 상승"), GetIntegrationElevatorPhase(*Run.Elevator), EDigetherElevatorPhase::Ascending);
+	TestEqual(TEXT("상승 뒤 상승 게이지 0"), Run.AscentLever->GetLeverComponent()->GetPublicState().Progress, 0.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkAscentLeverLayoutTest,
+	"DIGETHER.Game.Framework.SaveIntegration.AscentLeverLayoutCheck",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkAscentLeverLayoutTest::RunTest(const FString& Parameters)
+{
+	// 기획 S15: 출발 1·상승 안 1·상승 밖 1. 위치 불일치는 경고만, 개발 빌드는 밖 레버 없는 맵을 경고 후 허용한다.
+	AddExpectedError(TEXT("Map configuration rejected: expected one Departure, one inside Ascent and one outside Ascent lever"),
+		EAutomationExpectedErrorFlags::Contains, 2);
+	AddExpectedMessagePlain(TEXT("does not match the boarding volume"), ELogVerbosity::Warning,
+		EAutomationExpectedMessageFlags::Contains, 1);
+	{
+		FDigetherSaveIntegrationWorld Fixture(this);
+		if (!TestTrue(TEXT("레버 구성 검사 시험 월드"), Fixture.IsReady()))
+		{
+			return false;
+		}
+		ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+		ADigetherElevatorActor* Elevator = PrepareIntegrationRun(Fixture);
+		if (!TestNotNull(TEXT("레버 구성 엘리베이터"), Elevator))
+		{
+			return false;
+		}
+		const FVector ElevatorLocation = Elevator->GetActorLocation();
+		ADigetherElevatorLeverActor* Departure = SpawnIntegrationLever(Fixture, *Elevator, EDigetherElevatorLeverKind::Departure);
+		ADigetherElevatorLeverActor* Outside = SpawnIntegrationLever(Fixture, *Elevator, EDigetherElevatorLeverKind::Ascent,
+			EDigetherElevatorLeverPlacement::Outside);
+		if (!TestNotNull(TEXT("출발 레버"), Departure) || !TestNotNull(TEXT("밖 상승 레버"), Outside))
+		{
+			return false;
+		}
+		Departure->SetActorLocation(ElevatorLocation + IntegrationDepartureLeverOffsetCm);
+		Outside->SetActorLocation(ElevatorLocation + IntegrationOutsideLeverOffsetCm);
+		TestFalse(TEXT("안 상승 레버 없으면 시작 거절"), FDigetherFrameworkSaveIntegrationAccess::InitializeRunActors(*Mode));
+		ADigetherElevatorLeverActor* Inside = SpawnIntegrationLever(Fixture, *Elevator, EDigetherElevatorLeverKind::Ascent);
+		ADigetherElevatorLeverActor* ExtraInside = SpawnIntegrationLever(Fixture, *Elevator, EDigetherElevatorLeverKind::Ascent);
+		if (!TestNotNull(TEXT("안 상승 레버"), Inside) || !TestNotNull(TEXT("중복 안 상승 레버"), ExtraInside))
+		{
+			return false;
+		}
+		Inside->SetActorLocation(ElevatorLocation + IntegrationInsideLeverOffsetCm);
+		ExtraInside->SetActorLocation(ElevatorLocation + IntegrationInsideLeverOffsetCm + FVector(0.0, 50.0, 0.0));
+		TestFalse(TEXT("안 상승 레버 2개는 시작 거절"), FDigetherFrameworkSaveIntegrationAccess::InitializeRunActors(*Mode));
+		ExtraInside->Destroy();
+		// 밖 레버를 탑승 영역 안에 두면 경고만 남기고 시작한다(아트 배치 조정 여지).
+		Outside->SetActorLocation(ElevatorLocation + FVector(200.0, 0.0, 0.0));
+		TestTrue(TEXT("위치 불일치는 경고 후 시작"), FDigetherFrameworkSaveIntegrationAccess::InitializeRunActors(*Mode));
+	}
+	{
+		FDigetherSaveIntegrationWorld Fixture(this);
+		if (!TestTrue(TEXT("밖 레버 없는 맵 시험 월드"), Fixture.IsReady()))
+		{
+			return false;
+		}
+		ADigetherElevatorActor* Elevator = PrepareIntegrationRun(Fixture);
+		if (!TestNotNull(TEXT("밖 레버 없는 맵 엘리베이터"), Elevator))
+		{
+			return false;
+		}
+		ADigetherElevatorLeverActor* Departure = SpawnIntegrationLever(Fixture, *Elevator, EDigetherElevatorLeverKind::Departure);
+		ADigetherElevatorLeverActor* Inside = SpawnIntegrationLever(Fixture, *Elevator, EDigetherElevatorLeverKind::Ascent);
+		if (!TestNotNull(TEXT("출발 레버"), Departure) || !TestNotNull(TEXT("안 상승 레버"), Inside))
+		{
+			return false;
+		}
+		Departure->SetActorLocation(Elevator->GetActorLocation() + IntegrationDepartureLeverOffsetCm);
+		Inside->SetActorLocation(Elevator->GetActorLocation() + IntegrationInsideLeverOffsetCm);
+		// 자동 테스트는 개발 빌드에서만 돈다. Shipping의 거절 분기는 이 시험으로 확인하지 못한다.
+		AddExpectedMessagePlain(TEXT("outside Ascent lever missing"), ELogVerbosity::Warning,
+			EAutomationExpectedMessageFlags::Contains, 1);
+		TestTrue(TEXT("개발 빌드는 밖 레버 없는 맵을 경고 후 시작"),
+			FDigetherFrameworkSaveIntegrationAccess::InitializeRunActors(*Fixture.GetGameMode()));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkOutsideAscentLeverTest,
+	"DIGETHER.Game.Framework.SaveIntegration.OutsideAscentLeverSendsElevatorWithoutPuller",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkOutsideAscentLeverTest::RunTest(const FString& Parameters)
+{
+	// 기획 S15·T93: 밖 레버를 당긴 사람은 타지 않으므로 갱도에 남고, 엘리베이터는 탑승자 없이 한 편 올라간다.
+	// 화물 적재 경로가 아직 없어 화물 목록 고정은 규칙 단위 시험(Elevator.CargoOnlyAscent)에서 확인한다.
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("밖 레버 상승 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	FDigetherDoorIntegrationRun Run;
+	if (!TestTrue(TEXT("레버·문 신호를 제품 초기화로 연결"), PrepareDoorIntegrationRun(Fixture, Run))
+		|| !TestTrue(TEXT("출발해 하부 대기"), AdvanceDoorIntegrationRunToBottom(*Mode, Run)))
+	{
+		return false;
+	}
+	ADigetherGameplayPlayerState* HostState = Run.Host->GetPlayerState<ADigetherGameplayPlayerState>();
+	// 기획 02 개요 5행: 1차 상승이 확정돼도 다른 사람이 아직 탐사 중이면 일차는 그대로다.
+	const FDigetherQuotaState QuotaBeforeAscent = Fixture.GetGameState()->GetQuotaComponent()->CaptureState().Quota;
+	MovePawnToOutsideLever(Run, *Run.HostPawn);
+	TArray<APawn*> Boarded;
+	Run.Elevator->GetOverlappingPawns(Boarded);
+	TestFalse(TEXT("밖 레버 조작자는 탑승 영역 밖"), Boarded.Contains(Run.HostPawn));
+	const double RemainingBefore = Mode->GetRunCoordinatorComponent()->GetRemainingSeconds();
+	if (!TestTrue(TEXT("밖 상승 레버 실제 요청"), Mode->BeginLeverPull(Run.Host, Run.OutsideAscentLever)))
+	{
+		return false;
+	}
+	TestNotEqual(TEXT("밖 레버 게이지 완료 뒤 갱도 문 닫힘"), TickIntegrationUntil(*Mode,
+		[&Run]() { return GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::DoorClosing; },
+		ToIntegrationTicks(FDigetherElevatorTuning().AscentHoldSeconds) + 1), IntegrationTickTimedOut);
+	TestNotEqual(TEXT("문 닫힘 완료 뒤 상승 확정"), TickIntegrationUntil(*Mode,
+		[Mode]() { return Mode->GetRunCoordinatorComponent()->GetConfirmedAscentCount() == 1; },
+		ToIntegrationTicks(FDigetherElevatorTuning().MineDoorCloseSeconds) + 1), IntegrationTickTimedOut);
+	TestEqual(TEXT("탑승자 없는 편도 일반 상승"), GetIntegrationElevatorPhase(*Run.Elevator), EDigetherElevatorPhase::Ascending);
+	FDigetherElevatorAscentConfirmed Ascent;
+	if (TestTrue(TEXT("확정 명세 보관"), Run.Elevator->GetElevatorComponent()->TryGetLastAscent(Ascent)))
+	{
+		TestEqual(TEXT("확정 명세 탑승자 0명"), Ascent.PassengerIds.Num(), 0);
+	}
+	TestEqual(TEXT("밖 레버 조작자는 갱도에 남음"),
+		HostState->GetLifeComponent()->CaptureState().PublicState.Life, EDigetherLifeState::Active);
+	TestTrue(TEXT("밖 레버 조작자는 계속 런 참가자"), FDigetherFrameworkSaveIntegrationAccess::IsParticipant(*Mode, HostState));
+	const FDigetherQuotaState QuotaAfterAscent = Fixture.GetGameState()->GetQuotaComponent()->CaptureState().Quota;
+	TestEqual(TEXT("1차 상승 확정 뒤에도 기간 일차 그대로"), QuotaAfterAscent.Day, QuotaBeforeAscent.Day);
+	TestEqual(TEXT("1차 상승 확정 뒤에도 전체 일차 그대로"), QuotaAfterAscent.TotalDay, QuotaBeforeAscent.TotalDay);
+	TestTrue(TEXT("상승 확정으로 남은 시간 차감"),
+		Mode->GetRunCoordinatorComponent()->GetRemainingSeconds() < RemainingBefore);
+	TestEqual(TEXT("상승 뒤 밖 레버 게이지 0"), Run.OutsideAscentLever->GetLeverComponent()->GetPublicState().Progress, 0.f);
+	TestEqual(TEXT("상승 뒤 안 레버 게이지 0"), Run.AscentLever->GetLeverComponent()->GetPublicState().Progress, 0.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkAscentLeverPairTest,
+	"DIGETHER.Game.Framework.SaveIntegration.AscentLeversAcceptOnlyFirstPull",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkAscentLeverPairTest::RunTest(const FString& Parameters)
+{
+	// 기획 S15·T93: 안팎 레버를 두 사람이 동시에 당겨도 먼저 시작한 한 건만 받아 한 번만 출발한다.
+	// 안쪽 레버로 확정한 편이 배열 뒤의 밖 레버 때문에 실패하지 않는지도 확인한다(회귀).
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("안팎 레버 동시 입력 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	FDigetherDoorIntegrationRun Run;
+	if (!TestTrue(TEXT("레버·문 신호를 제품 초기화로 연결"), PrepareDoorIntegrationRun(Fixture, Run)))
+	{
+		return false;
+	}
+	ADigetherGameplayPlayerController* Guest = MakeRuntimeIntegrationPlayer(Fixture, MakeRuntimeIntegrationNetId());
+	APawn* GuestPawn = IsValid(Guest)
+		? GiveIntegrationPawn(Fixture, Guest, Run.Elevator->GetActorLocation() + FVector(0.0, 100.0, 100.0)) : nullptr;
+	if (!TestNotNull(TEXT("두 번째 참가자 Pawn"), GuestPawn))
+	{
+		return false;
+	}
+	UpdateIntegrationOverlaps(*Run.Elevator, Run.HostPawn);
+	UpdateIntegrationOverlaps(*Run.Elevator, GuestPawn);
+	if (!TestTrue(TEXT("두 명 출발해 하부 대기"), AdvanceDoorIntegrationRunToBottom(*Mode, Run)))
+	{
+		return false;
+	}
+	ADigetherGameplayPlayerState* HostState = Run.Host->GetPlayerState<ADigetherGameplayPlayerState>();
+	ADigetherGameplayPlayerState* GuestState = Guest->GetPlayerState<ADigetherGameplayPlayerState>();
+	UpdateIntegrationOverlaps(*Run.Elevator, Run.HostPawn);
+	MovePawnToOutsideLever(Run, *GuestPawn);
+
+	if (!TestTrue(TEXT("안 레버 먼저 시작"), Mode->BeginLeverPull(Run.Host, Run.AscentLever)))
+	{
+		return false;
+	}
+	TestFalse(TEXT("안 레버 진행 중 밖 레버 시작 거절"), Mode->BeginLeverPull(Guest, Run.OutsideAscentLever));
+	TestFalse(TEXT("거절된 밖 레버는 점유자 없음"), Run.OutsideAscentLever->GetLeverComponent()->GetActivePullerId().IsValid());
+	Mode->Tick(IntegrationTickSeconds);
+	TestTrue(TEXT("안 레버 게이지 진행"), Run.AscentLever->GetLeverComponent()->GetPublicState().Progress > 0.f);
+	TestEqual(TEXT("밖 레버 게이지 0 유지"), Run.OutsideAscentLever->GetLeverComponent()->GetPublicState().Progress, 0.f);
+	TestFalse(TEXT("안 레버 진행 중 밖 레버 재시도 거절"), Mode->BeginLeverPull(Guest, Run.OutsideAscentLever));
+	TestNotEqual(TEXT("안 레버 게이지 완료 뒤 갱도 문 닫힘"), TickIntegrationUntil(*Mode,
+		[&Run]() { return GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::DoorClosing; },
+		ToIntegrationTicks(FDigetherElevatorTuning().AscentHoldSeconds) + 1), IntegrationTickTimedOut);
+	TestFalse(TEXT("문 닫힘 중 밖 레버 입력 무시"), Mode->BeginLeverPull(Guest, Run.OutsideAscentLever));
+	TestEqual(TEXT("문 닫힘 중 밖 레버 게이지 0"), Run.OutsideAscentLever->GetLeverComponent()->GetPublicState().Progress, 0.f);
+	TestNotEqual(TEXT("안 레버로 확정한 편 상승"), TickIntegrationUntil(*Mode, [HostState]()
+		{
+			return HostState->GetLifeComponent()->CaptureState().PublicState.Life == EDigetherLifeState::Escaped;
+		}, ToIntegrationTicks(FDigetherElevatorTuning().MineDoorCloseSeconds) + 1), IntegrationTickTimedOut);
+	TestEqual(TEXT("한 편만 출발"), Mode->GetRunCoordinatorComponent()->GetConfirmedAscentCount(), 1);
+	TestEqual(TEXT("밖에 남은 참가자는 갱도에 남음"),
+		GuestState->GetLifeComponent()->CaptureState().PublicState.Life, EDigetherLifeState::Active);
+	TestEqual(TEXT("상승 뒤 안 레버 게이지 0"), Run.AscentLever->GetLeverComponent()->GetPublicState().Progress, 0.f);
+	TestEqual(TEXT("상승 뒤 밖 레버 게이지 0"), Run.OutsideAscentLever->GetLeverComponent()->GetPublicState().Progress, 0.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkAscentDoorReopenResetsLeversTest,
+	"DIGETHER.Game.Framework.SaveIntegration.AscentDoorReopenResetsBothLevers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkAscentDoorReopenResetsLeversTest::RunTest(const FString& Parameters)
+{
+	// 기획 A3·S15: 갱도 문이 닫히는 중 무게 초과로 다시 열리면 안·밖 레버 게이지가 모두 0이 되고 다시 당길 수 있다.
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("문 재개방 레버 초기화 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	FDigetherDoorIntegrationRun Run;
+	if (!TestTrue(TEXT("레버·문 신호를 제품 초기화로 연결"), PrepareDoorIntegrationRun(Fixture, Run))
+		|| !TestTrue(TEXT("출발해 하부 대기"), AdvanceDoorIntegrationRunToBottom(*Mode, Run)))
+	{
+		return false;
+	}
+	MovePawnToOutsideLever(Run, *Run.HostPawn);
+	if (!TestTrue(TEXT("밖 상승 레버 실제 요청"), Mode->BeginLeverPull(Run.Host, Run.OutsideAscentLever))
+		|| !TestNotEqual(TEXT("밖 레버 게이지 완료 뒤 갱도 문 닫힘"), TickIntegrationUntil(*Mode,
+			[&Run]() { return GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::DoorClosing; },
+			ToIntegrationTicks(FDigetherElevatorTuning().AscentHoldSeconds) + 1), IntegrationTickTimedOut))
+	{
+		return false;
+	}
+	TestEqual(TEXT("문 닫힘 중 확정 레버 게이지 유지"), Run.OutsideAscentLever->GetLeverComponent()->GetPublicState().Progress, 1.f);
+	TestFalse(TEXT("문 닫힘 중 확정 레버 재입력 무시"), Mode->BeginLeverPull(Run.Host, Run.OutsideAscentLever));
+	// 화물 적재 경로가 없어 엘리베이터 공개 API로 초과 화물 목록을 넣는다. 다음 Tick이 재개방 사건을 처리한다.
+	FDigetherElevatorLoadEntry HeavyCargo;
+	HeavyCargo.EntryId = FGuid::NewGuid();
+	HeavyCargo.Kind = EDigetherElevatorLoadKind::Cargo;
+	HeavyCargo.WeightKg = MakeIntegrationTuning().ElevatorCapacityKg + 1.f;
+	Run.Elevator->GetElevatorComponent()->UpdateLoad({ HeavyCargo });
+	TestEqual(TEXT("무게 초과로 문 재개방"), GetIntegrationElevatorPhase(*Run.Elevator), EDigetherElevatorPhase::BottomWaiting);
+	Mode->Tick(IntegrationTickSeconds);
+	TestEqual(TEXT("재개방 뒤 밖 레버 게이지 0"), Run.OutsideAscentLever->GetLeverComponent()->GetPublicState().Progress, 0.f);
+	TestEqual(TEXT("재개방 뒤 안 레버 게이지 0"), Run.AscentLever->GetLeverComponent()->GetPublicState().Progress, 0.f);
+	TestEqual(TEXT("재개방 시도는 상승 횟수 미기록"), Mode->GetRunCoordinatorComponent()->GetConfirmedAscentCount(), 0);
+	TestTrue(TEXT("재개방 뒤 밖 레버 다시 시작"), Mode->BeginLeverPull(Run.Host, Run.OutsideAscentLever));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkDoorClosingTimeoutTest,
+	"DIGETHER.Game.Framework.SaveIntegration.TimeoutDuringDoorCloseReturnsFromMine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkDoorClosingTimeoutTest::RunTest(const FString& Parameters)
+{
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("문 닫힘 중 시간 종료 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	FDigetherDoorIntegrationRun Run;
+	if (!TestTrue(TEXT("레버·문 신호를 제품 초기화로 연결"), PrepareDoorIntegrationRun(Fixture, Run)))
+	{
+		return false;
+	}
+	ADigetherGameplayPlayerState* HostState = Run.Host->GetPlayerState<ADigetherGameplayPlayerState>();
+	FDigetherWalletState Wallet;
+	Wallet.BalanceCredits = 80;
+	HostState->RestoreState(Wallet);
+	if (!TestNotEqual(TEXT("거점 문 닫힘"), PullDepartureUntilDoorClosing(*Mode, Run), IntegrationTickTimedOut)
+		|| !TestNotEqual(TEXT("출발 확정"), TickIntegrationUntil(*Mode, [Mode]()
+			{
+				return Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress;
+			}, ToIntegrationTicks(FDigetherElevatorTuning().HubDoorCloseSeconds) + 1), IntegrationTickTimedOut)
+		|| !TestNotEqual(TEXT("하부 대기"), TickIntegrationUntil(*Mode,
+			[&Run]() { return GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::BottomWaiting; },
+			ToIntegrationTicks(MakeIntegrationTuning().ElevatorTravelSeconds) + 1), IntegrationTickTimedOut))
+	{
+		return false;
+	}
+	UpdateIntegrationOverlaps(*Run.Elevator, Run.HostPawn);
+	if (!TestTrue(TEXT("상승 레버 실제 요청"), Mode->BeginLeverPull(Run.Host, Run.AscentLever))
+		|| !TestNotEqual(TEXT("갱도 문 닫힘"), TickIntegrationUntil(*Mode,
+			[&Run]() { return GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::DoorClosing; },
+			ToIntegrationTicks(FDigetherElevatorTuning().AscentHoldSeconds) + 1), IntegrationTickTimedOut))
+	{
+		return false;
+	}
+	// 기획 A3: 문이 닫히는 중 시간 종료는 갱도 대기로 본다. 무게가 정상이면 탄 사람은 자동 귀환한다.
+	FDigetherFrameworkSaveIntegrationAccess::Finish(*Mode);
+	TestTrue(TEXT("문 닫힘 중 시간 종료로 탐사 종료"),
+		Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase != EDigetherRunPhase::InProgress);
+	TestEqual(TEXT("문 안 탑승자는 자동 귀환"), HostState->GetLastRunResult().Outcome, EDigetherRunReturnOutcome::Returned);
+	TestEqual(TEXT("자동 귀환자는 사망 손실 없음"), HostState->CaptureState().BalanceCredits, 80);
+	TestEqual(TEXT("귀환 뒤 거점 대기"), GetIntegrationElevatorPhase(*Run.Elevator), EDigetherElevatorPhase::HubWaiting);
+	TestEqual(TEXT("귀환 뒤 상승 게이지 0"), Run.AscentLever->GetLeverComponent()->GetPublicState().Progress, 0.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkDoorClosingDepartureFailureTest,
+	"DIGETHER.Game.Framework.SaveIntegration.DepartureFailureReopensDoorAndUnlocksJoin",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkDoorClosingDepartureFailureTest::RunTest(const FString& Parameters)
+{
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("출발 실패 재개방 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	ADigetherElevatorActor* Elevator = PrepareIntegrationRun(Fixture);
+	// Pawn 없는 연결자는 출발 공간 검사에서 거절된다.
+	if (!TestNotNull(TEXT("출발 실패 엘리베이터"), Elevator)
+		|| !TestTrue(TEXT("출발·상승 안·밖 레버"), SpawnIntegrationLeverSet(Fixture, *Elevator).IsReady())
+		|| !TestNotNull(TEXT("Pawn 없는 호스트"), MakeRuntimeIntegrationPlayer(Fixture, MakeRuntimeIntegrationNetId(), true))
+		|| !TestTrue(TEXT("문 신호를 제품 초기화로 연결"), FDigetherFrameworkSaveIntegrationAccess::InitializeRunActors(*Mode)))
+	{
+		return false;
+	}
+	FDigetherFrameworkSaveIntegrationAccess::BeginDoorClose(*Mode, EDigetherElevatorLeverKind::Departure);
+	TestEqual(TEXT("거점 문 닫힘 시작"), GetIntegrationElevatorPhase(*Elevator), EDigetherElevatorPhase::DoorClosing);
+	FString LockedError;
+	Mode->PreLogin(FString(), FString(), MakeRuntimeIntegrationNetId(), LockedError);
+	TestFalse(TEXT("문 닫힘 중 새 참가 거절"), LockedError.IsEmpty());
+	AddExpectedError(TEXT("Departure rejected: active player Pawn unavailable."),
+		EAutomationExpectedErrorFlags::Contains, 1);
+	TestNotEqual(TEXT("닫힘 완료 뒤 출발 실패로 문 재개방"), TickIntegrationUntil(*Mode,
+		[Elevator]() { return GetIntegrationElevatorPhase(*Elevator) == EDigetherElevatorPhase::HubWaiting; },
+		ToIntegrationTicks(FDigetherElevatorTuning().HubDoorCloseSeconds) + 1), IntegrationTickTimedOut);
+	TestTrue(TEXT("출발 실패는 탐사를 시작하지 않음"),
+		Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase != EDigetherRunPhase::InProgress);
+	FString UnlockedError;
+	Mode->PreLogin(FString(), FString(), MakeRuntimeIntegrationNetId(), UnlockedError);
+	TestTrue(TEXT("문이 다시 열리면 새 참가 허용"), UnlockedError.IsEmpty());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkDuplicateLoginRetryTest,
+	"DIGETHER.Game.Framework.SaveIntegration.DuplicateLoginReplacesPreviousConnectionDuringRun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkDuplicateLoginRetryTest::RunTest(const FString& Parameters)
+{
+	// 기획 C2: 같은 계정의 새 접속은 첫 시도에 받는다. 시험 컨트롤러에는 UNetConnection이 없어 실제 연결 종료는 일어나지 않는다.
+	// 연결 종료 뒤 엔진 정리 순서(PawnLeavingGame → Logout → AddInactivePlayer → CleanupPlayerState)는
+	// DisconnectIntegrationPlayer로 재현하고, 대기 타이머 대신 같은 판정 함수를 시각을 넣어 부른다. 실제 연결 종료·Welcome은 M2 대상이다.
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("중복 접속 교체 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherElevatorActor* Elevator = PrepareIntegrationRun(Fixture);
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	const FUniqueNetIdRepl HostId = MakeRuntimeIntegrationNetId();
+	ADigetherGameplayPlayerController* Host = MakeRuntimeIntegrationPlayer(Fixture, HostId, true);
+	const FUniqueNetIdRepl GuestId = MakeRuntimeIntegrationNetId();
+	ADigetherGameplayPlayerController* Guest = MakeRuntimeIntegrationPlayer(Fixture, GuestId);
+	const FUniqueNetIdRepl StuckId = MakeRuntimeIntegrationNetId();
+	ADigetherGameplayPlayerController* Stuck = MakeRuntimeIntegrationPlayer(Fixture, StuckId);
+	if (!TestNotNull(TEXT("중복 접속 시험 엘리베이터"), Elevator) || !TestNotNull(TEXT("중복 접속 시험 호스트"), Host)
+		|| !TestNotNull(TEXT("중복 접속 시험 참가자"), Guest) || !TestNotNull(TEXT("정리되지 않을 참가자"), Stuck))
+	{
+		return false;
+	}
+	APawn* HostPawn = GiveIntegrationPawn(Fixture, Host, FVector(0.0, 0.0, 200.0));
+	APawn* GuestPawn = GiveIntegrationPawn(Fixture, Guest, FVector(500.0, 0.0, 200.0));
+	APawn* StuckPawn = GiveIntegrationPawn(Fixture, Stuck, FVector(-500.0, 0.0, 200.0));
+	if (!TestNotNull(TEXT("중복 접속 호스트 Pawn"), HostPawn) || !TestNotNull(TEXT("중복 접속 참가자 Pawn"), GuestPawn)
+		|| !TestNotNull(TEXT("정리되지 않을 참가자 Pawn"), StuckPawn))
+	{
+		return false;
+	}
+	ADigetherGameplayPlayerState* Original = Guest->GetPlayerState<ADigetherGameplayPlayerState>();
+	FDigetherFrameworkSaveIntegrationAccess::Depart(*Mode);
+	if (!TestTrue(TEXT("중복 접속 시험 실제 출발"),
+		Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress))
+	{
+		return false;
+	}
+	const FString DuplicateMessage = DigetherJoinRules::MakeRejectionMessage(EDigetherSessionText::AccountAlreadyConnected);
+
+	// 첫 시도: 승인 콜백을 보류하고 이전 연결 정리를 기다린다. 이 시점에는 이전 Pawn을 파괴하거나 빙의를 풀지 않는다.
+	const TSharedRef<FDigetherAsyncLoginResult> GuestResult = MakeShared<FDigetherAsyncLoginResult>();
+	Mode->PreLoginAsync(FString(), FString(), GuestId, MakeAsyncLoginObserver(GuestResult));
+	TestFalse(TEXT("이전 연결이 남아 있으면 승인 보류"), GuestResult->bCompleted);
+	TestEqual(TEXT("교체 대기 하나"), FDigetherFrameworkSaveIntegrationAccess::PendingLoginReplacements(*Mode), 1);
+	TestTrue(TEXT("대기 중 이전 Pawn 유지"), IsValid(GuestPawn) && Guest->GetPawn() == GuestPawn);
+
+	// 대기 중의 동기 Login 재검사는 이전 연결을 끊지 않고 ②로 거절한다.
+	FString Error;
+	TestNull(TEXT("대기 중 같은 ID의 Login 재검사는 거절"),
+		Mode->Login(nullptr, ROLE_AutonomousProxy, FString(), FString(), GuestId, Error));
+	TestEqual(TEXT("Login 재검사 사유는 ②"), Error, DuplicateMessage);
+
+	// 호스트 자신과 같은 ID는 끊지 않고 바로 ②로 거절한다.
+	const TSharedRef<FDigetherAsyncLoginResult> HostResult = MakeShared<FDigetherAsyncLoginResult>();
+	Mode->PreLoginAsync(FString(), FString(), HostId, MakeAsyncLoginObserver(HostResult));
+	TestTrue(TEXT("호스트 ID 중복은 바로 ② 거절"), HostResult->bCompleted && HostResult->Error == DuplicateMessage);
+	TestTrue(TEXT("호스트 자신의 연결·Pawn은 유지"), IsValid(Host) && Host->GetPawn() == HostPawn);
+
+	// 탐사 중 완전 신규 참가는 비동기 경로에서도 ③으로 바로 거절한다.
+	const TSharedRef<FDigetherAsyncLoginResult> NewResult = MakeShared<FDigetherAsyncLoginResult>();
+	Mode->PreLoginAsync(FString(), FString(), MakeRuntimeIntegrationNetId(), MakeAsyncLoginObserver(NewResult));
+	TestTrue(TEXT("탐사 중 신규 참가는 ③ 거절"), NewResult->bCompleted
+		&& NewResult->Error == DigetherJoinRules::MakeRejectionMessage(EDigetherSessionText::RunInProgress));
+
+	// 같은 계정의 더 늦은 접속이 오면 앞선 대기는 ②로 끝나고 늦은 접속이 교체를 이어받는다.
+	const TSharedRef<FDigetherAsyncLoginResult> LaterResult = MakeShared<FDigetherAsyncLoginResult>();
+	Mode->PreLoginAsync(FString(), FString(), GuestId, MakeAsyncLoginObserver(LaterResult));
+	TestTrue(TEXT("앞선 대기는 ②로 완료"), GuestResult->bCompleted && GuestResult->Error == DuplicateMessage);
+	TestFalse(TEXT("늦은 접속은 아직 대기"), LaterResult->bCompleted);
+
+	// 이전 연결이 닫혀 엔진 정리를 마쳤다. 탐사 중이므로 비활성 PS·남긴 Pawn으로 보관된다.
+	DisconnectIntegrationPlayer(*Mode, *Guest);
+	TestTrue(TEXT("이전 연결 정리 후 남긴 Pawn 유지"), IsValid(GuestPawn));
+	FDigetherFrameworkSaveIntegrationAccess::PollLoginReplacementsAt(*Mode, FPlatformTime::Seconds());
+	TestTrue(TEXT("정리되면 같은 시도를 승인"), LaterResult->bCompleted && LaterResult->Error.IsEmpty());
+	TestEqual(TEXT("승인 뒤 교체 대기 없음"), FDigetherFrameworkSaveIntegrationAccess::PendingLoginReplacements(*Mode), 0);
+	Error.Reset();
+	APlayerController* Joining = Mode->Login(nullptr, ROLE_AutonomousProxy, FString(), FString(), GuestId, Error);
+	if (!TestNotNull(TEXT("승인된 접속의 실제 Login 수락"), Joining))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestEqual(TEXT("탐사 중 교체는 이전 PlayerState를 그대로 이어받음"), Joining->GetPlayerState<ADigetherGameplayPlayerState>(), Original);
+	TestTrue(TEXT("탐사 중 교체는 런 참가 자격 유지"), FDigetherFrameworkSaveIntegrationAccess::IsParticipant(*Mode, Original));
+	Mode->HandleStartingNewPlayer_Implementation(Joining);
+	TestTrue(TEXT("탐사 중 교체는 남긴 Pawn에 다시 빙의"), Joining->GetPawn() == GuestPawn);
+
+	// 제한 시간 안에 이전 연결이 정리되지 않으면 ②로 거절하고, 남은 연결은 건드리지 않는다.
+	const TSharedRef<FDigetherAsyncLoginResult> StuckResult = MakeShared<FDigetherAsyncLoginResult>();
+	Mode->PreLoginAsync(FString(), FString(), StuckId, MakeAsyncLoginObserver(StuckResult));
+	TestFalse(TEXT("정리 전에는 대기"), StuckResult->bCompleted);
+	FDigetherFrameworkSaveIntegrationAccess::PollLoginReplacementsAt(*Mode,
+		FPlatformTime::Seconds() + DigetherJoinRules::LoginReplacementTimeoutSeconds + 1.0);
+	TestTrue(TEXT("제한 시간 초과는 ② 거절"), StuckResult->bCompleted && StuckResult->Error == DuplicateMessage);
+	TestTrue(TEXT("시간 초과 뒤 남은 연결·Pawn 유지"), IsValid(Stuck) && Stuck->GetPawn() == StuckPawn);
+	TestEqual(TEXT("시간 초과 뒤 교체 대기 없음"), FDigetherFrameworkSaveIntegrationAccess::PendingLoginReplacements(*Mode), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkHubDuplicateLoginTest,
+	"DIGETHER.Game.Framework.SaveIntegration.DuplicateLoginInHubReleasesSeatThenJoins",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkHubDuplicateLoginTest::RunTest(const FString& Parameters)
+{
+	// 거점의 같은 계정 교체: 이전 연결은 거점 이탈 규칙대로 몸·자리를 반환하고, 새 접속은 저장 장부로 같은 시도에 들어온다.
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("거점 중복 접속 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherElevatorActor* Elevator = PrepareIntegrationRun(Fixture);
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	ADigetherGameplayPlayerController* Host = MakeRuntimeIntegrationPlayer(Fixture, MakeRuntimeIntegrationNetId(), true);
+	const FUniqueNetIdRepl GuestId = MakeRuntimeIntegrationNetId();
+	ADigetherGameplayPlayerController* Guest = MakeRuntimeIntegrationPlayer(Fixture, GuestId);
+	if (!TestNotNull(TEXT("거점 시험 엘리베이터"), Elevator) || !TestNotNull(TEXT("거점 시험 호스트"), Host)
+		|| !TestNotNull(TEXT("거점 시험 참가자"), Guest))
+	{
+		return false;
+	}
+	APawn* GuestPawn = GiveIntegrationPawn(Fixture, Guest, FVector(500.0, 0.0, 200.0));
+	if (!TestNotNull(TEXT("거점 참가자 Pawn"), GuestPawn))
+	{
+		return false;
+	}
+	ADigetherGameplayPlayerState* Original = Guest->GetPlayerState<ADigetherGameplayPlayerState>();
+	FDigetherWalletState Wallet;
+	Wallet.BalanceCredits = 64;
+	Original->RestoreState(Wallet);
+	const FGuid GameplayId = Original->GetGameplayPlayerId();
+
+	const TSharedRef<FDigetherAsyncLoginResult> Result = MakeShared<FDigetherAsyncLoginResult>();
+	Mode->PreLoginAsync(FString(), FString(), GuestId, MakeAsyncLoginObserver(Result));
+	TestFalse(TEXT("이전 연결이 남아 있으면 승인 보류"), Result->bCompleted);
+	DisconnectIntegrationPlayer(*Mode, *Guest);
+	TestFalse(TEXT("거점 교체의 이전 몸은 제거"), IsValid(GuestPawn));
+	FDigetherFrameworkSaveIntegrationAccess::PollLoginReplacementsAt(*Mode, FPlatformTime::Seconds());
+	TestTrue(TEXT("정리되면 같은 시도를 승인"), Result->bCompleted && Result->Error.IsEmpty());
+	FString Error;
+	APlayerController* Joining = Mode->Login(nullptr, ROLE_AutonomousProxy, FString(), FString(), GuestId, Error);
+	if (!TestNotNull(TEXT("거점 교체 접속의 실제 Login 수락"), Joining))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestFalse(TEXT("거점 교체는 관전이 아닌 일반 참가"), FDigetherFrameworkSaveIntegrationAccess::IsJoinSpectator(*Mode, Joining));
+	Mode->HandleStartingNewPlayer_Implementation(Joining);
+	ADigetherGameplayPlayerState* Player = Joining->GetPlayerState<ADigetherGameplayPlayerState>();
+	if (!TestNotNull(TEXT("교체 접속 상태"), Player))
+	{
+		return false;
+	}
+	TestTrue(TEXT("거점 교체는 새 몸 생성"), Joining->GetPawn() != nullptr);
+	TestEqual(TEXT("같은 서버 GUID로 복원"), Player->GetGameplayPlayerId(), GameplayId);
+	TestTrue(TEXT("장부는 초기 지급 없이 이전 값 유지"), IntegrationStatesEqual(Player->CaptureState(), Wallet));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkChainSummonTest,
+	"DIGETHER.Game.Framework.SaveIntegration.HubDoorCloseChainSummonsOutsidePlayers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkChainSummonTest::RunTest(const FString& Parameters)
+{
+	// 소집 RPC는 서버 이동과 별개인 소유 클라이언트 연출 신호다. 실제 원격 전달·BP 암전은 M2 확인 대상이다.
+	const UFunction* Summoned = ADigetherGameplayPlayerController::StaticClass()->FindFunctionByName(TEXT("Client_ChainSummoned"));
+	if (TestNotNull(TEXT("사슬 소집 연출 RPC 등록"), Summoned))
+	{
+		TestTrue(TEXT("사슬 소집 연출은 reliable 클라이언트 RPC"),
+			Summoned->HasAllFunctionFlags(FUNC_Net | FUNC_NetClient | FUNC_NetReliable));
+	}
+	TestNotNull(TEXT("BP 사슬 소집 연출 이벤트 등록"),
+		ADigetherGameplayPlayerController::StaticClass()->FindFunctionByName(TEXT("ReceiveChainSummoned")));
+
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("사슬 소집 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	FDigetherDoorIntegrationRun Run;
+	if (!TestTrue(TEXT("레버·문 신호를 제품 초기화로 연결"), PrepareDoorIntegrationRun(Fixture, Run)))
+	{
+		return false;
+	}
+	ADigetherGameplayPlayerController* Guest = MakeRuntimeIntegrationPlayer(Fixture, MakeRuntimeIntegrationNetId());
+	if (!TestNotNull(TEXT("엘리베이터 밖 참가자"), Guest))
+	{
+		return false;
+	}
+	const FVector ElevatorLocation = Run.Elevator->GetActorLocation();
+	APawn* GuestPawn = GiveIntegrationPawn(Fixture, Guest, ElevatorLocation + FVector(900.0, 0.0, 100.0));
+	if (!TestNotNull(TEXT("엘리베이터 밖 참가자 Pawn"), GuestPawn))
+	{
+		return false;
+	}
+	UpdateIntegrationOverlaps(*Run.Elevator, Run.HostPawn);
+	UpdateIntegrationOverlaps(*Run.Elevator, GuestPawn);
+	TArray<APawn*> Boarded;
+	Run.Elevator->GetOverlappingPawns(Boarded);
+	TestTrue(TEXT("호스트는 직접 탑승"), Boarded.Contains(Run.HostPawn));
+	TestFalse(TEXT("참가자는 엘리베이터 밖"), Boarded.Contains(GuestPawn));
+	const FVector HostLocation = Run.HostPawn->GetActorLocation();
+	const FVector GuestOutside = GuestPawn->GetActorLocation();
+
+	if (!TestNotEqual(TEXT("출발 게이지 완료 뒤 거점 문 닫힘"), PullDepartureUntilDoorClosing(*Mode, Run), IntegrationTickTimedOut))
+	{
+		return false;
+	}
+	TestTrue(TEXT("문이 닫히는 동안에는 소집하지 않음"), GuestPawn->GetActorLocation().Equals(GuestOutside));
+	TestNotEqual(TEXT("문 닫힘 완료 뒤 출발"), TickIntegrationUntil(*Mode, [Mode]()
+		{
+			return Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress;
+		}, ToIntegrationTicks(FDigetherElevatorTuning().HubDoorCloseSeconds) + 1), IntegrationTickTimedOut);
+
+	// 기획: 출발 인원 = 문 닫힘 완료 때의 직접 탑승 + 사슬 소집 인원이다.
+	TestEqual(TEXT("출발 인원은 직접 탑승 + 소집 2명"), FDigetherFrameworkSaveIntegrationAccess::DepartureCount(*Mode), 2);
+	TestTrue(TEXT("소집된 참가자는 런 참가자"), FDigetherFrameworkSaveIntegrationAccess::IsParticipant(*Mode,
+		Guest->GetPlayerState<ADigetherGameplayPlayerState>()));
+	const UBoxComponent* Volume = Run.Elevator->GetBoardingVolume();
+	const FVector Extent = Volume->GetUnscaledBoxExtent();
+	const FVector GuestLocal = Volume->GetComponentTransform().InverseTransformPosition(GuestPawn->GetActorLocation());
+	TestTrue(TEXT("소집된 참가자는 엘리베이터 바닥 안쪽"),
+		FMath::Abs(GuestLocal.X) < Extent.X && FMath::Abs(GuestLocal.Y) < Extent.Y && FMath::Abs(GuestLocal.Z) < Extent.Z);
+	TestTrue(TEXT("직접 탑승자는 엘리베이터 안 위치 유지"), Run.HostPawn->GetActorLocation().Equals(HostLocation, 0.01));
+	TestTrue(TEXT("소집 위치는 직접 탑승자와 겹치지 않음"),
+		FVector::Dist2D(GuestPawn->GetActorLocation(), Run.HostPawn->GetActorLocation())
+			>= DigetherFrameworkDefaults::PlayerSpacingCm - 0.01);
+	// 기획: 제한 시간은 갱도 도착 때부터 흐른다. 출발 직후에는 전체 시간이 남는다.
+	TestEqual(TEXT("하강 중 남은 시간은 전체 제한 시간"), Mode->GetRunCoordinatorComponent()->GetRemainingSeconds(),
+		static_cast<double>(MakeIntegrationTuning().RunSeconds));
+	TestFalse(TEXT("하강 중 시계 정지"), Mode->GetRunCoordinatorComponent()->IsClockStarted());
+	TestNotEqual(TEXT("첫 하강 뒤 하부 대기"), TickIntegrationUntil(*Mode,
+		[&Run]() { return GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::BottomWaiting; },
+		ToIntegrationTicks(MakeIntegrationTuning().ElevatorTravelSeconds) + 1), IntegrationTickTimedOut);
+	TestTrue(TEXT("갱도 도착 때 시계 시작"), Mode->GetRunCoordinatorComponent()->IsClockStarted());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkDoorCloseBeforeTimeExpiryTest,
+	"DIGETHER.Game.Framework.SaveIntegration.MineDoorCloseResolvedBeforeSameTickTimeExpiry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkDoorCloseBeforeTimeExpiryTest::RunTest(const FString& Parameters)
+{
+	// 같은 처리 시점(같은 Tick)에 갱도 문 닫힘 완료와 시간 종료가 겹치면 닫힘 완료(편 확정)를 먼저 판정한다.
+	// 닫힘이 그 Tick에 끝나지 않으면 기존처럼 닫히는 중인 편을 시간 종료 귀환으로 처리한다.
+	for (const bool bDoorCompletesSameTick : { true, false })
+	{
+		FDigetherSaveIntegrationWorld Fixture(this);
+		if (!TestTrue(TEXT("문 닫힘·시간 종료 순서 시험 월드"), Fixture.IsReady()))
+		{
+			return false;
+		}
+		ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+		FDigetherDoorIntegrationRun Run;
+		if (!TestTrue(TEXT("레버·문 신호를 제품 초기화로 연결"), PrepareDoorIntegrationRun(Fixture, Run))
+			|| !TestNotEqual(TEXT("거점 문 닫힘"), PullDepartureUntilDoorClosing(*Mode, Run), IntegrationTickTimedOut)
+			|| !TestNotEqual(TEXT("출발 확정"), TickIntegrationUntil(*Mode, [Mode]()
+				{
+					return Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress;
+				}, ToIntegrationTicks(FDigetherElevatorTuning().HubDoorCloseSeconds) + 1), IntegrationTickTimedOut)
+			|| !TestNotEqual(TEXT("하부 대기"), TickIntegrationUntil(*Mode,
+				[&Run]() { return GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::BottomWaiting; },
+				ToIntegrationTicks(MakeIntegrationTuning().ElevatorTravelSeconds) + 1), IntegrationTickTimedOut))
+		{
+			return false;
+		}
+		UpdateIntegrationOverlaps(*Run.Elevator, Run.HostPawn);
+		if (!TestTrue(TEXT("상승 레버 실제 요청"), Mode->BeginLeverPull(Run.Host, Run.AscentLever))
+			|| !TestNotEqual(TEXT("갱도 문 닫힘"), TickIntegrationUntil(*Mode,
+				[&Run]() { return GetIntegrationElevatorPhase(*Run.Elevator) == EDigetherElevatorPhase::DoorClosing; },
+				ToIntegrationTicks(FDigetherElevatorTuning().AscentHoldSeconds) + 1), IntegrationTickTimedOut))
+		{
+			return false;
+		}
+		// 게이지 완료 Tick에 문이 한 간격 닫혔으므로 닫힘 완료까지 (간격 수 - 1) Tick이 남는다.
+		const int32 RemainingDoorTicks = ToIntegrationTicks(FDigetherElevatorTuning().MineDoorCloseSeconds) - 1;
+		const int32 TicksBeforeExpiry = bDoorCompletesSameTick ? RemainingDoorTicks - 1 : RemainingDoorTicks - 2;
+		TickIntegrationUntil(*Mode, []() { return false; }, TicksBeforeExpiry);
+		if (!TestEqual(TEXT("시간 종료 직전 갱도 문은 닫히는 중"), GetIntegrationElevatorPhase(*Run.Elevator),
+			EDigetherElevatorPhase::DoorClosing))
+		{
+			return false;
+		}
+		// 서버 시각을 크게 넘겨 다음 Tick 시작에 시간 종료 신호가 걸려 있게 한다.
+		Mode->GetRunCoordinatorComponent()->UpdateTime(Fixture.GetWorld()->GetTimeSeconds() + 100000.0);
+		Mode->Tick(IntegrationTickSeconds);
+		TestTrue(TEXT("시간 종료로 탐사 종료"),
+			Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase != EDigetherRunPhase::InProgress);
+		TestEqual(bDoorCompletesSameTick ? TEXT("같은 Tick 닫힘 완료는 편을 먼저 확정")
+				: TEXT("닫힘 전 시간 종료는 편 확정 없이 귀환"),
+			Mode->GetRunCoordinatorComponent()->GetConfirmedAscentCount(), bDoorCompletesSameTick ? 1 : 0);
+		TestEqual(TEXT("탑승자는 어느 쪽이든 귀환"),
+			Run.Host->GetPlayerState<ADigetherGameplayPlayerState>()->GetLastRunResult().Outcome, EDigetherRunReturnOutcome::Returned);
+	}
+	return true;
+}
+
+namespace
+{
+	// 기획 1.1.0 저장 정책 시험용 디스크 보조 함수다. 슬롯 이름은 TrackHostSlots가 추적·정리한다.
+	FDigetherSaveSlotNames MakeIntegrationSlotNames(const FUniqueNetIdRepl& HostId)
+	{
+		FString Key;
+		DigetherSaveRules::MakeAuthenticatedPlayerKey(HostId, Key);
+		return DigetherSaveStorage::MakeSlotNames(Key);
+	}
+
+	// 엔진 저장 헤더가 아닌 바이트다. 두 슬롯이 모두 이러면 일반 쓰기는 CorruptData로 거절된다(손상 파일 보호).
+	const TArray<uint8>& GetIntegrationCorruptBytes()
+	{
+		static const TArray<uint8> Bytes = { 0x44, 0x49, 0x47, 0x21, 0xff, 0xff, 0xff, 0xff };
+		return Bytes;
+	}
+
+	bool CorruptIntegrationSlots(const FDigetherSaveSlotNames& Names)
+	{
+		return UGameplayStatics::SaveDataToSlot(GetIntegrationCorruptBytes(), Names.Primary, 0)
+			&& UGameplayStatics::SaveDataToSlot(GetIntegrationCorruptBytes(), Names.Backup, 0);
+	}
+
+	void RepairIntegrationSlots(const FDigetherSaveSlotNames& Names)
+	{
+		for (const FString& Slot : { Names.Primary, Names.Backup })
+		{
+			if (UGameplayStatics::DoesSaveGameExist(Slot, 0))
+			{
+				UGameplayStatics::DeleteGameInSlot(Slot, 0);
+			}
+		}
+	}
+
+	bool IsIntegrationSlotCorrupt(const FString& Slot)
+	{
+		TArray<uint8> Actual;
+		return UGameplayStatics::LoadDataFromSlot(Actual, Slot, 0) && Actual == GetIntegrationCorruptBytes();
+	}
+
+	EDigetherSaveResult ReadIntegrationProgress(const ADigetherGameplayGameMode& Mode, const FUniqueNetIdRepl& HostId,
+		FDigetherSaveSnapshot& OutSnapshot)
+	{
+		UDigetherSaveSubsystem* Save = Mode.GetGameInstance()->GetSubsystem<UDigetherSaveSubsystem>();
+		const EDigetherSaveResult Bound = Save->BindHostIdentity(HostId);
+		return Bound == EDigetherSaveResult::Success ? Save->Read(OutSnapshot) : Bound;
+	}
+
+	int32 GetIntegrationSavedBalance(const FDigetherSaveSnapshot& Snapshot, const FUniqueNetIdRepl& Id)
+	{
+		FDigetherSavePlayerRecord Record;
+		bool bSkip = false;
+		return DigetherSaveRules::TryResolveReturningPlayer(Snapshot.Players, Id, Record, bSkip) == EDigetherSaveResult::Success
+			? Record.Wallet.BalanceCredits : -1;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkAutosaveFailureRetryTest,
+	"DIGETHER.Game.Framework.SaveIntegration.AutosaveFailureRetriesWithoutBlockingDeparture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkAutosaveFailureRetryTest::RunTest(const FString& Parameters)
+{
+	// 기획 S30 예외·T91: 플레이 중 자동 저장 실패는 알리고 계속 재시도하며 출발을 막지 않는다.
+	// 오래된 실패 건은 더 최신 저장 시점으로 바뀌고, 실패를 정상 저장으로 표시하지 않는다.
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("저장 실패 재시도 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherElevatorActor* Elevator = PrepareIntegrationRun(Fixture);
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	const FUniqueNetIdRepl HostId = MakeRuntimeIntegrationNetId();
+	ADigetherGameplayPlayerController* Host = MakeRuntimeIntegrationPlayer(Fixture, HostId, true);
+	if (!TestNotNull(TEXT("재시도 시험 엘리베이터"), Elevator) || !TestNotNull(TEXT("재시도 시험 호스트"), Host)
+		|| !TestNotNull(TEXT("재시도 시험 호스트 Pawn"), GiveIntegrationPawn(Fixture, Host, FVector(0.0, 0.0, 200.0))))
+	{
+		return false;
+	}
+	const FDigetherSaveSlotNames Names = MakeIntegrationSlotNames(HostId);
+	if (!TestTrue(TEXT("양쪽 슬롯을 손상시켜 자동 저장 실패 유도"), CorruptIntegrationSlots(Names)))
+	{
+		return false;
+	}
+	AddExpectedMessagePlain(TEXT("자동 저장(RunCompleted) 실패"), ELogVerbosity::Warning,
+		EAutomationExpectedMessageFlags::Contains, 2);
+	AddExpectedMessagePlain(TEXT("자동 저장 재시도 실패"), ELogVerbosity::Warning,
+		EAutomationExpectedMessageFlags::Contains, 1);
+	AddExpectedMessagePlain(TEXT("Message=자동 저장에 실패했습니다. 진행은 계속되며 자동으로 다시 시도합니다."),
+		ELogVerbosity::Display, EAutomationExpectedMessageFlags::Contains, 2);
+	AddExpectedMessagePlain(TEXT("Message=자동 저장을 다시 시도해 저장했습니다."), ELogVerbosity::Display, EAutomationExpectedMessageFlags::Contains, 1);
+
+	FDigetherFrameworkSaveIntegrationAccess::Depart(*Mode);
+	TestTrue(TEXT("출발은 디스크 저장을 요구하지 않음"),
+		Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress);
+	TestTrue(TEXT("출발은 디스크 슬롯을 쓰지 않음"), IsIntegrationSlotCorrupt(Names.Primary) && IsIntegrationSlotCorrupt(Names.Backup));
+	FDigetherFrameworkSaveIntegrationAccess::Finish(*Mode);
+	if (!TestTrue(TEXT("첫 탐사 정상 귀환"),
+		Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase != EDigetherRunPhase::InProgress))
+	{
+		return false;
+	}
+	TestTrue(TEXT("귀환 자동 저장 실패를 재시도 대기로 보관"), FDigetherFrameworkSaveIntegrationAccess::HasPendingAutosave(*Mode));
+	TestEqual(TEXT("대기 저장은 귀환 판정 반영 뒤 2일차"), FDigetherFrameworkSaveIntegrationAccess::PendingAutosaveDay(*Mode), 2);
+	TestTrue(TEXT("재시도 타이머 예약"), FDigetherFrameworkSaveIntegrationAccess::IsAutosaveRetryScheduled(*Mode));
+	TestTrue(TEXT("실패한 저장은 손상 슬롯을 덮지 않음"), IsIntegrationSlotCorrupt(Names.Primary) && IsIntegrationSlotCorrupt(Names.Backup));
+
+	FDigetherFrameworkSaveIntegrationAccess::RetryAutosave(*Mode);
+	TestTrue(TEXT("원인이 남아 있으면 재시도도 실패하고 계속 대기"), FDigetherFrameworkSaveIntegrationAccess::HasPendingAutosave(*Mode)
+		&& FDigetherFrameworkSaveIntegrationAccess::IsAutosaveRetryScheduled(*Mode));
+
+	FDigetherFrameworkSaveIntegrationAccess::Depart(*Mode);
+	if (!TestTrue(TEXT("저장 재시도 중에도 다음 출발 허용(T91)"),
+		Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress))
+	{
+		return false;
+	}
+	FDigetherFrameworkSaveIntegrationAccess::Finish(*Mode);
+	TestEqual(TEXT("다음 저장 시점이 오면 대기 저장을 최신 3일차로 교체"),
+		FDigetherFrameworkSaveIntegrationAccess::PendingAutosaveDay(*Mode), 3);
+
+	RepairIntegrationSlots(Names);
+	FDigetherFrameworkSaveIntegrationAccess::Depart(*Mode);
+	if (!TestTrue(TEXT("세 번째 출발"), Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress))
+	{
+		return false;
+	}
+	FDigetherFrameworkSaveIntegrationAccess::RetryAutosave(*Mode);
+	TestFalse(TEXT("재시도 성공 뒤 대기 해제"), FDigetherFrameworkSaveIntegrationAccess::HasPendingAutosave(*Mode));
+	TestFalse(TEXT("재시도 성공 뒤 타이머 해제"), FDigetherFrameworkSaveIntegrationAccess::IsAutosaveRetryScheduled(*Mode));
+	FDigetherSaveSnapshot Saved;
+	if (TestTrue(TEXT("재시도로 쓴 진행 읽기"), ReadIntegrationProgress(*Mode, HostId, Saved) == EDigetherSaveResult::Success))
+	{
+		TestEqual(TEXT("탐사 중 재시도는 현재 탐사가 아닌 마지막 정상 완료(3일차)를 씀"), Saved.Quota.Quota.Day, 3);
+		TestEqual(TEXT("두 번의 탐사 종료로 전체 일차도 3일차로 저장"), Saved.Quota.Quota.TotalDay, 3);
+		TestEqual(TEXT("저장된 진행은 탐사 전 단계"), Saved.RunPublicState.Phase, EDigetherRunPhase::NotStarted);
+		TestEqual(TEXT("두 번의 정산 완료 기록 보존"), Saved.CompletedSettlementRunIds.Num(), 2);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkCommonLoadingFailureTest,
+	"DIGETHER.Game.Framework.SaveIntegration.CommonLoadingFailureKeepsPreparationDeadlineAndDay",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkCommonLoadingFailureTest::RunTest(const FString& Parameters)
+{
+	// 기획 S02·S24·S30·T59: 공통 로딩 실패는 디스크를 쓰지 않고 같은 일차 거점으로 돌아간다.
+	// 구매·납부 등 확정된 준비와 게이지 완료 때 기록한 4일차 마감을 유지하고 일차를 소비하지 않는다.
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("공통 로딩 실패 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	FDigetherDoorIntegrationRun Run;
+	if (!TestTrue(TEXT("레버·문 신호를 제품 초기화로 연결"), PrepareDoorIntegrationRun(Fixture, Run)))
+	{
+		return false;
+	}
+	const FUniqueNetIdRepl HostId = Run.Host->PlayerState->GetUniqueId();
+	ADigetherGameplayPlayerState* HostState = Run.Host->GetPlayerState<ADigetherGameplayPlayerState>();
+	UDigetherQuotaStateComponent* QuotaComponent = Fixture.GetGameState()->GetQuotaComponent();
+	FDigetherQuotaState Quota = FDigetherEconomyRules::MakeInitialQuotaState(MakeIntegrationTuning());
+	Quota.Day = 4;
+	FDigetherWalletState Wallet;
+	Wallet.BalanceCredits = 100;
+	if (!TestEqual(TEXT("4일차 거점 준비"), QuotaComponent->SetQuotaState(Quota, false), EDigetherEconomyResult::Success)
+		|| !TestEqual(TEXT("디스크 저장 전 잔고"), HostState->RestoreState(Wallet), EDigetherEconomyResult::Success))
+	{
+		return false;
+	}
+	// 4일차 자동 저장(T59 전제)을 먼저 디스크에 남긴다. 이후 준비는 디스크에 없다.
+	FDigetherFrameworkSaveIntegrationAccess::RequestAutosave(*Mode);
+	FDigetherSaveSnapshot Disk;
+	if (!TestTrue(TEXT("4일차 자동 저장 기록"), ReadIntegrationProgress(*Mode, HostId, Disk) == EDigetherSaveResult::Success))
+	{
+		return false;
+	}
+	Wallet.BalanceCredits = 67;
+	Quota.DepositedCredits = 30;
+	if (!TestEqual(TEXT("저장 이후 구매로 줄어든 잔고"), HostState->RestoreState(Wallet), EDigetherEconomyResult::Success)
+		|| !TestEqual(TEXT("저장 이후 확정 납부"), QuotaComponent->SetQuotaState(Quota, false), EDigetherEconomyResult::Success))
+	{
+		return false;
+	}
+	if (!TestNotEqual(TEXT("4일차 출발 게이지 완료"), PullDepartureUntilDoorClosing(*Mode, Run), IntegrationTickTimedOut))
+	{
+		return false;
+	}
+	TestTrue(TEXT("게이지 완료 순간 4일차 마감 기록(PQ-22 현재 기준)"),
+		Mode->GetRunCoordinatorComponent()->CapturePublicState().bPaymentDeadline);
+	const int32 DoorTicks = ToIntegrationTicks(FDigetherElevatorTuning().HubDoorCloseSeconds);
+	if (!TestNotEqual(TEXT("문 닫힘 완료 뒤 출발 확정"), TickIntegrationUntil(*Mode, [Mode]()
+		{
+			return Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress;
+		}, DoorTicks + 1), IntegrationTickTimedOut))
+	{
+		return false;
+	}
+	TestFalse(TEXT("갱도 도착 전(로딩 단계)"), Mode->GetRunCoordinatorComponent()->IsClockStarted());
+
+	TestTrue(TEXT("공통 로딩 실패 복귀"), Mode->RecoverFromCommonLoadingFailure());
+	const FDigetherRunPublicState Returned = Mode->GetRunCoordinatorComponent()->CapturePublicState();
+	TestEqual(TEXT("탐사를 시작하지 않은 거점 상태"), Returned.Phase, EDigetherRunPhase::NotStarted);
+	TestTrue(TEXT("기록한 4일차 마감 유지"), Returned.bPaymentDeadline);
+	TestEqual(TEXT("엘리베이터는 거점 대기"), GetIntegrationElevatorPhase(*Run.Elevator), EDigetherElevatorPhase::HubWaiting);
+	const FDigetherQuotaState After = QuotaComponent->CaptureState().Quota;
+	TestEqual(TEXT("일차를 소비하지 않음"), After.Day, 4);
+	TestEqual(TEXT("확정 납부 유지"), After.DepositedCredits, 30);
+	TestEqual(TEXT("구매 뒤 잔고 유지(디스크로 되돌리지 않음)"), HostState->CaptureState().BalanceCredits, 67);
+	FDigetherSaveSnapshot DiskAfter;
+	if (TestTrue(TEXT("복귀 뒤 디스크 진행 읽기"), ReadIntegrationProgress(*Mode, HostId, DiskAfter) == EDigetherSaveResult::Success))
+	{
+		TestEqual(TEXT("복귀는 디스크를 쓰지 않음"), GetIntegrationSavedBalance(DiskAfter, HostId), 100);
+		TestEqual(TEXT("복귀는 디스크 납부를 바꾸지 않음"), DiskAfter.Quota.Quota.DepositedCredits, 0);
+	}
+
+	// S02: 공통 로딩 실패로 돌아온 뒤 레버를 취소해도 기록한 마감은 유지한다.
+	if (TestTrue(TEXT("복귀 뒤 출발 레버 다시 잡기"), Mode->BeginLeverPull(Run.Host, Run.DepartureLever)))
+	{
+		Mode->ReleaseLeverPull(Run.Host, Run.DepartureLever);
+	}
+	TestTrue(TEXT("복귀 뒤 레버 취소에도 마감 유지"), Mode->GetRunCoordinatorComponent()->CapturePublicState().bPaymentDeadline);
+
+	// 갱도에 도착해 제한 시간이 흐른 뒤에는 로딩 단계가 아니므로 되돌리지 않는다.
+	if (!TestNotEqual(TEXT("다시 출발 게이지 완료"), PullDepartureUntilDoorClosing(*Mode, Run), IntegrationTickTimedOut)
+		|| !TestNotEqual(TEXT("다시 출발 확정"), TickIntegrationUntil(*Mode, [Mode]()
+			{
+				return Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress;
+			}, DoorTicks + 1), IntegrationTickTimedOut)
+		|| !TestNotEqual(TEXT("갱도 도착"), TickIntegrationUntil(*Mode, [Mode]()
+			{
+				return Mode->GetRunCoordinatorComponent()->IsClockStarted();
+			}, ToIntegrationTicks(MakeIntegrationTuning().ElevatorTravelSeconds) + 2), IntegrationTickTimedOut))
+	{
+		return false;
+	}
+	AddExpectedError(TEXT("공통 로딩 실패 복귀 거절"), EAutomationExpectedErrorFlags::Contains, 1);
+	TestFalse(TEXT("갱도 도착 뒤 복귀 거절"), Mode->RecoverFromCommonLoadingFailure());
+	TestEqual(TEXT("거절 뒤 탐사 유지"), Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase,
+		EDigetherRunPhase::InProgress);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkHostExitSaveTest,
+	"DIGETHER.Game.Framework.SaveIntegration.HostExitSavesHubButNotExploration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkHostExitSaveTest::RunTest(const FString& Parameters)
+{
+	// 기획 S30 ③·T23·T91: 정상 거점 종료는 직전 구매·납부까지 저장한다. 탐사 중 종료는 저장하지 않는다.
+	// 종료 저장 실패는 알리고 저장 없이 끝내며 재시도로 종료를 붙잡지 않는다.
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("호스트 종료 저장 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherElevatorActor* Elevator = PrepareIntegrationRun(Fixture);
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	const FUniqueNetIdRepl HostId = MakeRuntimeIntegrationNetId();
+	ADigetherGameplayPlayerController* Host = MakeRuntimeIntegrationPlayer(Fixture, HostId, true);
+	if (!TestNotNull(TEXT("종료 시험 엘리베이터"), Elevator) || !TestNotNull(TEXT("종료 시험 호스트"), Host)
+		|| !TestNotNull(TEXT("종료 시험 호스트 Pawn"), GiveIntegrationPawn(Fixture, Host, FVector(0.0, 0.0, 200.0))))
+	{
+		return false;
+	}
+	ADigetherGameplayPlayerState* HostState = Host->GetPlayerState<ADigetherGameplayPlayerState>();
+	UDigetherQuotaStateComponent* QuotaComponent = Fixture.GetGameState()->GetQuotaComponent();
+	FDigetherWalletState Wallet;
+	Wallet.BalanceCredits = 67;
+	FDigetherQuotaState Quota = QuotaComponent->CaptureState().Quota;
+	Quota.DepositedCredits = 20;
+	if (!TestEqual(TEXT("종료 전 구매 잔고"), HostState->RestoreState(Wallet), EDigetherEconomyResult::Success)
+		|| !TestEqual(TEXT("종료 전 납부"), QuotaComponent->SetQuotaState(Quota, false), EDigetherEconomyResult::Success))
+	{
+		return false;
+	}
+
+	FDigetherFrameworkSaveIntegrationAccess::BeginWorldTearDown(*Mode, nullptr);
+	FDigetherSaveSnapshot Saved;
+	TestTrue(TEXT("다른 월드의 정리 시작에는 저장하지 않음"), ReadIntegrationProgress(*Mode, HostId, Saved)
+		== EDigetherSaveResult::NotFound);
+	FDigetherFrameworkSaveIntegrationAccess::BeginWorldTearDown(*Mode, Fixture.GetWorld());
+	if (TestTrue(TEXT("정상 거점 종료 저장"), ReadIntegrationProgress(*Mode, HostId, Saved) == EDigetherSaveResult::Success))
+	{
+		TestEqual(TEXT("직전 구매 잔고 저장"), GetIntegrationSavedBalance(Saved, HostId), 67);
+		TestEqual(TEXT("직전 납부 저장"), Saved.Quota.Quota.DepositedCredits, 20);
+	}
+
+	FDigetherFrameworkSaveIntegrationAccess::Depart(*Mode);
+	if (!TestTrue(TEXT("탐사 출발"), Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase == EDigetherRunPhase::InProgress))
+	{
+		return false;
+	}
+	Wallet.BalanceCredits = 5;
+	HostState->RestoreState(Wallet);
+	TestFalse(TEXT("탐사 중 종료는 저장하지 않음"), FDigetherFrameworkSaveIntegrationAccess::SaveOnHostExit(*Mode));
+	if (TestTrue(TEXT("탐사 중 종료 뒤 디스크 읽기"), ReadIntegrationProgress(*Mode, HostId, Saved) == EDigetherSaveResult::Success))
+	{
+		TestEqual(TEXT("다음 실행은 마지막 정상 저장 잔고"), GetIntegrationSavedBalance(Saved, HostId), 67);
+		TestEqual(TEXT("탐사 상태는 저장하지 않음"), Saved.RunPublicState.Phase, EDigetherRunPhase::NotStarted);
+	}
+
+	FDigetherFrameworkSaveIntegrationAccess::Finish(*Mode);
+	TestTrue(TEXT("종료 시험 귀환"), Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase != EDigetherRunPhase::InProgress);
+	const FDigetherSaveSlotNames Names = MakeIntegrationSlotNames(HostId);
+	if (!TestTrue(TEXT("귀환 뒤 슬롯 손상으로 종료 저장 실패 유도"), CorruptIntegrationSlots(Names)))
+	{
+		return false;
+	}
+	AddExpectedError(TEXT("호스트 종료 저장 실패"), EAutomationExpectedErrorFlags::Contains, 1);
+	AddExpectedMessagePlain(TEXT("Message=종료 저장에 실패했습니다. 저장하지 않고 종료하며, 다음 실행은 마지막 유효 저장에서 시작합니다."),
+		ELogVerbosity::Display, EAutomationExpectedMessageFlags::Contains, 1);
+	TestFalse(TEXT("종료 저장 실패를 성공으로 보고하지 않음"), FDigetherFrameworkSaveIntegrationAccess::SaveOnHostExit(*Mode));
+	TestFalse(TEXT("종료 저장 실패는 재시도 대기를 남기지 않음"), FDigetherFrameworkSaveIntegrationAccess::HasPendingAutosave(*Mode));
+	TestFalse(TEXT("종료 저장 실패는 재시도 타이머를 남기지 않음"), FDigetherFrameworkSaveIntegrationAccess::IsAutosaveRetryScheduled(*Mode));
+	TestTrue(TEXT("실패한 종료 저장은 슬롯을 덮지 않음"), IsIntegrationSlotCorrupt(Names.Primary) && IsIntegrationSlotCorrupt(Names.Backup));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkStartupSlotSelectionTest,
+	"DIGETHER.Game.Framework.SaveIntegration.StartupUsesSelectedSlotForNewGameOrContinue",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkStartupSlotSelectionTest::RunTest(const FString& Parameters)
+{
+	// 기획 S01 2행·S30 205·208행: 방 생성 때 고른 슬롯 하나만 새 게임 또는 이어하기 대상이다.
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("슬롯 선택 시험 월드"), Fixture.IsReady())
+		|| !TestNotNull(TEXT("슬롯 선택 시험 런 준비"), PrepareIntegrationRun(Fixture)))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	const FUniqueNetIdRepl HostId = MakeRuntimeIntegrationNetId();
+	ADigetherGameplayPlayerController* Host = MakeRuntimeIntegrationPlayer(Fixture, HostId, true);
+	if (!TestNotNull(TEXT("슬롯 선택 시험 호스트"), Host)
+		|| !TestNotNull(TEXT("슬롯 선택 시험 호스트 Pawn"), GiveIntegrationPawn(Fixture, Host, FVector(0.0, 0.0, 200.0))))
+	{
+		return false;
+	}
+	FString HostKey;
+	DigetherSaveRules::MakeAuthenticatedPlayerKey(HostId, HostKey);
+	const auto SlotExists = [&HostKey](const int32 SlotIndex)
+	{
+		const FDigetherSaveSlotNames Names = DigetherSaveStorage::MakeSlotNames(HostKey, SlotIndex);
+		return UGameplayStatics::DoesSaveGameExist(Names.Primary, 0) || UGameplayStatics::DoesSaveGameExist(Names.Backup, 0);
+	};
+	UDigetherSaveSubsystem* Save = Mode->GetGameInstance()->GetSubsystem<UDigetherSaveSubsystem>();
+	TestEqual(TEXT("선택 전 기본은 슬롯 0"), Save->GetSlotSelection().SlotIndex, 0);
+	TestEqual(TEXT("선택 전 기본은 이어하기"), Save->GetSlotSelection().StartMode, EDigetherSaveStartMode::Continue);
+
+	FDigetherSaveSlotSelection NewGameSlot;
+	NewGameSlot.SlotIndex = 1;
+	NewGameSlot.StartMode = EDigetherSaveStartMode::NewGame;
+	if (!TestTrue(TEXT("방 밖(독립 실행)에서 슬롯 1 새 게임 선택"), Save->SetSlotSelection(NewGameSlot)))
+	{
+		return false;
+	}
+	TestTrue(TEXT("새 게임 선택이면 시작 분기는 새 게임"),
+		FDigetherFrameworkSaveIntegrationAccess::RunStartupSaveAction(*Mode, Host));
+	TestTrue(TEXT("새 게임은 고른 슬롯 1에 저장"), SlotExists(1));
+	TestFalse(TEXT("슬롯 0은 건드리지 않음"), SlotExists(0));
+	TestFalse(TEXT("슬롯 2는 건드리지 않음"), SlotExists(2));
+	TestEqual(TEXT("새 게임 저장 뒤 같은 슬롯 유지"), Save->GetSlotSelection().SlotIndex, 1);
+	TestEqual(TEXT("새 게임 저장 뒤에는 이어하기로 바뀌어 다시 초기화하지 않음"),
+		Save->GetSlotSelection().StartMode, EDigetherSaveStartMode::Continue);
+	FDigetherSaveSnapshot Saved;
+	if (TestTrue(TEXT("슬롯 1 새 게임 읽기"), Save->Read(Saved) == EDigetherSaveResult::Success))
+	{
+		TestEqual(TEXT("새 게임은 기간 1일차"), Saved.Quota.Quota.Day, 1);
+		TestEqual(TEXT("새 게임은 전체 1일차"), Saved.Quota.Quota.TotalDay, 1);
+	}
+
+	// 같은 슬롯 이어하기: 새 게임을 다시 만들지 않고 불러온다.
+	TestFalse(TEXT("이어하기 선택이면 시작 분기는 불러오기"),
+		FDigetherFrameworkSaveIntegrationAccess::RunStartupSaveAction(*Mode, Host));
+	TestFalse(TEXT("이어하기 뒤에도 슬롯 0은 비어 있음"), SlotExists(0));
+
+	// 빈 슬롯 이어하기는 쓰지 않는다. 첫 자동 저장 시점이 오기 전에는 파일을 만들지 않는다.
+	FDigetherSaveSlotSelection EmptyContinue;
+	EmptyContinue.SlotIndex = 2;
+	TestTrue(TEXT("빈 슬롯 2 이어하기 선택"), Save->SetSlotSelection(EmptyContinue));
+	TestFalse(TEXT("빈 슬롯 이어하기는 불러오기 분기"),
+		FDigetherFrameworkSaveIntegrationAccess::RunStartupSaveAction(*Mode, Host));
+	TestFalse(TEXT("빈 슬롯 이어하기는 파일을 만들지 않음"), SlotExists(2));
+	TestTrue(TEXT("다른 슬롯의 새 게임 저장은 보존"), SlotExists(1));
+
+	FDigetherSaveSlotSelection OutOfRange;
+	OutOfRange.SlotIndex = DigetherSaveTuning::MaxProgressSlots;
+	AddExpectedMessagePlain(TEXT("진행 슬롯 선택 거절"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
+	TestFalse(TEXT("범위 밖 슬롯 선택 거절"), Save->SetSlotSelection(OutOfRange));
+	TestEqual(TEXT("거절 시 이전 선택 유지"), Save->GetSlotSelection().SlotIndex, 2);
+	return true;
+}
+
+namespace
+{
+	// 기획 S33 게임 오버 통합 시험 공통 준비다. 위치·시각은 시험 픽스처이며 기획 값이 아니다(금액만 S33 247행·T29 예시).
+	struct FDigetherGameOverIntegrationRun
+	{
+		ADigetherElevatorActor* Elevator = nullptr;
+		FUniqueNetIdRepl HostId;
+		ADigetherGameplayPlayerController* Host = nullptr;
+		ADigetherGameplayPlayerController* Guest = nullptr;
+		APawn* HostPawn = nullptr;
+		APawn* GuestPawn = nullptr;
+		FGuid EndedGameId;
+	};
+
+	void SetIntegrationResultStats(ADigetherGameplayPlayerController* Controller, const TCHAR* Name, const int32 JoinOrder,
+		const int32 Earned, const int32 Hidden, const int32 DeathLoss, const int32 Refund)
+	{
+		ADigetherGameplayPlayerState* Player = Controller->GetPlayerState<ADigetherGameplayPlayerState>();
+		Player->SetPlayerName(Name);
+		Player->SetJoinOrder(JoinOrder);
+		FDigetherWalletState Wallet;
+		Wallet.LifetimeEarnedCredits = Earned;
+		Wallet.HiddenLifetimeCredits = Hidden;
+		Wallet.TotalDeathLossCredits = DeathLoss;
+		Wallet.LifetimeCorpseRefundCredits = Refund;
+		Player->RestoreState(Wallet);
+	}
+
+	// 4일차 미달로 출발해 탐사를 끝내 5일차 실패 귀환(게임 오버 확정)까지 제품 경로(출발·귀환 정산)로 진행한다.
+	bool ReachIntegrationGameOver(FDigetherSaveIntegrationWorld& Fixture, FDigetherGameOverIntegrationRun& Out)
+	{
+		Out.Elevator = PrepareIntegrationRun(Fixture);
+		ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+		if (!IsValid(Out.Elevator))
+		{
+			return false;
+		}
+		// 흡입 중심(우물)을 엘리베이터 자리에 둔다. 맵 배치가 아니라 시험 픽스처다.
+		const ADigetherHubWellActor* Well = Fixture.GetWorld()->SpawnActor<ADigetherHubWellActor>(
+			Out.Elevator->GetActorLocation(), FRotator::ZeroRotator);
+		Out.HostId = MakeRuntimeIntegrationNetId();
+		Out.Host = MakeRuntimeIntegrationPlayer(Fixture, Out.HostId, true);
+		Out.Guest = MakeRuntimeIntegrationPlayer(Fixture, MakeRuntimeIntegrationNetId());
+		if (!IsValid(Well) || !IsValid(Out.Host) || !IsValid(Out.Guest))
+		{
+			return false;
+		}
+		Out.HostPawn = GiveIntegrationPawn(Fixture, Out.Host, FVector(0.0, 0.0, 200.0));
+		Out.GuestPawn = GiveIntegrationPawn(Fixture, Out.Guest, FVector(500.0, 0.0, 200.0));
+		if (!IsValid(Out.HostPawn) || !IsValid(Out.GuestPawn))
+		{
+			return false;
+		}
+		// 이번 게임 누적 통계(지급될 때마다 쌓인 값)다. 잔고는 0이라 마지막 탐사의 사망 손실은 0이다.
+		SetIntegrationResultStats(Out.Host, TEXT("Host"), 1, 700, 100, 400, 200);
+		SetIntegrationResultStats(Out.Guest, TEXT("Guest"), 2, 350, 50, 0, 0);
+		UDigetherQuotaStateComponent* Quota = Fixture.GetGameState()->GetQuotaComponent();
+		FDigetherQuotaState Day4 = Quota->CaptureState().Quota;
+		Day4.Day = 4;
+		Day4.TotalDay = 4;
+		if (Quota->SetQuotaState(Day4, false) != EDigetherEconomyResult::Success)
+		{
+			return false;
+		}
+		Mode->GetRunCoordinatorComponent()->HandleDepartureLeverCompleted(Day4);
+		FDigetherFrameworkSaveIntegrationAccess::Depart(*Mode);
+		if (Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase != EDigetherRunPhase::InProgress)
+		{
+			return false;
+		}
+		Out.EndedGameId = FDigetherFrameworkSaveIntegrationAccess::GetGameId(*Mode);
+		FDigetherFrameworkSaveIntegrationAccess::Finish(*Mode);
+		return Mode->GetRunCoordinatorComponent()->CapturePublicState().bGameOver;
+	}
+
+	// 흡입 시작 시각이다. 실패 사건 단계에서만 의미가 있다.
+	double GetIntegrationSuctionStart(const ADigetherGameplayGameMode& Mode)
+	{
+		const FDigetherGameOverPublicState& State = Mode.GetGameOverFlowComponent()->GetPublicState();
+		return DigetherGameOverRules::GetSuctionStartSeconds(State.PhaseStartServerSeconds, State.Tuning);
+	}
+
+	// 지금 재생 기준점으로 크레딧이 끝나는 서버 시각이다.
+	double GetIntegrationCreditEnd(const ADigetherGameplayGameMode& Mode)
+	{
+		const FDigetherCreditPlayback& Playback = Mode.GetGameOverFlowComponent()->GetPublicState().Playback;
+		return Playback.AnchorServerSeconds
+			+ (Playback.TotalSeconds - Playback.AnchorProgressSeconds) / FMath::Max(Playback.PlaybackRate, 1.f);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkGameOverFlowTest,
+	"DIGETHER.Game.Framework.SaveIntegration.GameOverSettlementFailureCreditsNewGame",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkGameOverFlowTest::RunTest(const FString& Parameters)
+{
+	// T28·T29·T33·T38: 5일차 실패 귀환 → 검은 개인 정산 → 실패 사건(먼저 흡입된 사람 대기) → 함께 크레딧(호스트만 빨리감기)
+	// → 현재 슬롯만 새 게임 한 번. 실패 사건·크레딧 중에는 출발·참가·불러오기·새 게임 요청·개발 지급을 받지 않는다.
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("게임 오버 통합 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	FDigetherGameOverIntegrationRun Run;
+	if (!TestTrue(TEXT("4일차 미달 탐사 뒤 5일차 실패 귀환"), ReachIntegrationGameOver(Fixture, Run)))
+	{
+		return false;
+	}
+	UDigetherGameOverFlowComponent* Flow = Mode->GetGameOverFlowComponent();
+	UDigetherGameOverPublicStateComponent* Public = Fixture.GetGameState()->GetGameOverPublicStateComponent();
+	ADigetherGameplayPlayerState* HostState = Run.Host->GetPlayerState<ADigetherGameplayPlayerState>();
+	ADigetherGameplayPlayerState* GuestState = Run.Guest->GetPlayerState<ADigetherGameplayPlayerState>();
+	UDigetherSaveSubsystem* Save = Mode->GetGameInstance()->GetSubsystem<UDigetherSaveSubsystem>();
+	TestEqual(TEXT("귀환 직후 검은 정산 화면 단계"), Flow->GetPhase(), EDigetherGameOverPhase::SettlementScreen);
+	TestEqual(TEXT("공개 상태도 정산 화면"), Public->GetPhase(), EDigetherGameOverPhase::SettlementScreen);
+	TestTrue(TEXT("5일차 실패 귀환도 개인 정산 결과를 보냄"), HostState->GetLastRunResult().IsValid());
+	TestTrue(TEXT("귀환 순간 히든 전원 공개 없음"),
+		Fixture.GetGameState()->GetQuotaComponent()->CaptureState().HiddenReveals.IsEmpty());
+	TestFalse(TEXT("크레딧 전 결과 비공개"), Public->GetPublishedResult().IsValid());
+	TestTrue(TEXT("귀환 즉시 같은 게임 ID 유지(슬롯 초기화는 크레딧 뒤)"),
+		FDigetherFrameworkSaveIntegrationAccess::GetGameId(*Mode) == Run.EndedGameId);
+
+	FDigetherSaveSnapshot Confirmed;
+	if (!TestTrue(TEXT("게임 오버 확정 저장 읽기"), ReadIntegrationProgress(*Mode, Run.HostId, Confirmed) == EDigetherSaveResult::Success))
+	{
+		return false;
+	}
+	TestTrue(TEXT("확정 저장에 게임 오버 표시"), Confirmed.RunPublicState.bGameOver);
+	TestTrue(TEXT("확정 저장은 끝난 게임 ID"), Confirmed.GameId == Run.EndedGameId);
+	TestTrue(TEXT("확정 저장에 결과 기록"), Confirmed.bHasGameResult);
+	TestEqual(TEXT("확정 저장 결과의 전체 획득"), Confirmed.GameResult.TotalEarnedCredits, 1050);
+	// T38 준비: 다른 진행 슬롯 1에 별도 진행 B를 둔다. 이 게임 오버는 슬롯 0만 바꿔야 한다.
+	FDigetherSaveSlotSelection SlotZero;
+	FDigetherSaveSlotSelection SlotOne;
+	SlotOne.SlotIndex = 1;
+	const FGuid OtherGameId = FGuid::NewGuid();
+	{
+		FDigetherSaveSnapshot Other = Confirmed;
+		Other.GameId = OtherGameId;
+		Other.Quota.Quota.Day = 2;
+		Other.Quota.Quota.TotalDay = 2;
+		Other.RunPublicState = FDigetherRunPublicState();
+		Other.bHasGameResult = false;
+		Other.GameResult = FDigetherGameResult();
+		TestTrue(TEXT("슬롯 1 선택"), Save->SetSlotSelection(SlotOne));
+		TestEqual(TEXT("슬롯 1에 별도 진행 B 저장"), Save->Write(Other, true), EDigetherSaveResult::Success);
+		TestTrue(TEXT("슬롯 0 다시 선택"), Save->SetSlotSelection(SlotZero));
+	}
+
+	// 잠금: 출발·신규 참가·불러오기·새 게임 요청·개발 지급·할당량 조작을 받지 않는다.
+	TestTrue(TEXT("게임 오버 중 신규 참가 잠금"), FDigetherFrameworkSaveIntegrationAccess::IsNewJoinLocked(*Mode));
+	TestFalse(TEXT("게임 오버 중 새 게임 요청 거절"), Mode->StartNewGame(Run.Host));
+	TestFalse(TEXT("게임 오버 중 불러오기 거절"), Mode->LoadProgress(Run.Host));
+	TestFalse(TEXT("게임 오버 중 개발 지급 거절"), Mode->GrantCredits(Run.Host, 10));
+	TestFalse(TEXT("게임 오버 중 할당량 조작 거절"), Mode->SetQuotaProgressForDev(Run.Host, 1));
+	FDigetherFrameworkSaveIntegrationAccess::Depart(*Mode);
+	TestTrue(TEXT("게임 오버 중 출발 거절"), Mode->GetRunCoordinatorComponent()->CapturePublicState().Phase
+		!= EDigetherRunPhase::InProgress);
+
+	const FDigetherGameOverTuning Tuning = Flow->GetPublicState().Tuning;
+	const double SettlementStart = Flow->GetPublicState().PhaseStartServerSeconds;
+	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode, SettlementStart + Tuning.SettlementScreenSeconds - 0.01);
+	TestEqual(TEXT("정산 화면 시간 전에는 정산 화면 유지"), Flow->GetPhase(), EDigetherGameOverPhase::SettlementScreen);
+	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode, SettlementStart + Tuning.SettlementScreenSeconds);
+	TestEqual(TEXT("정산 화면 뒤 실패 사건"), Public->GetPhase(), EDigetherGameOverPhase::FailureEvent);
+	TestFalse(TEXT("실패 사건 진입 때 검은 정산 화면 닫힘"), HostState->GetLastRunResult().IsValid());
+	TestTrue(TEXT("실패 사건 중 몸 충돌 유지(조작 유지)"), Run.HostPawn->GetActorEnableCollision());
+
+	// 호스트는 우물 가까이, 참가자는 멀리 있다. 가까운 사람이 먼저 흡입돼 다른 사람을 기다린다(T34).
+	Run.GuestPawn->SetActorLocation(Run.Elevator->GetActorLocation() + FVector(-5000.0, 0.0, 200.0));
+	const double Suction = GetIntegrationSuctionStart(*Mode);
+	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode, Suction - 0.01);
+	TestFalse(TEXT("흡입 시작 전에는 흡입 없음"), Public->IsPlayerAbsorbed(HostState));
+	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode, Suction + 1.5);
+	TestTrue(TEXT("가까운 호스트 먼저 흡입"), Public->IsPlayerAbsorbed(HostState));
+	TestFalse(TEXT("먼 참가자는 아직"), Public->IsPlayerAbsorbed(GuestState));
+	TestEqual(TEXT("호스트는 참가자를 기다림"), Public->GetWaitingPlayerCount(), 1);
+	TestEqual(TEXT("대기 중 크레딧 시작 안 함"), Public->GetPhase(), EDigetherGameOverPhase::FailureEvent);
+	TestFalse(TEXT("흡입된 몸은 충돌을 끔"), Run.HostPawn->GetActorEnableCollision());
+	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode, Suction + 2.1);
+	TestTrue(TEXT("참가자 흡입"), Public->IsPlayerAbsorbed(GuestState));
+	if (!TestEqual(TEXT("전원 흡입 뒤 함께 크레딧"), Public->GetPhase(), EDigetherGameOverPhase::Credits))
+	{
+		return false;
+	}
+	const FDigetherGameResult Shown = Public->GetPublishedResult();
+	TestEqual(TEXT("T29 전체 획득 1,050"), Shown.TotalEarnedCredits, 1050);
+	if (TestEqual(TEXT("결과 인원"), Shown.Players.Num(), 2))
+	{
+		TestEqual(TEXT("참가 순서 1번 호스트"), Shown.Players[0].DisplayName, FString(TEXT("Host")));
+		TestEqual(TEXT("호스트 획득 700"), Shown.Players[0].EarnedCredits, 700);
+		TestEqual(TEXT("참가자 획득 350"), Shown.Players[1].EarnedCredits, 350);
+		TestEqual(TEXT("호스트 히든 100"), Shown.Players[0].HiddenCredits, 100);
+		TestEqual(TEXT("참가자 히든 50"), Shown.Players[1].HiddenCredits, 50);
+		TestEqual(TEXT("호스트 사망 손실 순액 200"), Shown.Players[0].DeathLossCredits, 200);
+	}
+
+	// T33: 참가자의 빨리감기는 반영되지 않고, 호스트의 빨리감기만 모두에게 같은 배속으로 적용된다.
+	const double CreditsStart = Flow->GetPublicState().PhaseStartServerSeconds;
+	TestFalse(TEXT("참가자 빨리감기 거절"),
+		FDigetherFrameworkSaveIntegrationAccess::SetCreditFastForwardAt(*Mode, Run.Guest, true, CreditsStart + 1.0));
+	TestFalse(TEXT("참가자 요청 뒤 빨리감기 아님"), Public->IsCreditFastForward());
+	TestTrue(TEXT("호스트 빨리감기"),
+		FDigetherFrameworkSaveIntegrationAccess::SetCreditFastForwardAt(*Mode, Run.Host, true, CreditsStart + 1.0));
+	TestEqual(TEXT("공개 재생 배속은 빨리감기 배율"), Public->GetPublicState().Playback.PlaybackRate,
+		Tuning.CreditFastForwardMultiplier);
+	const double CreditEnd = GetIntegrationCreditEnd(*Mode);
+	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode, CreditEnd - 0.01);
+	TestEqual(TEXT("크레딧 끝 전에는 새 게임 아님"), Public->GetPhase(), EDigetherGameOverPhase::Credits);
+	TestTrue(TEXT("크레딧 중 게임 ID 유지"), FDigetherFrameworkSaveIntegrationAccess::GetGameId(*Mode) == Run.EndedGameId);
+	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode, CreditEnd + 0.01);
+
+	const FGuid NewGameId = FDigetherFrameworkSaveIntegrationAccess::GetGameId(*Mode);
+	TestEqual(TEXT("크레딧 뒤 게임 오버 끝"), Flow->GetPhase(), EDigetherGameOverPhase::None);
+	TestEqual(TEXT("공개 상태도 끝"), Public->GetPhase(), EDigetherGameOverPhase::None);
+	TestTrue(TEXT("새 게임 ID"), NewGameId.IsValid() && NewGameId != Run.EndedGameId);
+	TestFalse(TEXT("새 게임은 게임 오버 아님"), Mode->GetRunCoordinatorComponent()->CapturePublicState().bGameOver);
+	TestFalse(TEXT("새 게임은 신규 참가 열림"), FDigetherFrameworkSaveIntegrationAccess::IsNewJoinLocked(*Mode));
+	const FDigetherQuotaState NewQuota = Fixture.GetGameState()->GetQuotaComponent()->CaptureState().Quota;
+	TestEqual(TEXT("새 게임 기간 1일차"), NewQuota.Day, 1);
+	TestEqual(TEXT("새 게임 전체 1일차"), NewQuota.TotalDay, 1);
+	TestEqual(TEXT("이전 통계를 넘기지 않음(호스트)"), HostState->CaptureState().LifetimeEarnedCredits, 0);
+	TestEqual(TEXT("이전 통계를 넘기지 않음(참가자)"), GuestState->CaptureState().LifetimeEarnedCredits, 0);
+	TestEqual(TEXT("새 게임 히든 0"), GuestState->CaptureState().HiddenLifetimeCredits, 0);
+	TestTrue(TEXT("새 게임 뒤 몸 충돌 복구"), Run.HostPawn->GetActorEnableCollision());
+	const TArray<FDigetherGameResult>& Archived = FDigetherFrameworkSaveIntegrationAccess::GetArchivedResults(*Mode);
+	if (TestEqual(TEXT("이전 게임 결과 하나 보관"), Archived.Num(), 1))
+	{
+		TestTrue(TEXT("보관 결과는 끝난 게임 ID"), Archived[0].GameId == Run.EndedGameId);
+		TestEqual(TEXT("보관 결과 전체 획득"), Archived[0].TotalEarnedCredits, 1050);
+	}
+	FDigetherSaveSnapshot Saved;
+	if (TestTrue(TEXT("새 게임 저장 읽기"), ReadIntegrationProgress(*Mode, Run.HostId, Saved) == EDigetherSaveResult::Success))
+	{
+		TestTrue(TEXT("현재 슬롯은 새 게임 ID 하나"), Saved.GameId == NewGameId);
+		TestFalse(TEXT("새 게임 저장은 게임 오버 아님"), Saved.RunPublicState.bGameOver);
+		TestEqual(TEXT("새 게임 저장에 이전 결과 보관"), Saved.ArchivedGameResults.Num(), 1);
+		TestEqual(TEXT("새 게임 저장 1일차"), Saved.Quota.Quota.Day, 1);
+	}
+	// 종료 신호 재전송·다음 Tick에도 새 게임을 다시 만들지 않는다(T38).
+	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode, CreditEnd + 10.0);
+	TestFalse(TEXT("새 게임 생성 재요청 거절"), FDigetherFrameworkSaveIntegrationAccess::CreateNextGameAfterCredits(*Mode));
+	TestTrue(TEXT("새 게임 ID는 하나만"), FDigetherFrameworkSaveIntegrationAccess::GetGameId(*Mode) == NewGameId);
+	TestTrue(TEXT("슬롯 1 다시 선택"), Save->SetSlotSelection(SlotOne));
+	FDigetherSaveSnapshot Other;
+	TestTrue(TEXT("다른 슬롯의 진행 B 유지"), Save->Read(Other) == EDigetherSaveResult::Success && Other.GameId == OtherGameId);
+	TestTrue(TEXT("슬롯 0 복귀"), Save->SetSlotSelection(SlotZero));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkGameOverLeaverTest,
+	"DIGETHER.Game.Framework.SaveIntegration.GameOverLeaverNotWaitedAndKeptInResult",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkGameOverLeaverTest::RunTest(const FString& Parameters)
+{
+	// T34·S33 231행: 흡입 대기 중 떠난 사람은 기다리지 않는다. 그 게임에서 번·잃은 돈이 있는 떠난 사람은 결과에 남고,
+	// 아무 기록이 없는 떠난 사람은 결과에 넣지 않는다.
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("퇴장 시험 월드"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	const FUniqueNetIdRepl LeftId = MakeIntegrationNetId(TEXT("left-earned"));
+	FDigetherSavePlayerRecord Left;
+	DigetherSaveRules::MakeAuthenticatedPlayerKey(LeftId, Left.AuthenticatedPlayerKey);
+	Left.GameplayPlayerId = FGuid::NewGuid();
+	Left.DisplayName = TEXT("Left");
+	Left.JoinOrder = 3;
+	Left.Wallet.LifetimeEarnedCredits = 30;
+	FDigetherSavePlayerRecord Idle;
+	DigetherSaveRules::MakeAuthenticatedPlayerKey(MakeIntegrationNetId(TEXT("left-idle")), Idle.AuthenticatedPlayerKey);
+	Idle.GameplayPlayerId = FGuid::NewGuid();
+	Idle.DisplayName = TEXT("Idle");
+	Idle.JoinOrder = 4;
+	FDigetherFrameworkSaveIntegrationAccess::AddRecord(*Mode, Left);
+	FDigetherFrameworkSaveIntegrationAccess::AddRecord(*Mode, Idle);
+	FDigetherGameOverIntegrationRun Run;
+	if (!TestTrue(TEXT("5일차 실패 귀환"), ReachIntegrationGameOver(Fixture, Run)))
+	{
+		return false;
+	}
+	UDigetherGameOverFlowComponent* Flow = Mode->GetGameOverFlowComponent();
+	UDigetherGameOverPublicStateComponent* Public = Fixture.GetGameState()->GetGameOverPublicStateComponent();
+	const FDigetherGameOverTuning Tuning = Flow->GetPublicState().Tuning;
+	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode,
+		Flow->GetPublicState().PhaseStartServerSeconds + Tuning.SettlementScreenSeconds);
+	Run.GuestPawn->SetActorLocation(Run.Elevator->GetActorLocation() + FVector(-5000.0, 0.0, 200.0));
+	const double Suction = GetIntegrationSuctionStart(*Mode);
+	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode, Suction + 1.5);
+	TestEqual(TEXT("참가자를 기다리는 중"), Public->GetWaitingPlayerCount(), 1);
+	// 흡입 대기 중 참가자가 방을 나간다(거점 이탈은 몸 제거·자리 반환).
+	DisconnectIntegrationPlayer(*Mode, *Run.Guest);
+	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode, Suction + 1.6);
+	if (!TestEqual(TEXT("떠난 사람을 기다리지 않고 크레딧 시작"), Public->GetPhase(), EDigetherGameOverPhase::Credits))
+	{
+		return false;
+	}
+	const FDigetherGameResult Shown = Public->GetPublishedResult();
+	TArray<FString> Names;
+	for (const FDigetherGameResultPlayer& Player : Shown.Players)
+	{
+		Names.Add(Player.DisplayName);
+	}
+	TestTrue(TEXT("결과는 참가 순서(호스트·참가자·먼저 떠난 사람), 기록 없는 떠난 사람 제외"),
+		Names == TArray<FString>({ TEXT("Host"), TEXT("Guest"), TEXT("Left") }));
+	TestEqual(TEXT("떠난 사람 획득 포함 전체"), Shown.TotalEarnedCredits, 1080);
+	// 크레딧 중 남은 사람만으로도 끝나면 새 게임으로 넘어간다.
+	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode, GetIntegrationCreditEnd(*Mode) + 0.01);
+	TestEqual(TEXT("크레딧 뒤 새 게임"), Flow->GetPhase(), EDigetherGameOverPhase::None);
+	TestTrue(TEXT("새 게임 ID"), FDigetherFrameworkSaveIntegrationAccess::GetGameId(*Mode) != Run.EndedGameId);
+	FDigetherSavePlayerRecord Dropped;
+	TestFalse(TEXT("떠난 사람 기록은 새 게임에 넘기지 않음"),
+		FDigetherFrameworkSaveIntegrationAccess::FindSavedRecord(*Mode, LeftId, Dropped));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkSavedGameOverStartsNewGameTest,
+	"DIGETHER.Game.Framework.SaveIntegration.SavedGameOverStartsSameSlotNewGame",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkSavedGameOverStartsNewGameTest::RunTest(const FString& Parameters)
+{
+	// S33 240행: 게임 오버 확정이 저장된 뒤 종료했다면 다음 실행에서 같은 슬롯의 새 게임을 시작하고 결과를 보관한다(1인).
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("시작 게임 오버 시험 월드"), Fixture.IsReady())
+		|| !TestNotNull(TEXT("시작 게임 오버 런 준비"), PrepareIntegrationRun(Fixture)))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	const FUniqueNetIdRepl HostId = MakeRuntimeIntegrationNetId();
+	ADigetherGameplayPlayerController* Host = MakeRuntimeIntegrationPlayer(Fixture, HostId, true);
+	if (!TestNotNull(TEXT("시작 게임 오버 호스트"), Host)
+		|| !TestNotNull(TEXT("시작 게임 오버 호스트 Pawn"), GiveIntegrationPawn(Fixture, Host, FVector(0.0, 0.0, 200.0))))
+	{
+		return false;
+	}
+	FDigetherSaveSnapshot GameOver;
+	if (!TestTrue(TEXT("기준 진행 캡처"), FDigetherFrameworkSaveIntegrationAccess::Capture(*Mode, GameOver)))
+	{
+		return false;
+	}
+	GameOver.Quota.Quota.Day = 5;
+	GameOver.Quota.Quota.TotalDay = 5;
+	GameOver.RunPublicState.bGameOver = true;
+	GameOver.RunPublicState.bPaymentDeadline = true;
+	GameOver.bHasGameResult = true;
+	GameOver.GameResult.ResultId = FGuid::NewGuid();
+	GameOver.GameResult.GameId = GameOver.GameId;
+	GameOver.GameResult.FinalTotalDay = 5;
+	FDigetherGameResultPlayer& ResultPlayer = GameOver.GameResult.Players.AddDefaulted_GetRef();
+	ResultPlayer.DisplayName = TEXT("Host");
+	ResultPlayer.JoinOrder = 1;
+	ResultPlayer.EarnedCredits = 10;
+	GameOver.GameResult.TotalEarnedCredits = 10;
+	UDigetherSaveSubsystem* Save = Mode->GetGameInstance()->GetSubsystem<UDigetherSaveSubsystem>();
+	if (!TestEqual(TEXT("게임 오버 확정 저장 준비"), Save->BindHostIdentity(HostId), EDigetherSaveResult::Success)
+		|| !TestEqual(TEXT("게임 오버 확정 저장 쓰기"), Save->Write(GameOver, true), EDigetherSaveResult::Success))
+	{
+		return false;
+	}
+	TestTrue(TEXT("다음 실행 불러오기는 같은 슬롯 새 게임"), Mode->LoadProgress(Host, true));
+	const FGuid NewGameId = FDigetherFrameworkSaveIntegrationAccess::GetGameId(*Mode);
+	TestTrue(TEXT("새 게임 ID"), NewGameId.IsValid() && NewGameId != GameOver.GameId);
+	TestFalse(TEXT("실패 사건·크레딧을 다시 재생하지 않음"), Mode->GetGameOverFlowComponent()->IsActive());
+	TestFalse(TEXT("새 게임은 게임 오버 아님"), Mode->GetRunCoordinatorComponent()->CapturePublicState().bGameOver);
+	TestEqual(TEXT("새 게임 1일차"), Fixture.GetGameState()->GetQuotaComponent()->CaptureState().Quota.Day, 1);
+	FDigetherSaveSnapshot Saved;
+	if (TestTrue(TEXT("새 게임 저장 읽기"), ReadIntegrationProgress(*Mode, HostId, Saved) == EDigetherSaveResult::Success))
+	{
+		TestTrue(TEXT("같은 슬롯이 새 게임으로 바뀜"), Saved.GameId == NewGameId);
+		TestFalse(TEXT("새 게임 저장은 게임 오버 아님"), Saved.RunPublicState.bGameOver);
+		TestTrue(TEXT("이전 게임 결과 보관"), Saved.ArchivedGameResults.Num() == 1
+			&& Saved.ArchivedGameResults[0].ResultId == GameOver.GameResult.ResultId);
 	}
 	return true;
 }

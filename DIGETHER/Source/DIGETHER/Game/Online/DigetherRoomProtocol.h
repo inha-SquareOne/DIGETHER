@@ -19,7 +19,11 @@ namespace DigetherRoomProtocol
 	inline const TCHAR* const GeneratedCodePrefix = TEXT("DG-");
 	constexpr int32 GeneratedCodeRandomLength = 6;
 
-	// 영문·숫자·하이픈·밑줄 1~MaxRoomCodeLength자.
+	// 사용자·콘솔 입력 코드를 정식 형태(앞뒤 공백 제거 + 대문자)로 바꾼다.
+	// 세션 요청 입구(HostRoom·JoinByCode)에서 한 번만 적용하고, 이후 검사·광고·검색은 정식 형태만 다룬다.
+	DIGETHER_API FString NormalizeRoomCode(const FString& RoomCode);
+	// 정식 형태(영문 대문자·숫자·하이픈·밑줄 1~MaxRoomCodeLength자)인지 확인한다.
+	// 광고·검색 비교가 대소문자를 구분하므로, 정규화하지 않은 소문자 코드는 맞는 방을 찾을 수 없어 거절한다.
 	DIGETHER_API bool IsValidRoomCode(const FString& RoomCode);
 	// GeneratedCodePrefix + 혼동 문자를 뺀 GeneratedCodeRandomLength자.
 	DIGETHER_API FString MakeRoomCode();
@@ -33,6 +37,7 @@ namespace DigetherRoomProtocol
 	// 이 게임의 로비만 찾도록 검색 조건을 건다. RoomCode가 비면 모든 공개 방.
 	void ApplySearchFilter(FOnlineSessionSearch& Search, const FString& RoomCode);
 	// 빌드·프로토콜·코드가 맞는 결과인지 확인한다. RoomCode가 비면 코드 비교를 생략한다.
+	// RoomCode와 광고된 코드는 모두 정식 형태여야 하며 대소문자를 구분해 비교한다.
 	bool Matches(const FOnlineSessionSearchResult& Result, const FString& RoomCode);
 	FDigetherRoomInfo ReadRoomInfo(const FOnlineSessionSearchResult& Result, int32 Index);
 	// 참가할 방의 코드와 이름을 꺼낸다.

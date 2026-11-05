@@ -78,6 +78,9 @@ bool FDigetherElevatorWeightTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("유효하지 않은 운행 시간 거절"), IsValidRunParameters(CapacityKg, 2, InvalidValue));
 	}
 	TestFalse(TEXT("0회 운행 거절"), IsValidRunParameters(CapacityKg, 0, 4.f));
+	// ELV_ASCENT_LIMIT는 2회 확정이다. 1회·3회 비교 설정은 받지 않는다.
+	TestFalse(TEXT("1회 운행 거절"), IsValidRunParameters(CapacityKg, 1, 4.f));
+	TestFalse(TEXT("3회 운행 거절"), IsValidRunParameters(CapacityKg, 3, 4.f));
 	TestFalse(TEXT("음수 운행 횟수 거절"), IsValidRunParameters(CapacityKg, -1, 4.f));
 	FDigetherElevatorTuning InvalidTuning = Tuning;
 	InvalidTuning.LightMaxCapacityRatio = 0.f;

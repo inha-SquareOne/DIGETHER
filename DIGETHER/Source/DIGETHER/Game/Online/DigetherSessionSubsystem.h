@@ -4,10 +4,12 @@
 #include "Engine/EngineBaseTypes.h"
 #include "Engine/TimerHandle.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "Templates/Function.h"
 #include "Interfaces/OnlineSessionInterface.h"
 #include "OnlineSessionSettings.h"
 #include "Game/Online/DigetherRoomTypes.h"
 #include "Game/Online/DigetherSessionText.h"
+#include "Game/Save/DigetherSaveSlotTypes.h"
 #include "DigetherSessionSubsystem.generated.h"
 
 class FTimerManager;
@@ -31,7 +33,10 @@ public:
 	virtual void Deinitialize() override;
 
 	// 방을 만들고 성공하면 대기실 맵을 listen으로 연다. RoomCode가 비면 새 코드를 만든다.
-	void HostRoom(const FString& RoomName, bool bPublic, const FString& RoomCode = FString());
+	// SaveSelection은 호스트가 고른 진행 슬롯·시작 방식(새 게임/이어하기)이다(기획 S01 2행). 저장 서브시스템에 보관해
+	// 게임 맵 GameMode 시작이 사용한다. 기본값은 슬롯 0 이어하기(저장이 없으면 새 진행)로 슬롯 도입 전 동작과 같다.
+	void HostRoom(const FString& RoomName, bool bPublic, const FString& RoomCode = FString(),
+		const FDigetherSaveSlotSelection& SaveSelection = FDigetherSaveSlotSelection());
 	// RoomCode가 비면 이 게임의 모든 공개 방을 찾는다.
 	void FindRooms(const FString& RoomCode = FString());
 	void JoinRoom(int32 Index);
@@ -47,6 +52,9 @@ public:
 	bool IsOnlineAvailable() const;
 	bool IsInSession() const;
 	bool IsBusy() const { return Operation != EDigetherSessionOperation::Idle; }
+	// 메뉴 화면이 방 만들기·참가·검색 버튼을 켤지 정하는 공통 판정: 진행 중 작업이 없고 온라인을 쓸 수 있다.
+	// 로그인·기존 방 같은 세부 조건은 요청 시 CheckCanRequest가 다시 확인하고 문구로 알린다.
+	bool CanStartRoomRequest() const;
 	EDigetherSessionOperation GetOperation() const { return Operation; }
 	const FText& GetStatus() const { return Status; }
 	const TArray<FDigetherRoomInfo>& GetRooms() const { return RoomInfos; }
@@ -82,6 +90,12 @@ private:
 	// 비동기 요청이 바로 거절돼 완료 알림이 오지 않으면 Idle로 되돌리고 true를 돌려준다.
 	// 요청 안에서 완료 알림이 먼저 와 Operation이 이미 바뀌었으면 건드리지 않는다.
 	bool RevertRejectedRequest(bool bRequested, EDigetherSessionOperation RequestOperation);
+	// 비동기 세션 요청의 공통 순서: Operation 설정 → 완료 알림 구독 → 진행 문구(있으면) → 요청.
+	// 요청이 바로 거절돼 Idle로 되돌렸으면 구독을 풀고 true를 돌려준다. 실패 문구는 호출자가 정한다.
+	bool SendRequestOrRevert(EDigetherSessionOperation RequestOperation, const TOptional<FText>& PendingStatus,
+		TFunctionRef<void()> Subscribe, TFunctionRef<bool()> Request, TFunctionRef<void()> Unsubscribe);
+	// 방 나가기와 실패 정리가 함께 쓰는 세션 종료 요청. 반환값은 SendRequestOrRevert와 같다.
+	bool SendDestroyRequestOrRevert(const TOptional<FText>& PendingStatus);
 	bool CheckSteamSocketsAvailable();
 
 	void SetStatus(const FText& Message);
@@ -106,6 +120,8 @@ private:
 	void HandleInviteAccepted(bool bSuccess, int32 ControllerId, FUniqueNetIdPtr UserId, const FOnlineSessionSearchResult& Result);
 	void HandleTravelFailure(UWorld* World, ETravelFailure::Type Failure, const FString& Error);
 	void HandleNetworkFailure(UWorld* World, UNetDriver* Driver, ENetworkFailure::Type Failure, const FString& Error);
+	// World 없이 온 대기 중 연결 실패가 이 인스턴스의 참가 이동에서 난 것인지.
+	bool IsOwnPendingJoinFailure(const UNetDriver* Driver, ENetworkFailure::Type Failure) const;
 	void HandlePostLoadMap(UWorld* World);
 
 	EDigetherSessionOperation Operation = EDigetherSessionOperation::Idle;
@@ -124,6 +140,8 @@ private:
 	TArray<FOnlineSessionSearchResult> Results;
 	TArray<FDigetherRoomInfo> RoomInfos;
 	IOnlineSessionPtr Sessions;
+	// 초대 수락 알림을 등록한 세션 인터페이스. AcquireSessions가 Sessions를 다시 받아도 해제는 이 인스턴스에서 한다.
+	TWeakPtr<IOnlineSession, ESPMode::ThreadSafe> InviteSessions;
 
 	FTimerHandle RetryTimer;
 	FTimerHandle DeadlineTimer;

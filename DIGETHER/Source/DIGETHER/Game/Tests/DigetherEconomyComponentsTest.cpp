@@ -3,6 +3,7 @@
 #include "Game/Economy/DigetherWalletComponent.h"
 #include "Game/Economy/DigetherQuotaStateComponent.h"
 #include "Game/Economy/DigetherEconomyRules.h"
+#include "Game/Economy/DigetherEconomyTuning.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Misc/AutomationTest.h"
@@ -105,7 +106,13 @@ bool FDigetherEconomyComponentsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("지갑 기본 복제 활성"), OrphanWallet->GetIsReplicated());
 	TestTrue(TEXT("공개 상태 기본 복제 활성"), OrphanQuota->GetIsReplicated());
 	TestTrue(TEXT("지갑 개인 값은 소유자 전용 복제"), HasReplicationCondition(OrphanWallet, TEXT("PrivateState"), COND_OwnerOnly));
-	TestTrue(TEXT("정산 공개 값은 조건 없는 복제"), HasReplicationCondition(OrphanQuota, TEXT("PublicState"), COND_None));
+	TestTrue(TEXT("할당량 복제 값은 조건 없는 복제"), HasReplicationCondition(OrphanQuota, TEXT("ReplicatedState"), COND_None));
+	const FProperty* ServerQuotaProperty = FindFProperty<FProperty>(OrphanQuota->GetClass(), TEXT("PublicState"));
+	TestTrue(TEXT("누적 인정액을 담은 서버 원본은 비복제"),
+		ServerQuotaProperty != nullptr && !ServerQuotaProperty->HasAnyPropertyFlags(CPF_Net));
+	TestNull(TEXT("복제 구조체에 누적 인정액 없음"),
+		FindFProperty<FProperty>(FDigetherQuotaReplicatedState::StaticStruct(), TEXT("DepositedCredits")));
+	TestEqual(TEXT("목표 전 신호기 없음"), OrphanQuota->GetPaymentSignal(), EDigetherPaymentSignal::None);
 	TestEqual(TEXT("공개 전 히든 목록은 비어 있음"), EmptyPublic.HiddenReveals.Num(), 0);
 	TestEqual(TEXT("소유자 없는 지갑 복원 거절"), OrphanWallet->RestoreState(WalletState), EDigetherEconomyResult::NotAuthority);
 	FDigetherWalletUpdateResult Update;
@@ -167,10 +174,14 @@ bool FDigetherEconomyComponentsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("공개 통지 횟수"), QuotaNotificationCount, 1);
 	TestTrue(TEXT("통지된 지갑 값 일치"), AreWalletStatesEqual(WalletState, NotifiedWallet));
 	TestTrue(TEXT("통지된 공개 값 일치"), ArePublicStatesEqual(PublicState, NotifiedPublic));
+	// 픽스처 120/500 = 24%는 빨강 구간(PAY_SIGNAL_THRESHOLDS 시험 기준 0.5·0.8).
+	TestEqual(TEXT("서버 복원 값의 신호기 단계"), Quota->GetPaymentSignal(), EDigetherPaymentSignal::Red);
+	TestEqual(TEXT("서버 원본은 누적 인정액 유지"), Quota->CaptureState().Quota.DepositedCredits, 120);
 
 	// 콜백의 표현 통지만 검사한다. 실제 네트워크 전달 검증은 별도 M2 범위다.
+	// 서버(권위)에서 복제 알림을 불러도 누적 인정액을 가진 원본을 덮어쓰지 않는다.
 	UFunction* WalletOnRep = Wallet->FindFunction(TEXT("OnRep_PrivateState"));
-	UFunction* QuotaOnRep = Quota->FindFunction(TEXT("OnRep_PublicState"));
+	UFunction* QuotaOnRep = Quota->FindFunction(TEXT("OnRep_ReplicatedState"));
 	if (TestNotNull(TEXT("지갑 복제 알림 함수 등록"), WalletOnRep))
 	{
 		Wallet->ProcessEvent(WalletOnRep, nullptr);
@@ -218,6 +229,68 @@ bool FDigetherEconomyComponentsTest::RunTest(const FString& Parameters)
 
 	Wallet->OnWalletChanged.Remove(WalletHandle);
 	Quota->OnQuotaStateChanged.Remove(QuotaHandle);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherEconomyPaymentSignalTest,
+	"DIGETHER.Game.Economy.PaymentSignal", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherEconomyPaymentSignalTest::RunTest(const FString& Parameters)
+{
+	const FDigetherEconomyTuning Tuning;
+	TestTrue(TEXT("기본 경제 튜닝 유효"), FDigetherEconomyRules::IsValidTuning(Tuning));
+	TestEqual(TEXT("PAY_SIGNAL_THRESHOLDS 주황 시험 기준"), Tuning.PaymentSignalOrangeRatio, 0.5);
+	TestEqual(TEXT("PAY_SIGNAL_THRESHOLDS 초록 시험 기준"), Tuning.PaymentSignalGreenRatio, 0.8);
+
+	// 목표 1000은 테스트 픽스처이며 최종 기획 목표액이 아니다.
+	FDigetherQuotaState Quota;
+	Quota.Day = 2;
+	Quota.TargetCredits = 1000;
+	const auto SignalAt = [&Quota, &Tuning](const int32 Deposited)
+	{
+		FDigetherQuotaState Candidate = Quota;
+		Candidate.DepositedCredits = Deposited;
+		return FDigetherEconomyRules::CalculatePaymentSignal(Candidate, Tuning);
+	};
+	TestEqual(TEXT("납부 0은 빨강"), SignalAt(0), EDigetherPaymentSignal::Red);
+	TestEqual(TEXT("50% 미만은 빨강"), SignalAt(499), EDigetherPaymentSignal::Red);
+	TestEqual(TEXT("50% 이상은 주황"), SignalAt(500), EDigetherPaymentSignal::Orange);
+	TestEqual(TEXT("80% 미만은 주황"), SignalAt(799), EDigetherPaymentSignal::Orange);
+	TestEqual(TEXT("80% 이상은 초록"), SignalAt(800), EDigetherPaymentSignal::Green);
+	TestEqual(TEXT("목표 직전도 초록"), SignalAt(999), EDigetherPaymentSignal::Green);
+	FDigetherQuotaState NoTarget;
+	TestEqual(TEXT("초기화 전 목표는 신호기 없음"), FDigetherEconomyRules::CalculatePaymentSignal(NoTarget, Tuning),
+		EDigetherPaymentSignal::None);
+	FDigetherEconomyTuning Inverted = Tuning;
+	Inverted.PaymentSignalOrangeRatio = 0.9;
+	TestFalse(TEXT("주황 경계가 초록 이상이면 튜닝 거절"), FDigetherEconomyRules::IsValidTuning(Inverted));
+	TestEqual(TEXT("잘못된 경계는 신호기 없음"), FDigetherEconomyRules::CalculatePaymentSignal(Quota, Inverted),
+		EDigetherPaymentSignal::None);
+
+	// 복제 값은 누적 인정액 없이 신호기만 담고, 클라이언트 조회 값은 누적 인정액 0이다.
+	FDigetherQuotaPublicState Server;
+	Server.Quota = Quota;
+	Server.Quota.DepositedCredits = 650;
+	Server.Quota.PeriodGeneration = 3;
+	Server.Quota.TotalDay = 6;
+	FDigetherHiddenRevealEntry Reveal;
+	Reveal.PlayerKey = TEXT("test-player");
+	Reveal.HiddenLifetimeCredits = 9;
+	Server.HiddenReveals.Add(Reveal);
+	const FDigetherQuotaReplicatedState Replicated = FDigetherEconomyRules::MakeReplicatedQuotaState(Server, Tuning);
+	TestEqual(TEXT("복제 일차"), Replicated.Day, 2);
+	TestEqual(TEXT("복제 목표"), Replicated.TargetCredits, 1000);
+	TestEqual(TEXT("복제 기간 세대"), Replicated.PeriodGeneration, 3);
+	TestEqual(TEXT("복제 전체 일차(공개 값)"), Replicated.TotalDay, 6);
+	TestEqual(TEXT("복제 신호기 65%는 주황"), Replicated.PaymentSignal, EDigetherPaymentSignal::Orange);
+	TestEqual(TEXT("복제 공개 목록"), Replicated.HiddenReveals.Num(), 1);
+	const FDigetherQuotaPublicState Client = FDigetherEconomyRules::MakeClientQuotaPublicState(Replicated);
+	TestEqual(TEXT("클라이언트 조회 값은 누적 인정액 0"), Client.Quota.DepositedCredits, 0);
+	TestEqual(TEXT("클라이언트 조회 값 목표 유지"), Client.Quota.TargetCredits, 1000);
+	TestEqual(TEXT("클라이언트 조회 값 기간 세대 유지"), Client.Quota.PeriodGeneration, 3);
+	TestEqual(TEXT("클라이언트 조회 값 전체 일차 유지"), Client.Quota.TotalDay, 6);
+	TestEqual(TEXT("클라이언트 조회 값 기간 일차 유지"), Client.Quota.Day, 2);
+	TestTrue(TEXT("클라이언트 조회 값은 형태 검사 통과"), FDigetherEconomyRules::IsValidPublicState(Client));
 	return true;
 }
 

@@ -1,7 +1,7 @@
 #include "Game/Economy/DigetherWalletComponent.h"
 
+#include "Game/Core/DigetherAuthority.h"
 #include "Game/Economy/DigetherEconomyRules.h"
-#include "GameFramework/Actor.h"
 #include "Net/UnrealNetwork.h"
 
 UDigetherWalletComponent::UDigetherWalletComponent()
@@ -23,8 +23,7 @@ FDigetherWalletState UDigetherWalletComponent::CaptureState() const
 
 EDigetherEconomyResult UDigetherWalletComponent::RestoreState(const FDigetherWalletState& State, const bool bNotify)
 {
-	const AActor* OwnerActor = GetOwner();
-	if (!IsValid(OwnerActor) || !OwnerActor->HasAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherEconomyResult::NotAuthority;
 	}
@@ -44,8 +43,7 @@ EDigetherEconomyResult UDigetherWalletComponent::RestoreState(const FDigetherWal
 
 EDigetherEconomyResult UDigetherWalletComponent::ApplyUpdate(const FDigetherWalletUpdateResult& Update, const bool bNotify)
 {
-	const AActor* OwnerActor = GetOwner();
-	if (!IsValid(OwnerActor) || !OwnerActor->HasAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherEconomyResult::NotAuthority;
 	}
@@ -60,8 +58,7 @@ EDigetherEconomyResult UDigetherWalletComponent::ApplyUpdate(const FDigetherWall
 
 EDigetherEconomyResult UDigetherWalletComponent::NotifyStateChanged()
 {
-	const AActor* OwnerActor = GetOwner();
-	if (!IsValid(OwnerActor) || !OwnerActor->HasAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherEconomyResult::NotAuthority;
 	}

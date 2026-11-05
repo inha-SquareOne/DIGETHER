@@ -64,11 +64,12 @@ bool FDigetherElevatorStateMachineTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("거점 리셋 위치 상부"), CalculateTravelProgress(State, TravelSeconds), 1.f);
 
 	State.Phase = EDigetherElevatorPhase::BottomWaiting;
+	// ELV_ASCENT_LIMIT는 2회 확정이다. 1회 비교 설정은 운행 전이를 거절하고 상태를 바꾸지 않는다.
 	FDigetherElevatorTransition Update = Transition(State, EDigetherElevatorCommand::RequestAscent, 0.f, 1, TravelSeconds, Tuning);
-	TestEqual(TEXT("1회 설정은 첫 상승부터 마지막 운행"), Update.State.Phase, EDigetherElevatorPhase::FinalAscent);
-	Update = Transition(Update.State, EDigetherElevatorCommand::AdvanceTime, TravelSeconds, 1, TravelSeconds, Tuning);
-	TestEqual(TEXT("1회 설정 첫 도착으로 탐사 종료"), Update.Result, EDigetherElevatorResult::ExplorationFinished);
-	TestEqual(TEXT("1회 설정 성공 횟수"), Update.State.CompletedAscents, 1);
+	TestEqual(TEXT("1회 설정 상승 요청 거절"), Update.Result, EDigetherElevatorResult::InvalidInput);
+	TestTrue(TEXT("1회 설정 거절은 상태 불변"), SameState(State, Update.State));
+	Update = Transition(State, EDigetherElevatorCommand::RequestAscent, 0.f, TripLimit, TravelSeconds, Tuning);
+	TestEqual(TEXT("2회 확정의 첫 상승은 최종 아님"), Update.State.Phase, EDigetherElevatorPhase::Ascending);
 
 	State = FDigetherElevatorState();
 	Apply(EDigetherElevatorCommand::DepartHub, 0.f, EDigetherElevatorPhase::InitialDescent, EDigetherElevatorResult::Success);

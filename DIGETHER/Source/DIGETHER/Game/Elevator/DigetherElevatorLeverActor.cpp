@@ -39,6 +39,7 @@ void ADigetherElevatorLeverActor::GetLifetimeReplicatedProps(TArray<FLifetimePro
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ADigetherElevatorLeverActor, LeverKind);
+	DOREPLIFETIME(ADigetherElevatorLeverActor, Placement);
 	DOREPLIFETIME(ADigetherElevatorLeverActor, ElevatorActor);
 }
 
@@ -50,6 +51,11 @@ UDigetherElevatorLeverComponent* ADigetherElevatorLeverActor::GetLeverComponent(
 EDigetherElevatorLeverKind ADigetherElevatorLeverActor::GetLeverKind() const
 {
 	return LeverKind;
+}
+
+EDigetherElevatorLeverPlacement ADigetherElevatorLeverActor::GetPlacement() const
+{
+	return Placement;
 }
 
 ADigetherElevatorActor* ADigetherElevatorLeverActor::GetElevatorActor() const

@@ -15,7 +15,7 @@
 ## DIGETHER에서 쓰이는 곳
 | 관련 기능 | 현재 프로젝트 상태 |
 |---|---|
-| S01 세션·재접속 | 세션 생성·검색·참가는 `UDigetherSessionSubsystem`(Steam 로비, 최대 4인). 접속 거절 규칙은 `DigetherJoinRules`가 `PreLogin`에서 판정. **게임 중 동일 ID 재접속 복원은 설계 단계**([SYSTEM_DESIGN](../../SYSTEM_DESIGN.md) 재접속 기술 계약) |
+| S01 세션·재접속 | 세션 생성·검색·참가는 `UDigetherSessionSubsystem`(Steam 로비, 최대 4인). 접속 거절 규칙은 `DigetherJoinRules`가 `PreLogin`에서 판정. 신규 참가는 정상 거점 준비 상태에서만 받고 출발 게이지 완료~결과 크레딧 동안 막으며, 게이지 전 수락·완료 뒤 확정은 빈자리가 있으면 관전 합류(시스템 작업리스트 1.1.0 S01. 문 닫힘 중 참가 잠금은 구현(실행 검증 일부). 게임 오버 중 잠금·관전 합류·로비 이탈자의 탐사 중 관전 복귀·참가 실패 6종(사유 키 전달)은 구현(자동 테스트 통과, M2 미검증)). 거점 퇴장·끊김은 캐릭터 제거·자리 반환(소지 장비 바닥 유지는 인벤토리 미구현), 탐사 출발 후 끊김은 캐릭터·자리 유지. 같은 ID 교체와 비활성 PlayerState 재접속은 구현(자동 테스트 통과, M2 미검증, [SYSTEM_DESIGN](../../SYSTEM_DESIGN.md) 재접속 기술 계약) |
 | 네트워크 권위 | 복제 프로퍼티·Server/Client Reliable RPC를 `Game/` 아래에서 사용 중(지갑, 엘리베이터, 레버, 할당량, 컨트롤러) |
 | 굴착 지형 복제 | `ADigetherExcavationTerrain`: `bAlwaysRelevant=true`, `SetNetUpdateFrequency(10)` ([굴착 구현](../../design/EXCAVATION_IMPLEMENTATION.md)) |
 | 맵 이동 | 로비 GameMode `bUseSeamlessTravel=false`. 호스트가 `World->ServerTravel(GameMap + "?listen", true)` |
@@ -44,7 +44,7 @@
 | 맵 이동 (`UWorld::ServerTravel`, `APlayerController::ClientTravel`, `UEngine::Browse`) | Engine | 서버 주도 맵 변경, 클라 따라 이동 | 대기실→탐사 | `ServerTravel` 비Seamless 사용 | 소스 `Engine/Source/Runtime/Engine/Private/World.cpp`, `PlayerController.cpp`, `UnrealEngine.cpp`; 문서 |
 | Seamless Travel (`bUseSeamlessTravel`, `TransitionMap`, `GetSeamlessTravelActorList`, `PlayerState::CopyProperties`) | Engine / EngineSettings | 연결을 끊지 않고 전환 맵 경유 이동 | 거점↔탐사 반복 이동 시 재접속 부담 감소 후보 | 미사용(로비는 명시적 false) | 소스 `GameModeBase.h`, `PlayerState.h`, `GameMapsSettings.h`; 문서 |
 | 비활성 PlayerState (`AddInactivePlayer`/`FindInactivePlayer`/`OverridePlayerState`) | Engine (`AGameMode` 전용) | 이탈 PlayerState를 복제본으로 보관, 재입장 시 재연결 | 같은 ID 재접속 복원 후보 | `AGameModeBase`라 **없음** | 소스 `Classes/GameFramework/GameMode.h`, `Private/GameMode.cpp` |
-| 접속 승인 (`PreLogin`, `PreLoginAsync`, `AGameSession::ApproveLogin`, `KickPlayer`, `BanPlayer`) | Engine | 접속 전 거절·강제 퇴장 | 탐사 중 신규 참가 거절, 동일 ID 중복 거절 | `PreLogin` 사용 | 소스 `GameModeBase.h`, `GameSession.h` |
+| 접속 승인 (`PreLogin`, `PreLoginAsync`, `AGameSession::ApproveLogin`, `KickPlayer`, `BanPlayer`) | Engine | 접속 전 거절·강제 퇴장 | 신규 참가 차단 구간 거절. 같은 ID는 이전 접속 종료 후 새 접속 수락(사용자 결정 2026-11-05, 기획 답변 C2. `PreLoginAsync`로 구현, 자동 테스트 통과, M2 미검증). `KickPlayer`는 Pawn을 먼저 파괴하므로 교체에 그대로 쓰지 않음(아래 재접속 절) | `PreLogin`·`PreLoginAsync` 사용 | 소스 `GameModeBase.h`, `GameSession.h`, `GameSession.cpp` |
 | 캐릭터 이동 예측 (CharacterMovement, `ServerMovePacked`) | Engine | 클라 예측·서버 보정이 기본 내장 | 1인칭 이동은 별도 복제부터 만들지 않는다 | `ACharacter` 기반 | 소스 `Classes/GameFramework/CharacterMovementComponent.h` |
 | Network Prediction 플러그인 | `Plugins/Runtime/NetworkPrediction`(Runtime, **Beta**) | 롤백형 예측 프레임워크 | 특수 이동·물리 상호작용 필요 시 | 미사용 | 소스 `.uplugin`, `readme.txt` |
 | Mover 플러그인 | `Plugins/Experimental/Mover`(Runtime + UncookedOnly, **Experimental**) | 롤백 네트워킹 이동 | CMC 대체 후보(성숙도 낮음) | 미사용 | 소스 `.uplugin` |
@@ -120,7 +120,11 @@
 - `FindInactivePlayer`는 데스크톱에서 UniqueId가 유효하면 UniqueId로 비교하고, 무효면 저장된 네트워크 주소+이름으로 비교한다. 찾으면 기존 PlayerState를 새 PC에 붙이고 `OverridePlayerState`→`DispatchOverrideWith`를 부른다. (소스)
 - `APlayerState`는 `bIsInactive` 복제, `OnDeactivated`/`OnReactivated`, `CopyProperties`/`OverrideWith`를 제공한다. (소스 `PlayerState.h`)
 - **프로젝트는 `AGameModeBase`**라 위 기능이 없다. 또 이 기능은 **PlayerState만 보관**하며 Pawn은 컨트롤러 정리 때 따라 정리될 수 있어, 끊긴 캐릭터를 남겨 두는 요구(SYSTEM_DESIGN 재접속 기술 계약)를 자동 충족하지 않는다. `AGameMode`로 바꾸는 것은 MatchState 흐름 도입을 뜻하므로 영향이 크다. 대안: ① `AGameMode` 전환 ② 직접 구현한 재접속 레지스트리(세션 수명, UniqueId 키). 선택은 사용자 결정이다.
-- `PreLogin`/`PreLoginAsync`로 접속 전 거절(탐사 중 신규, 동일 ID 중복)을 한다. 프로젝트는 `PlayerArray`만 비교하므로 동시에 대기 중인 연결은 못 잡는다는 한계를 코드 주석에 이미 적었다.
+- `PreLogin`/`PreLoginAsync`로 접속 전 거절(신규 참가 차단 구간, 정원 초과 등)을 한다. 프로젝트는 `PlayerArray`만 비교하므로 동시에 대기 중인 연결은 못 잡는다는 한계를 코드 주석에 이미 적었다.
+- **같은 ID 교체**: 같은 계정이 다시 들어오면 이전 접속을 끊고 새 접속을 받는다([사용자 결정 2026-11-05](../../planning/DECISIONS.md#사용자-결정-2026-11-05) 2, 기획 답변 C2). 시스템 작업리스트 1.1.0 S01의 '이미 연결된 ID는 거절'은 기획이 다음 버전에서 고칠 항목이라 따르지 않는다. 구현(자동 테스트 통과, M2 미검증): `PreLoginAsync`에서 같은 ID의 이전 연결을 끊고 정리될 때까지 기다린 뒤 새 접속을 수락한다. 교체 대기 제한 5초는 임시값(`DigetherJoinRules.h`)이며, 여러 교체 요청이 겹쳐도 콜백을 모두 처리한다(`Online.JoinRules.ReplacementQueueKeepsEveryCallback`). 대기실은 `KickPlayer`, 게임 맵은 남긴 Pawn 재접속 계약을 지키려고 `UNetConnection::Close`를 쓴다. 주의:
+  - 엔진 `AGameSession::KickPlayer`는 대상 PC의 Pawn을 먼저 `Destroy()`한 뒤 `ClientWasKicked`·PC `Destroy()`를 부른다(소스 `Engine/Source/Runtime/Engine/Private/GameSession.cpp` 369~371행). 그대로 쓰면 끊긴 캐릭터를 남기고 비활성 PlayerState로 재접속하는 계약을 깬다. 교체 경로는 Pawn을 남기고 이전 연결만 닫는 별도 처리가 필요하다.
+  - 이전 연결 종료(Logout·세션 등록 해제)와 새 연결 등록(Steam 세션 `RegisterPlayer`)의 순서가 엇갈리면 같은 ID가 세션에서 빠지거나 두 번 남을 수 있다. 순서와 결과는 실행으로 확인하지 않았다(M2/M3 검증 대상).
+  - 이전 접속을 끊지 못하면 '같은 계정이 이미 접속 중' 문구로 거절한다([참가 실패 안내 문구](../../SYSTEM_DESIGN.md#참가-실패-안내-문구)).
 
 ### 이동 예측
 - `ACharacter`/`UCharacterMovementComponent`는 `ServerMovePacked` 등으로 클라 예측과 서버 보정을 내장한다. `NetworkSmoothingMode`, `NetworkMaxSmoothUpdateDistance`가 시뮬레이션 프록시 보정을 조절한다. (소스 `CharacterMovementComponent.h`)

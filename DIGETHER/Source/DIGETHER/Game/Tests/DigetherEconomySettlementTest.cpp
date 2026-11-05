@@ -139,8 +139,9 @@ bool FDigetherEconomySettlementTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("전멸 결과 인원 수"), Wipeout.Players.Num(), 2);
 	if (Wipeout.Players.Num() == 2)
 	{
-		CheckPlayer(TEXT("전멸 첫 사망자"), Wipeout.Players[0], 0, 0, 0, 0);
-		CheckPlayer(TEXT("전멸 둘째 사망자"), Wipeout.Players[1], 0, 0, 0, 0);
+		// D25 확정(작업리스트 1.1.0): 전멸이어도 회수 목록에 있고 지상에 도착한 시체는 복구금을 받는다(101의 50% 버림).
+		CheckPlayer(TEXT("전멸 첫 사망자"), Wipeout.Players[0], 0, 0, 0, 50);
+		CheckPlayer(TEXT("전멸 둘째 사망자"), Wipeout.Players[1], 0, 0, 0, 50);
 	}
 
 	FirstSurvivor.ReturnedHiddenCredits = MAX_int32;

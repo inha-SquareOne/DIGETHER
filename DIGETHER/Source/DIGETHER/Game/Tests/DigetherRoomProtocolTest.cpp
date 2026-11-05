@@ -46,10 +46,22 @@ bool FDigetherRoomProtocolTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("빈 코드"), IsValidRoomCode(FString()));
 	TestTrue(TEXT("최대 길이 코드"), IsValidRoomCode(FString::ChrN(MaxRoomCodeLength, TEXT('A'))));
 	TestFalse(TEXT("최대 길이 초과"), IsValidRoomCode(FString::ChrN(MaxRoomCodeLength + 1, TEXT('A'))));
-	TestTrue(TEXT("영문·숫자·하이픈·밑줄"), IsValidRoomCode(TEXT("Ab-9_z")));
+	TestTrue(TEXT("대문자·숫자·하이픈·밑줄"), IsValidRoomCode(TEXT("AB-9_Z")));
+	// 2026-11-05 사용자 결정 "항상 대문자 정규화": 소문자는 정규화 전 입력으로 보고 거절한다.
+	TestFalse(TEXT("정규화 전 소문자"), IsValidRoomCode(TEXT("Ab-9_z")));
 	TestFalse(TEXT("한글"), IsValidRoomCode(TEXT("방코드")));
 	TestFalse(TEXT("공백"), IsValidRoomCode(TEXT("A B")));
 	TestFalse(TEXT("점"), IsValidRoomCode(TEXT("A.B")));
+
+	// 방 코드 정규화: 앞뒤 공백 제거 + 대문자
+	TestEqual(TEXT("소문자 → 대문자"), NormalizeRoomCode(TEXT("dg-ab12")), FString(TEXT("DG-AB12")));
+	TestEqual(TEXT("앞뒤 공백 제거"), NormalizeRoomCode(TEXT("  DG-AB12 \t")), FString(TEXT("DG-AB12")));
+	TestEqual(TEXT("공백 + 대소문자 섞임"), NormalizeRoomCode(TEXT(" Dg-aB_12\n")), FString(TEXT("DG-AB_12")));
+	TestEqual(TEXT("이미 정식 형태는 그대로"), NormalizeRoomCode(TEXT("DG-AB12")), FString(TEXT("DG-AB12")));
+	TestEqual(TEXT("공백만 있으면 빈 코드"), NormalizeRoomCode(TEXT("   ")), FString());
+	TestTrue(TEXT("정규화한 소문자 코드는 유효"), IsValidRoomCode(NormalizeRoomCode(TEXT(" ab-9_z "))));
+	TestFalse(TEXT("가운데 공백은 정규화 후에도 무효"), IsValidRoomCode(NormalizeRoomCode(TEXT("a b"))));
+	TestFalse(TEXT("공백만 있는 입력은 정규화 후 무효"), IsValidRoomCode(NormalizeRoomCode(TEXT("   "))));
 
 	// 자동 생성 코드
 	const FString Prefix(GeneratedCodePrefix);
@@ -73,6 +85,10 @@ bool FDigetherRoomProtocolTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("코드 생략(목록 검색)"), Matches(Room, FString()));
 	TestFalse(TEXT("다른 코드"), Matches(Room, TEXT("DG-OTHER")));
 	TestFalse(TEXT("대소문자 다른 코드"), Matches(Room, TEXT("dg-test01")));
+	TestTrue(TEXT("정규화한 소문자·공백 입력은 같은 방"), Matches(Room, NormalizeRoomCode(TEXT("  dg-test01 "))));
+
+	const FOnlineSessionSearchResult LowercaseAdvertised = MakeRoomResult(TEXT("dg-test01"), TEXT("정규화 전 광고"));
+	TestFalse(TEXT("정규화되지 않은 광고 코드는 제외"), Matches(LowercaseAdvertised, FString()));
 
 	FOnlineSessionSearchResult OtherBuild = Room;
 	OtherBuild.Session.SessionSettings.BuildUniqueId += 1;

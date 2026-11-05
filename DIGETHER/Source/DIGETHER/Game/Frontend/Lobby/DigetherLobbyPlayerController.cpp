@@ -45,9 +45,27 @@ void ADigetherLobbyPlayerController::RequestStartGame()
 	}
 }
 
-void ADigetherLobbyPlayerController::LobbyReady(bool bReady) { RequestSetReady(bReady); }
-void ADigetherLobbyPlayerController::LobbyStart() { RequestStartGame(); }
-void ADigetherLobbyPlayerController::LobbyLeave() { RequestLeave(); }
+// UHT가 생성한 Exec 진입점이 정의를 요구하므로 함수는 남기고 본문만 출시 빌드에서 뺀다.
+void ADigetherLobbyPlayerController::LobbyReady(bool bReady)
+{
+#if !UE_BUILD_SHIPPING
+	RequestSetReady(bReady);
+#endif
+}
+
+void ADigetherLobbyPlayerController::LobbyStart()
+{
+#if !UE_BUILD_SHIPPING
+	RequestStartGame();
+#endif
+}
+
+void ADigetherLobbyPlayerController::LobbyLeave()
+{
+#if !UE_BUILD_SHIPPING
+	RequestLeave();
+#endif
+}
 
 void ADigetherLobbyPlayerController::RequestLeave()
 {

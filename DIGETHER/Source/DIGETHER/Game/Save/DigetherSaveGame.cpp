@@ -60,6 +60,7 @@ void UDigetherSaveGame::Serialize(FArchive& Archive)
 		if (Result == EDigetherSaveResult::Success)
 		{
 			Data = MoveTemp(Candidate);
+			EncodedPayload.Reset();
 		}
 	}
 }
@@ -72,6 +73,7 @@ EDigetherSaveResult UDigetherSaveGame::SetSlotData(const FDigetherSaveSlotData& 
 	{
 		Data = Slot;
 		DataResult = Result;
+		EncodedPayload = MoveTemp(ValidatedBytes);
 	}
 	return Result;
 }
@@ -83,11 +85,18 @@ const FDigetherSaveSlotData& UDigetherSaveGame::GetSlotData() const
 
 EDigetherSaveResult UDigetherSaveGame::EncodeToMemory(TArray<uint8>& OutBytes) const
 {
+	// SerializeSlot은 같은 Data에 같은 바이트를 만든다. 캐시는 성공한 결과만 보관한다.
+	if (EncodedPayload.IsSet())
+	{
+		OutBytes = EncodedPayload.GetValue();
+		return EDigetherSaveResult::Success;
+	}
 	return DigetherSaveRules::SerializeSlot(Data, OutBytes);
 }
 
 EDigetherSaveResult UDigetherSaveGame::DecodeFromMemory(const TArray<uint8>& Bytes)
 {
+	EncodedPayload.Reset();
 	DataResult = DigetherSaveRules::DeserializeSlot(Bytes, Data);
 	return DataResult;
 }

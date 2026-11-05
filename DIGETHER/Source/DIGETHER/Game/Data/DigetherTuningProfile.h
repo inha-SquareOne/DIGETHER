@@ -15,7 +15,7 @@ struct DIGETHER_API FDigetherRunTuning
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Tuning", meta=(ClampMin="1"))
 	int32 ProfileVersion = 0;
 
-	// 첫 목표액이자 목표 달성 때마다 더하는 증가량.
+	// PAY_TARGET_FIRST. 첫 목표액. 증가량은 FDigetherEconomyTuning::TargetIncreaseCredits(PAY_TARGET_STEP)를 쓴다.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Tuning", meta=(ClampMin="1"))
 	int32 InitialQuotaCredits = 0;
 
@@ -23,27 +23,32 @@ struct DIGETHER_API FDigetherRunTuning
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Tuning", meta=(ClampMin="1", Units="s"))
 	float RunSeconds = 0.f;
 
+	// PLY_INTERACT_RANGE. 시트 단위는 m이고 이 필드는 cm다(1m = 100cm).
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Tuning", meta=(ClampMin="1", Units="cm"))
 	float InteractionDistanceCm = 0.f;
 
+	// ELV_WEIGHT_LIMIT. 기획 수치는 아직 미정이다.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Tuning", meta=(ClampMin="1", Units="kg"))
 	float ElevatorCapacityKg = 0.f;
 
-	// ELV_ASCENT_LIMIT. D24 비교 대상인 1회·2회만 허용한다.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Tuning", meta=(ClampMin="1", ClampMax="2"))
+	// ELV_ASCENT_LIMIT. 일반 상승 최대 2회 확정(최초 하강 제외)이므로 2만 허용한다.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Tuning", meta=(ClampMin="2", ClampMax="2"))
 	int32 ElevatorTripLimit = 0;
 
-	// 상승 확정 1회당 남은 시간에서 빼는 값.
+	// ELV_RUN_TIME_PENALTY. 상승 확정 1회당 남은 시간에서 빼는 값. 첫 하강은 제외하고 남은 시간은 0 아래로 내려가지 않는다.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Tuning", meta=(ClampMin="0", Units="s"))
 	float AscentPenaltySeconds = 0.f;
 
+	// ELV_TRAVEL_TIME. 기획은 운행 구간별 값이지만 현재는 모든 구간에 이 단일 값을 쓴다.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Tuning", meta=(ClampMin="0.1", Units="s"))
 	float ElevatorTravelSeconds = 0.f;
 
-	// 납부 입력 한 단위의 간격.
+	// PAY_TICK_INTERVAL. 정산기에 우클릭을 유지하는 동안 한 번 붓는 주기다(기획 S24 동시 붓기).
+	// 첫 차감은 누른 뒤 이 간격이 지난 시각이며, 주기당 금액은 FDigetherEconomyTuning::PourUnitCredits(PAY_UNIT_AMOUNT)다.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Tuning", meta=(ClampMin="0.1", Units="s"))
 	float DepositIntervalSeconds = 0.f;
 
+	// EMG_WEIGHT_LIMIT. 긴급 탈출 무게 한도. 회수품은 가지고 탈 수 없다.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Tuning", meta=(ClampMin="0", Units="kg"))
 	float EmergencyWeightLimitKg = 0.f;
 

@@ -170,7 +170,7 @@ EDigetherRunResult UDigetherRunCoordinatorComponent::ApplyAdvance(
 }
 
 EDigetherRunResult UDigetherRunCoordinatorComponent::StartRun(const FDigetherRunTuning& Tuning,
-	const FDigetherRunRuleTuning& RuleTuning, const double ServerSeconds)
+	const FDigetherRunRuleTuning& RuleTuning, const double ServerSeconds, const bool bStartClock)
 {
 	if (!HasServerAuthority())
 	{
@@ -178,7 +178,7 @@ EDigetherRunResult UDigetherRunCoordinatorComponent::StartRun(const FDigetherRun
 	}
 	FDigetherRunCoordinatorState Candidate = ServerState;
 	const FDigetherRunAdvanceResult Advance = FDigetherRunCoordinatorRules::StartRun(
-		Candidate, Tuning, RuleTuning, ServerSeconds);
+		Candidate, Tuning, RuleTuning, ServerSeconds, bStartClock);
 	const EDigetherRunResult Result = ApplyAdvance(Candidate, Advance);
 	if (Result == EDigetherRunResult::Success)
 	{
@@ -190,6 +190,27 @@ EDigetherRunResult UDigetherRunCoordinatorComponent::StartRun(const FDigetherRun
 		});
 	}
 	return Result;
+}
+
+EDigetherRunResult UDigetherRunCoordinatorComponent::StartClock(const double ServerSeconds)
+{
+	if (!HasServerAuthority())
+	{
+		return EDigetherRunResult::NotAuthority;
+	}
+	FDigetherRunCoordinatorState Candidate = ServerState;
+	const FDigetherRunAdvanceResult Advance = FDigetherRunCoordinatorRules::StartClock(Candidate, ServerSeconds);
+	const EDigetherRunResult Result = ApplyAdvance(Candidate, Advance);
+	if (Result == EDigetherRunResult::Success)
+	{
+		UE_LOG(LogDigetherRun, Log, TEXT("Run clock started."));
+	}
+	return Result;
+}
+
+bool UDigetherRunCoordinatorComponent::IsClockStarted() const
+{
+	return ServerState.Phase == EDigetherRunPhase::InProgress && ServerState.bClockStarted;
 }
 
 EDigetherRunResult UDigetherRunCoordinatorComponent::RecordConfirmedAscent()

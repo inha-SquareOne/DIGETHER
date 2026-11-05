@@ -17,7 +17,7 @@ namespace
 		Tuning.RunSeconds = 540.f;
 		Tuning.InteractionDistanceCm = 245.f;
 		Tuning.ElevatorCapacityKg = 35.f;
-		Tuning.ElevatorTripLimit = 1;
+		Tuning.ElevatorTripLimit = 2;
 		Tuning.AscentPenaltySeconds = 5.f;
 		Tuning.ElevatorTravelSeconds = 3.f;
 		Tuning.DepositIntervalSeconds = 0.2f;

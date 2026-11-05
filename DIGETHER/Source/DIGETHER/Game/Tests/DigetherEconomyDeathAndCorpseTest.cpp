@@ -80,7 +80,11 @@ bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("전멸 시 일반 몫 0"), WipeoutRun.Players[0].GeneralCredits, 0);
 		TestEqual(TEXT("전멸 시 히든 0"), WipeoutRun.Players[0].HiddenCredits, 0);
 		TestEqual(TEXT("전멸 시 런 지급액 0"), WipeoutRun.Players[0].PayoutCredits, 0);
-		TestEqual(TEXT("회수된 시체가 있어도 생존자 0이면 복구 0"), WipeoutRun.Players[0].CorpseRefundCredits, 0);
+		// D25 확정: 전멸이어도 유효 회수 시체의 복구금은 생존자가 있을 때와 같은 산식으로 지급한다.
+		TestEqual(TEXT("전멸이어도 회수된 시체는 직전 잔고 기준 복구"), WipeoutRun.Players[0].CorpseRefundCredits,
+			FDigetherEconomyRules::CalculateCorpseRefund(Dead.PreDeathBalanceCredits, RunTuning.CorpseRefundPercent));
+		TestTrue(TEXT("전멸 복구금은 0보다 큼(픽스처 직전 잔고 양수)"), WipeoutRun.Players[0].CorpseRefundCredits > 0);
+		TestEqual(TEXT("전멸 일반 화물은 전액 손실"), WipeoutRun.LostGeneralCredits, 100);
 	}
 	Dead.bCorpseRecovered = false;
 	const FDigetherRunSettlementResult UnrecoveredRun = FDigetherEconomyRules::CalculateRunSettlement(100, 2, { Dead, Living }, RunTuning.CorpseRefundPercent);

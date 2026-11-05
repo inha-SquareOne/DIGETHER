@@ -48,6 +48,8 @@ protected:
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<USlider> Slider_Sensitivity;
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UCommonTextBlock> Text_SensitivityValue;
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UCheckBox> Check_InvertY;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UComboBoxString> Combo_MicrophoneMode;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCheckBox> Check_ReduceShake;
 
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UCommonTextBlock> Text_Notice;
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UDigetherButtonWidget> Btn_Apply;

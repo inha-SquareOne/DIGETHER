@@ -83,8 +83,7 @@ void UDigetherMainMenuScreenWidget::RefreshState()
 	{
 		return;
 	}
-	const bool bBusy = Session->IsBusy();
-	const bool bOnline = Session->IsOnlineAvailable();
+	const bool bCanRequestRoom = Session->CanStartRoomRequest();
 
 	const bool bShowNotice = !NoticeMessage.IsEmpty();
 	Text_Status->SetText(bShowNotice ? NoticeMessage : Session->GetStatus());
@@ -96,9 +95,9 @@ void UDigetherMainMenuScreenWidget::RefreshState()
 		? FText::Format(LOCTEXT("SteamAccount", "Steam 계정: {0}"), FText::FromString(Session->GetLocalPlayerName()))
 		: LOCTEXT("LanMode", "Steam 미연결: 같은 네트워크(LAN) 시험 모드"));
 
-	Btn_CreateRoom->SetIsEnabled(!bBusy && bOnline);
-	Btn_JoinRoom->SetIsEnabled(!bBusy && bOnline);
-	Btn_Settings->SetIsEnabled(!bBusy);
+	Btn_CreateRoom->SetIsEnabled(bCanRequestRoom);
+	Btn_JoinRoom->SetIsEnabled(bCanRequestRoom);
+	Btn_Settings->SetIsEnabled(!Session->IsBusy());
 }
 
 #undef LOCTEXT_NAMESPACE

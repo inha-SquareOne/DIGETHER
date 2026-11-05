@@ -10,6 +10,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/ScopeExit.h"
+#include "Misc/SecureHash.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 #include "UObject/ObjectVersion.h"
@@ -518,7 +519,7 @@ bool FDigetherSaveStorageFutureVersionTest::RunTest(const FString& Parameters)
 	TArray<uint8> CurrentBytes;
 	TArray<uint8> FutureBytes;
 	if (!MakeEngineSaveBytes(*this, Slot, CurrentBytes)
-		|| !MakeSchemaVersionEngineSaveBytes(*this, Slot, DigetherSaveTuning::SchemaVersion + 1, FutureBytes))
+		|| !MakeSchemaVersionEngineSaveBytes(*this, Slot, DigetherSaveWire::LatestVersion + 1, FutureBytes))
 	{
 		return false;
 	}
@@ -547,6 +548,60 @@ bool FDigetherSaveStorageFutureVersionTest::RunTest(const FString& Parameters)
 			DigetherSaveStorage::Write(Names, StorageTestHostKey, Slot, true) == EDigetherSaveResult::UnsupportedVersion);
 		TestRawSlotEquals(*this, Names.Primary, PrimaryBytes);
 		TestRawSlotEquals(*this, Names.Backup, BackupBytes);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSaveStorageSlotNamesTest,
+	"DIGETHER.Game.Save.Storage.SlotNamesStayStable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherSaveStorageSlotNamesTest::RunTest(const FString& Parameters)
+{
+	// 슬롯 이름이 바뀌면 기존 저장을 찾지 못한다. v3 이름은 상수에서 만들어도 문자열이 그대로여야 한다.
+	const FTCHARToUTF8 HostBytes(*StorageTestHostKey);
+	const FString ExpectedPrimary = FString(TEXT("Digether_HostProgress_v3_"))
+		+ FSHA1::HashBuffer(HostBytes.Get(), HostBytes.Length()).ToString();
+	const FDigetherSaveSlotNames Names = DigetherSaveStorage::MakeSlotNames(StorageTestHostKey);
+	TestEqual(TEXT("주 슬롯 이름 유지"), Names.Primary, ExpectedPrimary);
+	TestEqual(TEXT("백업 슬롯 이름 유지"), Names.Backup, ExpectedPrimary + TEXT("_Backup"));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSaveStorageWriteWithReadsTest,
+	"DIGETHER.Game.Save.Storage.WriteUsesProvidedReads",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherSaveStorageWriteWithReadsTest::RunTest(const FString& Parameters)
+{
+	const FDigetherSaveSlotNames Names = MakeTemporarySlotNames();
+	ON_SCOPE_EXIT { DeleteTemporarySlots(*this, Names); };
+	const FDigetherSaveSlotData Slot = MakeStorageSlot();
+	// 디스크는 비어 있지만 전달한 읽기 결과가 미래 버전이면 다시 읽지 않고 거절해야 한다.
+	FDigetherSaveSlotReads FutureReads;
+	FutureReads.PrimaryResult = EDigetherSaveResult::UnsupportedVersion;
+	TestTrue(TEXT("전달한 미래 버전 읽기 결과로 쓰기 거절"),
+		DigetherSaveStorage::Write(Names, StorageTestHostKey, Slot, true, FutureReads)
+			== EDigetherSaveResult::UnsupportedVersion);
+	TestFalse(TEXT("거절 시 주 슬롯을 만들지 않음"),
+		UGameplayStatics::DoesSaveGameExist(Names.Primary, StorageTestUserIndex));
+	TestFalse(TEXT("거절 시 백업 슬롯을 만들지 않음"),
+		UGameplayStatics::DoesSaveGameExist(Names.Backup, StorageTestUserIndex));
+	const FDigetherSaveSlotReads Reads = DigetherSaveStorage::ReadSlots(Names, StorageTestHostKey);
+	TestTrue(TEXT("빈 주 슬롯 읽기 결과"), Reads.PrimaryResult == EDigetherSaveResult::NotFound);
+	TestTrue(TEXT("빈 백업 슬롯 읽기 결과"), Reads.BackupResult == EDigetherSaveResult::NotFound);
+	if (!TestTrue(TEXT("읽기 결과를 재사용한 저장 성공"),
+		DigetherSaveStorage::Write(Names, StorageTestHostKey, Slot, false, Reads) == EDigetherSaveResult::Success))
+	{
+		return false;
+	}
+	FDigetherSaveSlotData Loaded;
+	bool bRecovered = true;
+	if (TestTrue(TEXT("재사용 저장 후 슬롯 복원"),
+		DigetherSaveStorage::Read(Names, StorageTestHostKey, Loaded, bRecovered) == EDigetherSaveResult::Success))
+	{
+		TestFalse(TEXT("주 슬롯에서 복원"), bRecovered);
+		TestStorageSlotEquals(*this, Slot, Loaded);
 	}
 	return true;
 }

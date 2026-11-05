@@ -124,6 +124,57 @@ bool FDigetherRunCoordinatorFlowTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherRunClockStartTest,
+	"DIGETHER.Game.Run.ClockStartsOnMineArrival", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherRunClockStartTest::RunTest(const FString& Parameters)
+{
+	// 테스트 픽스처이며 최종 기획 값이 아니다.
+	FDigetherRunTuning Tuning;
+	Tuning.RunSeconds = 100.f;
+	Tuning.AscentPenaltySeconds = 20.f;
+	FDigetherRunRuleTuning RuleTuning;
+	FDigetherRunCoordinatorState State;
+	TestEqual(TEXT("시작 전 시계 시작 거절"), FDigetherRunCoordinatorRules::StartClock(State, 5.0).Result,
+		EDigetherRunResult::NotInProgress);
+
+	// 기획: 제한 시간은 최초 하강을 마치고 갱도에 도착한 순간부터 흐른다. 출발~도착 사이에는 줄지 않는다.
+	TestEqual(TEXT("시계 정지 상태로 출발"), FDigetherRunCoordinatorRules::StartRun(State, Tuning, RuleTuning, 10.0, false).Result,
+		EDigetherRunResult::Success);
+	TestFalse(TEXT("출발 직후 시계 정지"), State.bClockStarted);
+	TestEqual(TEXT("출발 직후 전체 제한 시간"), State.RemainingSeconds, 100.0);
+	const FDigetherRunAdvanceResult Descending = FDigetherRunCoordinatorRules::UpdateTime(State, 500.0);
+	TestEqual(TEXT("하강 중 시간 갱신 성공"), Descending.Result, EDigetherRunResult::Success);
+	TestFalse(TEXT("하강 중에는 시간 종료 없음"), Descending.bTimeExpiredNow);
+	TestEqual(TEXT("하강 중 남은 시간 유지"), State.RemainingSeconds, 100.0);
+	TestEqual(TEXT("하강 중 여진 없음"), State.AftershockStage, 0);
+	TestEqual(TEXT("과거 시각 시계 시작 거절"), FDigetherRunCoordinatorRules::StartClock(State, 499.0).Result,
+		EDigetherRunResult::InvalidInput);
+	TestFalse(TEXT("거절 뒤 시계 정지 유지"), State.bClockStarted);
+
+	TestEqual(TEXT("갱도 도착 때 시계 시작"), FDigetherRunCoordinatorRules::StartClock(State, 520.0).Result,
+		EDigetherRunResult::Success);
+	TestTrue(TEXT("도착 뒤 시계 흐름"), State.bClockStarted);
+	TestEqual(TEXT("도착 순간 전체 제한 시간"), State.RemainingSeconds, 100.0);
+	TestEqual(TEXT("시계 중복 시작 거절"), FDigetherRunCoordinatorRules::StartClock(State, 530.0).Result,
+		EDigetherRunResult::AlreadyInProgress);
+	TestEqual(TEXT("중복 시작은 기준 시각 보존"), State.StartedAtSeconds, 520.0);
+	FDigetherRunCoordinatorRules::UpdateTime(State, 550.0);
+	TestEqual(TEXT("도착 기준 경과 시간 차감"), State.RemainingSeconds, 70.0);
+	FDigetherRunCoordinatorRules::RecordConfirmedAscent(State);
+	TestEqual(TEXT("상승 페널티는 도착 기준 시간에 누적"), State.RemainingSeconds, 50.0);
+	const FDigetherRunAdvanceResult Expired = FDigetherRunCoordinatorRules::UpdateTime(State, 600.0);
+	TestTrue(TEXT("도착 기준 제한 시간 종료"), Expired.bTimeExpiredNow);
+
+	// 기본 시작은 기존처럼 즉시 시계를 흐르게 한다(다른 조율 경로·시험 호환).
+	FDigetherRunCoordinatorState Immediate;
+	FDigetherRunCoordinatorRules::StartRun(Immediate, Tuning, RuleTuning, 0.0);
+	TestTrue(TEXT("기본 시작은 시계 즉시 흐름"), Immediate.bClockStarted);
+	FDigetherRunCoordinatorRules::UpdateTime(Immediate, 30.0);
+	TestEqual(TEXT("기본 시작 경과 차감"), Immediate.RemainingSeconds, 70.0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherRunComponentsTest,
 	"DIGETHER.Game.Run.Components", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

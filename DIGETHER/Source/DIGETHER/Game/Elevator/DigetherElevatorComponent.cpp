@@ -1,31 +1,10 @@
 #include "Game/Elevator/DigetherElevatorComponent.h"
 
+#include "Game/Core/DigetherAuthority.h"
 #include "Game/Data/DigetherTuningProfile.h"
 #include "Game/Elevator/DigetherElevatorLog.h"
 #include "Game/Elevator/DigetherElevatorRules.h"
-#include "GameFramework/Actor.h"
 #include "Net/UnrealNetwork.h"
-
-namespace
-{
-	bool AreValidLoadKinds(const TArray<FDigetherElevatorLoadEntry>& LoadEntries)
-	{
-		for (const FDigetherElevatorLoadEntry& Entry : LoadEntries)
-		{
-			switch (Entry.Kind)
-			{
-			case EDigetherElevatorLoadKind::Player:
-			case EDigetherElevatorLoadKind::Corpse:
-			case EDigetherElevatorLoadKind::CarriedItem:
-			case EDigetherElevatorLoadKind::Cargo:
-				break;
-			default:
-				return false;
-			}
-		}
-		return true;
-	}
-}
 
 UDigetherElevatorComponent::UDigetherElevatorComponent()
 {
@@ -41,7 +20,7 @@ void UDigetherElevatorComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProp
 
 void UDigetherElevatorComponent::BeginNotificationBatch()
 {
-	if (HasServerAuthority())
+	if (DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		++NotificationBatchDepth;
 	}
@@ -49,7 +28,7 @@ void UDigetherElevatorComponent::BeginNotificationBatch()
 
 void UDigetherElevatorComponent::EndNotificationBatch()
 {
-	if (!HasServerAuthority() || NotificationBatchDepth <= 0)
+	if (!DigetherAuthority::HasOwnerAuthority(*this) || NotificationBatchDepth <= 0)
 	{
 		return;
 	}
@@ -72,7 +51,7 @@ void UDigetherElevatorComponent::EndNotificationBatch()
 EDigetherElevatorResult UDigetherElevatorComponent::InitializeForRun(const FDigetherRunTuning& RunTuning,
 	const FDigetherElevatorTuning& Tuning)
 {
-	if (!HasServerAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherElevatorResult::NotAuthority;
 	}
@@ -91,19 +70,14 @@ EDigetherElevatorResult UDigetherElevatorComponent::InitializeForRun(const FDige
 	bHasLastAscent = false;
 	bInitialized = true;
 
-	const bool bPublicStateChanged = RefreshPublicState(EDigetherElevatorWeightStage::Empty);
-	const FDigetherElevatorPublicState StateSnapshot = PublicState;
 	UE_LOG(LogDigetherElevator, Verbose, TEXT("Elevator initialized for a run."));
-	if (bPublicStateChanged)
-	{
-		DispatchStateNotification(StateSnapshot);
-	}
+	CommitState(EDigetherElevatorWeightStage::Empty);
 	return EDigetherElevatorResult::Success;
 }
 
 EDigetherElevatorResult UDigetherElevatorComponent::DepartHub()
 {
-	if (!HasServerAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherElevatorResult::NotAuthority;
 	}
@@ -120,18 +94,13 @@ EDigetherElevatorResult UDigetherElevatorComponent::DepartHub()
 	}
 
 	State = Update.State;
-	const bool bPublicStateChanged = RefreshPublicState(PublicState.WeightStage);
-	const FDigetherElevatorPublicState StateSnapshot = PublicState;
-	if (bPublicStateChanged)
-	{
-		DispatchStateNotification(StateSnapshot);
-	}
+	CommitState(PublicState.WeightStage);
 	return Update.Result;
 }
 
 EDigetherElevatorResult UDigetherElevatorComponent::ConfirmAscent(const FDigetherElevatorAscentConfirmed& Ascent)
 {
-	if (!HasServerAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherElevatorResult::NotAuthority;
 	}
@@ -139,7 +108,10 @@ EDigetherElevatorResult UDigetherElevatorComponent::ConfirmAscent(const FDigethe
 	{
 		return EDigetherElevatorResult::NotInitialized;
 	}
-	if (State.Phase != EDigetherElevatorPhase::BottomWaiting)
+	const bool bAtBottomStop = State.Phase == EDigetherElevatorPhase::BottomWaiting
+		|| (State.Phase == EDigetherElevatorPhase::DoorClosing
+			&& State.DoorOriginPhase == EDigetherElevatorPhase::BottomWaiting);
+	if (!bAtBottomStop)
 	{
 		return EDigetherElevatorResult::InvalidPhase;
 	}
@@ -174,22 +146,18 @@ EDigetherElevatorResult UDigetherElevatorComponent::ConfirmAscent(const FDigethe
 	State = Update.State;
 	LastAscent = CanonicalAscent;
 	bHasLastAscent = true;
-	const bool bPublicStateChanged = RefreshPublicState(CanonicalAscent.WeightStage);
-	const FDigetherElevatorPublicState StateSnapshot = PublicState;
+	// 상태 알림 콜백이 컴포넌트를 다시 바꿔도 이번 확정 매니페스트를 전달하도록 먼저 복사한다.
 	const FDigetherElevatorAscentConfirmed AscentSnapshot = LastAscent;
 	UE_LOG(LogDigetherElevator, Verbose, TEXT("Elevator ascent confirmed: trip %d, final %d."),
 		AscentSnapshot.TripNumber, AscentSnapshot.bFinalAscent);
-	if (bPublicStateChanged)
-	{
-		DispatchStateNotification(StateSnapshot);
-	}
+	CommitState(CanonicalAscent.WeightStage);
 	OnAscentConfirmed.Broadcast(AscentSnapshot);
 	return Update.Result;
 }
 
 EDigetherElevatorResult UDigetherElevatorComponent::UpdateLoad(const TArray<FDigetherElevatorLoadEntry>& LoadEntries)
 {
-	if (!HasServerAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherElevatorResult::NotAuthority;
 	}
@@ -197,26 +165,35 @@ EDigetherElevatorResult UDigetherElevatorComponent::UpdateLoad(const TArray<FDig
 	{
 		return EDigetherElevatorResult::NotInitialized;
 	}
-	if (!AreValidLoadKinds(LoadEntries))
+	if (!DigetherElevatorRules::HasOnlyValidLoadKinds(LoadEntries))
 	{
 		return EDigetherElevatorResult::InvalidInput;
 	}
 
 	const FDigetherElevatorWeightSummary Weight = DigetherElevatorRules::EvaluateLoad(LoadEntries, CapacityKg,
 		ElevatorTuning);
-	if (!RefreshPublicState(Weight.Stage))
+	// 기획 A3: 갱도 상승 문이 닫히는 중 무게 초과는 문을 다시 열고 이번 시도를 편으로 세지 않는다.
+	// 거점 출발 문은 게이지 완료로 취소 불가가 확정되었으므로 무게로 다시 열지 않는다.
+	if (DigetherElevatorRules::ShouldReopenDoorForOverweight(State, Weight.TotalWeightKg, CapacityKg))
 	{
-		return EDigetherElevatorResult::NoChange;
+		const EDigetherElevatorPhase OriginPhase = State.DoorOriginPhase;
+		const FDigetherElevatorTransition Reopened = DigetherElevatorRules::Transition(State,
+			EDigetherElevatorCommand::ReopenDoor, 0.f, TripLimit, TravelSeconds, ElevatorTuning);
+		if (Reopened.Result == EDigetherElevatorResult::Success)
+		{
+			State = Reopened.State;
+			UE_LOG(LogDigetherElevator, Verbose, TEXT("Elevator door reopened by overweight."));
+			CommitState(Weight.Stage);
+			OnDoorReopenedByOverweight.Broadcast(OriginPhase);
+			return EDigetherElevatorResult::Success;
+		}
 	}
-
-	const FDigetherElevatorPublicState StateSnapshot = PublicState;
-	DispatchStateNotification(StateSnapshot);
-	return EDigetherElevatorResult::Success;
+	return CommitState(Weight.Stage) ? EDigetherElevatorResult::Success : EDigetherElevatorResult::NoChange;
 }
 
 EDigetherElevatorResult UDigetherElevatorComponent::AdvanceTravel(const float DeltaSeconds)
 {
-	if (!HasServerAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherElevatorResult::NotAuthority;
 	}
@@ -228,26 +205,82 @@ EDigetherElevatorResult UDigetherElevatorComponent::AdvanceTravel(const float De
 	const FDigetherElevatorTransition Update = DigetherElevatorRules::Transition(State,
 		EDigetherElevatorCommand::AdvanceTime, DeltaSeconds, TripLimit, TravelSeconds, ElevatorTuning);
 	if (Update.Result != EDigetherElevatorResult::Success
-		&& Update.Result != EDigetherElevatorResult::ExplorationFinished)
+		&& Update.Result != EDigetherElevatorResult::ExplorationFinished
+		&& Update.Result != EDigetherElevatorResult::DoorClosed)
 	{
 		return Update.Result;
 	}
 
 	const bool bExplorationFinished = State.Phase != EDigetherElevatorPhase::Finished
 		&& Update.State.Phase == EDigetherElevatorPhase::Finished;
+	const bool bDoorClosed = Update.Result == EDigetherElevatorResult::DoorClosed;
 	State = Update.State;
-	const bool bPublicStateChanged = RefreshPublicState(PublicState.WeightStage);
-	const FDigetherElevatorPublicState StateSnapshot = PublicState;
+	// 상태 알림 콜백이 컴포넌트를 다시 바꿔도 종료 신호에는 이번 마지막 매니페스트를 전달한다.
 	const FDigetherElevatorAscentConfirmed FinalAscentSnapshot = LastAscent;
-	if (bPublicStateChanged)
-	{
-		DispatchStateNotification(StateSnapshot);
-	}
+	const EDigetherElevatorPhase DoorOriginSnapshot = State.DoorOriginPhase;
+	CommitState(PublicState.WeightStage);
 	if (bExplorationFinished)
 	{
 		UE_LOG(LogDigetherElevator, Verbose, TEXT("Elevator exploration finished."));
 		OnExplorationFinished.Broadcast(FinalAscentSnapshot);
 	}
+	if (bDoorClosed)
+	{
+		UE_LOG(LogDigetherElevator, Verbose, TEXT("Elevator door fully closed."));
+		OnDoorClosed.Broadcast(DoorOriginSnapshot);
+	}
+	return Update.Result;
+}
+
+EDigetherElevatorResult UDigetherElevatorComponent::BeginDoorClose()
+{
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
+	{
+		return EDigetherElevatorResult::NotAuthority;
+	}
+	if (!bInitialized)
+	{
+		return EDigetherElevatorResult::NotInitialized;
+	}
+	if (PublicState.WeightStage == EDigetherElevatorWeightStage::Over)
+	{
+		return EDigetherElevatorResult::OverCapacity;
+	}
+
+	const FDigetherElevatorTransition Update = DigetherElevatorRules::Transition(State,
+		EDigetherElevatorCommand::BeginDoorClose, 0.f, TripLimit, TravelSeconds, ElevatorTuning);
+	if (Update.Result != EDigetherElevatorResult::Success)
+	{
+		return Update.Result;
+	}
+
+	State = Update.State;
+	UE_LOG(LogDigetherElevator, Verbose, TEXT("Elevator door closing started."));
+	CommitState(PublicState.WeightStage);
+	return Update.Result;
+}
+
+EDigetherElevatorResult UDigetherElevatorComponent::ReopenDoor()
+{
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
+	{
+		return EDigetherElevatorResult::NotAuthority;
+	}
+	if (!bInitialized)
+	{
+		return EDigetherElevatorResult::NotInitialized;
+	}
+
+	const FDigetherElevatorTransition Update = DigetherElevatorRules::Transition(State,
+		EDigetherElevatorCommand::ReopenDoor, 0.f, TripLimit, TravelSeconds, ElevatorTuning);
+	if (Update.Result != EDigetherElevatorResult::Success)
+	{
+		return Update.Result;
+	}
+
+	State = Update.State;
+	UE_LOG(LogDigetherElevator, Verbose, TEXT("Elevator door reopened."));
+	CommitState(PublicState.WeightStage);
 	return Update.Result;
 }
 
@@ -259,7 +292,7 @@ FDigetherElevatorPublicState UDigetherElevatorComponent::GetPublicState() const
 bool UDigetherElevatorComponent::TryGetLastAscent(FDigetherElevatorAscentConfirmed& OutAscent) const
 {
 	OutAscent = FDigetherElevatorAscentConfirmed();
-	if (!HasServerAuthority() || !bInitialized || !bHasLastAscent)
+	if (!DigetherAuthority::HasOwnerAuthority(*this) || !bInitialized || !bHasLastAscent)
 	{
 		return false;
 	}
@@ -270,18 +303,12 @@ bool UDigetherElevatorComponent::TryGetLastAscent(FDigetherElevatorAscentConfirm
 bool UDigetherElevatorComponent::TryGetServerState(FDigetherElevatorState& OutState) const
 {
 	OutState = FDigetherElevatorState();
-	if (!HasServerAuthority() || !bInitialized)
+	if (!DigetherAuthority::HasOwnerAuthority(*this) || !bInitialized)
 	{
 		return false;
 	}
 	OutState = State;
 	return true;
-}
-
-bool UDigetherElevatorComponent::HasServerAuthority() const
-{
-	const AActor* OwnerActor = GetOwner();
-	return IsValid(OwnerActor) && OwnerActor->HasAuthority();
 }
 
 bool UDigetherElevatorComponent::RefreshPublicState(const EDigetherElevatorWeightStage WeightStage)
@@ -291,13 +318,26 @@ bool UDigetherElevatorComponent::RefreshPublicState(const EDigetherElevatorWeigh
 	UpdatedState.CompletedAscents = State.CompletedAscents;
 	UpdatedState.TravelProgress = DigetherElevatorRules::CalculateTravelProgress(State, TravelSeconds);
 	UpdatedState.WeightStage = WeightStage;
+	UpdatedState.DoorCloseProgress = DigetherElevatorRules::CalculateDoorCloseProgress(State, ElevatorTuning);
 	if (PublicState.Phase == UpdatedState.Phase && PublicState.CompletedAscents == UpdatedState.CompletedAscents
-		&& PublicState.TravelProgress == UpdatedState.TravelProgress && PublicState.WeightStage == UpdatedState.WeightStage)
+		&& PublicState.TravelProgress == UpdatedState.TravelProgress && PublicState.WeightStage == UpdatedState.WeightStage
+		&& PublicState.DoorCloseProgress == UpdatedState.DoorCloseProgress)
 	{
 		return false;
 	}
 	PublicState = UpdatedState;
 	return true;
+}
+
+bool UDigetherElevatorComponent::CommitState(const EDigetherElevatorWeightStage WeightStage)
+{
+	const bool bPublicStateChanged = RefreshPublicState(WeightStage);
+	const FDigetherElevatorPublicState StateSnapshot = PublicState;
+	if (bPublicStateChanged)
+	{
+		DispatchStateNotification(StateSnapshot);
+	}
+	return bPublicStateChanged;
 }
 
 void UDigetherElevatorComponent::DispatchStateNotification(const FDigetherElevatorPublicState& StateSnapshot)

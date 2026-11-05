@@ -2,10 +2,12 @@
 
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Game/Economy/DigetherQuotaStateComponent.h"
 #include "Game/Elevator/DigetherElevatorActor.h"
 #include "Game/Elevator/DigetherElevatorComponent.h"
 #include "Game/Elevator/DigetherElevatorLeverActor.h"
 #include "Game/Elevator/DigetherElevatorLeverComponent.h"
+#include "Game/Elevator/DigetherElevatorRules.h"
 #include "Game/Framework/DigetherFrameworkRules.h"
 #include "Game/Framework/DigetherGameplayGameMode.h"
 #include "Game/Framework/DigetherGameplayGameState.h"
@@ -17,6 +19,8 @@
 #include "Net/UnrealNetwork.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectGlobals.h"
+
+#include <cmath>
 
 namespace
 {
@@ -30,7 +34,7 @@ namespace
 		Tuning.RunSeconds = 540.f;
 		Tuning.InteractionDistanceCm = 245.f;
 		Tuning.ElevatorCapacityKg = 35.f;
-		Tuning.ElevatorTripLimit = 1;
+		Tuning.ElevatorTripLimit = 2;
 		Tuning.AscentPenaltySeconds = 5.f;
 		Tuning.ElevatorTravelSeconds = 3.f;
 		Tuning.DepositIntervalSeconds = 0.2f;
@@ -58,6 +62,8 @@ namespace
 		Quota.TargetCredits = 175;
 		Quota.DepositedCredits = 35;
 		Quota.PeriodGeneration = 3;
+		// 전체 일차는 기간 일차와 다른 픽스처 값이다(이전 기간들을 지난 뒤의 1일차).
+		Quota.TotalDay = 8;
 		return Quota;
 	}
 
@@ -102,7 +108,10 @@ namespace
 			if (!AreIntegrationStatesEqual(LeftPlayer.LifeAtEnd, RightPlayer.LifeAtEnd)
 				|| !AreIntegrationStatesEqual(LeftPlayer.WalletAtEnd, RightPlayer.WalletAtEnd)
 				|| !AreIntegrationStatesEqual(LeftPlayer.SettledWallet, RightPlayer.SettledWallet)
-				|| !AreIntegrationStatesEqual(LeftPlayer.RevivedLife, RightPlayer.RevivedLife))
+				|| !AreIntegrationStatesEqual(LeftPlayer.RevivedLife, RightPlayer.RevivedLife)
+				|| !AreIntegrationStatesEqual(LeftPlayer.Settlement, RightPlayer.Settlement)
+				|| LeftPlayer.DeathLossCredits != RightPlayer.DeathLossCredits
+				|| LeftPlayer.ReturnOutcome != RightPlayer.ReturnOutcome)
 			{
 				return false;
 			}
@@ -202,6 +211,23 @@ bool FDigetherFrameworkIntegrationDefaultsTest::RunTest(const FString& Parameter
 	TestTrue(TEXT("탑승 겹침 생성 활성"), BoardingVolume->GetGenerateOverlapEvents());
 	const FVector Extent = BoardingVolume->GetUnscaledBoxExtent();
 	TestTrue(TEXT("탑승 볼륨의 세 축 크기는 양수"), Extent.X > 0.0 && Extent.Y > 0.0 && Extent.Z > 0.0);
+	// 기획: 문이 닫히는 동안에도 걸어서 탈 수 있으므로 문턱 밀어내기 볼륨을 두지 않는다. 박스는 탑승 볼륨 하나뿐이다.
+	TArray<UBoxComponent*> ElevatorBoxes;
+	Elevator->GetComponents<UBoxComponent>(ElevatorBoxes);
+	TestEqual(TEXT("엘리베이터 박스는 탑승 볼륨 하나"), ElevatorBoxes.Num(), 1);
+	TestNull(TEXT("문 바깥 방향 설정 프로퍼티 없음"),
+		FindFProperty<FProperty>(Elevator->GetClass(), TEXT("DoorOutwardDirection")));
+	// 기획: 공동 인정액은 숫자 대신 신호기 색으로만 공개한다. 누적 인정액을 담은 서버 원본은 복제하지 않는다.
+	const UDigetherQuotaStateComponent* Quota = GameState->GetQuotaComponent();
+	if (TestNotNull(TEXT("할당량 상태 부착"), Quota))
+	{
+		TestTrue(TEXT("할당량 복제 값은 전체 복제"), HasIntegrationReplicationCondition(Quota, TEXT("ReplicatedState"), COND_None));
+		const FProperty* ServerQuota = FindFProperty<FProperty>(Quota->GetClass(), TEXT("PublicState"));
+		TestTrue(TEXT("누적 인정액을 담은 서버 원본은 비복제"),
+			ServerQuota != nullptr && !ServerQuota->HasAnyPropertyFlags(CPF_Net));
+		TestNull(TEXT("복제 값에는 누적 인정액 없음"),
+			FindFProperty<FProperty>(FDigetherQuotaReplicatedState::StaticStruct(), TEXT("DepositedCredits")));
+	}
 	TestFalse(TEXT("엘리베이터 액터 자체 Tick 없음"), Elevator->PrimaryActorTick.bCanEverTick);
 	TestFalse(TEXT("레버 액터 자체 Tick 없음"), Lever->PrimaryActorTick.bCanEverTick);
 	TestFalse(TEXT("엘리베이터 이동 복제 없음"), Elevator->IsReplicatingMovement());
@@ -219,7 +245,8 @@ bool FDigetherFrameworkIntegrationDefaultsTest::RunTest(const FString& Parameter
 	}
 	const FProperty* KindProperty = FindFProperty<FProperty>(Lever->GetClass(), TEXT("LeverKind"));
 	const FProperty* ElevatorProperty = FindFProperty<FProperty>(Lever->GetClass(), TEXT("ElevatorActor"));
-	const FProperty* InstanceProperties[] = { KindProperty, ElevatorProperty };
+	const FProperty* PlacementProperty = FindFProperty<FProperty>(Lever->GetClass(), TEXT("Placement"));
+	const FProperty* InstanceProperties[] = { KindProperty, ElevatorProperty, PlacementProperty };
 	for (const FProperty* Property : InstanceProperties)
 	{
 		if (TestNotNull(TEXT("레버 인스턴스 설정 프로퍼티 존재"), Property))
@@ -231,6 +258,8 @@ bool FDigetherFrameworkIntegrationDefaultsTest::RunTest(const FString& Parameter
 	}
 	TestTrue(TEXT("레버 종류는 전체 복제 등록"), HasIntegrationReplicationCondition(Lever, TEXT("LeverKind"), COND_None));
 	TestTrue(TEXT("레버 연결은 전체 복제 등록"), HasIntegrationReplicationCondition(Lever, TEXT("ElevatorActor"), COND_None));
+	TestTrue(TEXT("레버 안·밖 위치는 전체 복제 등록"), HasIntegrationReplicationCondition(Lever, TEXT("Placement"), COND_None));
+	TestEqual(TEXT("레버 위치 기본값은 안쪽"), Lever->GetPlacement(), EDigetherElevatorLeverPlacement::Inside);
 	return true;
 }
 
@@ -305,6 +334,29 @@ bool FDigetherFrameworkDepositBoundaryTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("광산 바닥은 런 광산 정지로 변환"),
 		DigetherFrameworkRules::MakeRunElevatorState(EDigetherElevatorPhase::BottomWaiting),
 		EDigetherRunElevatorState::StoppedInMine);
+	// 기획 A3: 문이 닫히는 중 시간 종료는 갱도 대기로 처리한다.
+	TestEqual(TEXT("문 닫힘은 런 광산 정지로 변환"),
+		DigetherFrameworkRules::MakeRunElevatorState(EDigetherElevatorPhase::DoorClosing),
+		EDigetherRunElevatorState::StoppedInMine);
+	Run = FDigetherRunPublicState();
+	TestTrue(TEXT("거점 문 닫힘은 납부 거절"),
+		DigetherFrameworkRules::IsDepositClosed(Run, EDigetherElevatorPhase::DoorClosing));
+	// 기획 C3: 출발 게이지가 찬 순간(거점 문 닫힘)부터 새 참가를 막고, 문이 다시 열리면 푼다.
+	TestFalse(TEXT("거점 대기는 새 참가 허용"),
+		DigetherFrameworkRules::IsNewJoinLocked(Run, EDigetherElevatorPhase::HubWaiting));
+	TestTrue(TEXT("거점 문 닫힘은 새 참가 잠금"),
+		DigetherFrameworkRules::IsNewJoinLocked(Run, EDigetherElevatorPhase::DoorClosing));
+	Run.Phase = EDigetherRunPhase::InProgress;
+	TestTrue(TEXT("탐사 중은 새 참가 잠금"),
+		DigetherFrameworkRules::IsNewJoinLocked(Run, EDigetherElevatorPhase::BottomWaiting));
+	Run.Phase = EDigetherRunPhase::Ended;
+	TestFalse(TEXT("귀환 정리 뒤 거점 대기는 새 참가 허용"),
+		DigetherFrameworkRules::IsNewJoinLocked(Run, EDigetherElevatorPhase::HubWaiting));
+	// 기획 S33: 실패 사건·크레딧(게임 오버) 중에는 거점 대기여도 새 참가를 열지 않는다.
+	Run.bGameOver = true;
+	TestTrue(TEXT("게임 오버 중 거점 대기는 새 참가 잠금"),
+		DigetherFrameworkRules::IsNewJoinLocked(Run, EDigetherElevatorPhase::HubWaiting));
+	Run.bGameOver = false;
 	TestEqual(TEXT("상승은 런 이동 중으로 변환"),
 		DigetherFrameworkRules::MakeRunElevatorState(EDigetherElevatorPhase::FinalAscent), EDigetherRunElevatorState::InTransit);
 	TestEqual(TEXT("최종 도착은 런 거점으로 변환"),
@@ -354,6 +406,8 @@ bool FDigetherFrameworkFinalReturnTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("화물 없는 정산은 히든 누적 보존"), Returned.SettledWallet.HiddenLifetimeCredits, 13);
 	}
 	TestEqual(TEXT("귀환은 일차 한 번 증가"), Plan.ReturnedQuota.Day, 2);
+	TestEqual(TEXT("귀환은 전체 일차도 한 번 증가"), Plan.ReturnedQuota.TotalDay, 9);
+	TestEqual(TEXT("계획 계산은 입력 전체 일차 보존"), Quota.TotalDay, 8);
 	TestEqual(TEXT("귀환은 납부액 보존"), Plan.ReturnedQuota.DepositedCredits, Quota.DepositedCredits);
 	TestEqual(TEXT("귀환은 기간 세대 보존"), Plan.ReturnedQuota.PeriodGeneration, Quota.PeriodGeneration);
 	TestFalse(TEXT("마감 전 귀환은 게임 오버 아님"), Plan.bGameOver);
@@ -400,7 +454,30 @@ bool FDigetherFrameworkTimeoutReturnTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("사망자도 거점 정리 후 활동 상태 복원"),
 		AreIntegrationStatesEqual(Plan.Players[1].RevivedLife, FDigetherLifeComponentState()));
 	TestEqual(TEXT("4일차 귀환은 5일차"), Plan.ReturnedQuota.Day, 5);
+	TestEqual(TEXT("4일차 귀환에 전체 일차도 하루 증가"), Plan.ReturnedQuota.TotalDay, 9);
 	TestTrue(TEXT("마감 이후 미달 귀환은 게임 오버"), Plan.bGameOver);
+
+	// 전원 사망(전멸)으로 일찍 끝나도 탐사는 끝났으므로 두 일차가 똑같이 오른다(기획 02 개요 5행).
+	FDigetherRunTerminationInput Wipe = Input;
+	Wipe.ElevatorState = EDigetherRunElevatorState::StoppedInMine;
+	Wipe.bElevatorOverweight = false;
+	Wipe.Players[0].Location = EDigetherRunPlayerLocation::MineOrDungeon;
+	Wipe.Players[1].Location = EDigetherRunPlayerLocation::MineOrDungeon;
+	FDigetherQuotaState WipeQuota = MakeIntegrationQuotaFixture();
+	WipeQuota.Day = 2;
+	FDigetherFrameworkReturnPlan WipePlan;
+	if (TestTrue(TEXT("전멸 귀환 계획 수락"),
+		DigetherFrameworkRules::TryPlanReturn(Wipe, Players, WipeQuota, Tuning, Players.Num(), WipePlan)))
+	{
+		bool bAllDied = WipePlan.Players.Num() == Players.Num();
+		for (const FDigetherFrameworkPlayerReturn& Returned : WipePlan.Players)
+		{
+			bAllDied &= Returned.LifeAtEnd.PublicState.Life == EDigetherLifeState::Dead;
+		}
+		TestTrue(TEXT("갱도에 남은 전원은 시간 만료 사망"), bAllDied);
+		TestEqual(TEXT("전멸도 기간 일차 하루 증가"), WipePlan.ReturnedQuota.Day, 3);
+		TestEqual(TEXT("전멸도 전체 일차 하루 증가"), WipePlan.ReturnedQuota.TotalDay, 9);
+	}
 
 	Quota.DepositedCredits = Quota.TargetCredits;
 	TestTrue(TEXT("동일 귀환의 목표 달성 상태도 수락"),
@@ -445,6 +522,10 @@ bool FDigetherFrameworkRejectInvalidReturnTest::RunTest(const FString& Parameter
 		Returned.WalletAtEnd.BalanceCredits = 301;
 		Returned.SettledWallet.BalanceCredits = 302;
 		Returned.RevivedLife.PrivateState.SpectateTargetPlayerKey = TEXT("fixture-preserved-revived-target");
+		Returned.Settlement.GeneralCredits = 303;
+		Returned.Settlement.PayoutCredits = 303;
+		Returned.DeathLossCredits = 304;
+		Returned.ReturnOutcome = EDigetherRunReturnOutcome::Died;
 	}
 	const auto ExpectRejected = [this, &Tuning, &PreviousPlan](const FDigetherRunTerminationInput& CandidateInput,
 		const TArray<FDigetherFrameworkPlayerSnapshot>& CandidatePlayers, const FDigetherQuotaState& CandidateQuota,
@@ -482,6 +563,70 @@ bool FDigetherFrameworkRejectInvalidReturnTest::RunTest(const FString& Parameter
 	ExpectRejected(Input, Players, InvalidQuota, Players.Num());
 	ExpectRejected(Input, Players, Quota, 0);
 	ExpectRejected(Input, Players, Quota, Players.Num() - 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkChainSummonPlanTest,
+	"DIGETHER.Game.Framework.Integration.ChainSummonPlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkChainSummonPlanTest::RunTest(const FString& Parameters)
+{
+	// 탑승 볼륨 크기·간격은 테스트 픽스처이며 최종 기획 탑승 경계가 아니다.
+	const FVector Extent(250.0, 250.0, 100.0);
+	constexpr double Spacing = 100.0;
+	const auto IsSpaced = [Spacing](const TArray<FVector>& Points)
+	{
+		for (int32 Left = 0; Left < Points.Num(); ++Left)
+		{
+			for (int32 Right = Left + 1; Right < Points.Num(); ++Right)
+			{
+				if (FVector::Dist2D(Points[Left], Points[Right]) < Spacing - KINDA_SMALL_NUMBER)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	};
+
+	TArray<FVector> Planned;
+	TestTrue(TEXT("소집 0명은 성공"), DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, {}, 0, Planned));
+	TestEqual(TEXT("소집 0명은 위치 없음"), Planned.Num(), 0);
+
+	// 아무도 타지 않았으면 4명 모두 바닥 안쪽 서로 떨어진 위치로 옮긴다. 첫 소집자는 중심이다.
+	TestTrue(TEXT("빈 엘리베이터 4명 소집"), DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, {}, 4, Planned));
+	TestEqual(TEXT("소집 인원만큼 위치"), Planned.Num(), 4);
+	TestTrue(TEXT("첫 소집 위치는 중심"), Planned.Num() > 0 && Planned[0].Equals(FVector::ZeroVector));
+	TestTrue(TEXT("소집 위치끼리 간격 유지"), IsSpaced(Planned));
+	for (const FVector& Point : Planned)
+	{
+		TestTrue(TEXT("소집 위치는 볼륨 안쪽"), FMath::Abs(Point.X) < Extent.X && FMath::Abs(Point.Y) < Extent.Y);
+		TestEqual(TEXT("소집 위치 높이는 볼륨 중심"), Point.Z, 0.0);
+	}
+
+	// 직접 탑승자가 서 있는 자리는 피한다.
+	const TArray<FVector> Boarded = { FVector(0.0, 0.0, 12.0), FVector(100.0, 0.0, 0.0) };
+	TestTrue(TEXT("직접 탑승자와 함께 2명 소집"), DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, Boarded, 2, Planned));
+	TArray<FVector> All = Boarded;
+	All.Append(Planned);
+	TestTrue(TEXT("직접 탑승자와 소집자 간격 유지"), IsSpaced(All));
+
+	// 같은 입력은 같은 배치다(서버 재시도·로그 재현).
+	TArray<FVector> Again;
+	DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, Boarded, 2, Again);
+	TestTrue(TEXT("같은 입력의 같은 배치"), Again == Planned);
+
+	// 자리가 모자라면 실패하고 출력은 보존한다(임시: 기획의 겹침 허용 대신 출발 거절).
+	const FVector Narrow(60.0, 60.0, 100.0);
+	TArray<FVector> Preserved = { FVector(1.0, 2.0, 3.0) };
+	TestFalse(TEXT("좁은 볼륨 2명 소집 실패"), DigetherFrameworkRules::TryPlanChainSummon(Narrow, Spacing, {}, 2, Preserved));
+	TestTrue(TEXT("실패 시 출력 보존"), Preserved.Num() == 1 && Preserved[0].Equals(FVector(1.0, 2.0, 3.0)));
+	TestTrue(TEXT("좁은 볼륨도 1명은 중심 소집"), DigetherFrameworkRules::TryPlanChainSummon(Narrow, Spacing, {}, 1, Planned));
+	TestFalse(TEXT("잘못된 간격 거절"), DigetherFrameworkRules::TryPlanChainSummon(Extent, 0.0, {}, 1, Planned));
+	TestFalse(TEXT("음수 인원 거절"), DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, {}, -1, Planned));
+	TestFalse(TEXT("NaN 탑승 위치 거절"),
+		DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, { FVector(NAN, 0.0, 0.0) }, 1, Planned));
 	return true;
 }
 

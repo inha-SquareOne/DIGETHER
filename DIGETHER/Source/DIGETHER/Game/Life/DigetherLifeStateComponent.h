@@ -40,8 +40,6 @@ public:
 	FOnDigetherLifePrivateStateChanged OnPrivateStateChanged;
 
 private:
-	bool HasAuthorityOwner() const;
-
 	UFUNCTION()
 	void OnRep_PublicState();
 

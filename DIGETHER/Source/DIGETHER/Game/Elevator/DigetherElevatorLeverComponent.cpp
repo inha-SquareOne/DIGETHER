@@ -1,8 +1,15 @@
 #include "Game/Elevator/DigetherElevatorLeverComponent.h"
+#include "GameFramework/Actor.h"
 
+FGuid UDigetherElevatorLeverComponent::GetActivePullerId() const
+{
+	return GetOwner() && GetOwner()->HasAuthority() && GaugeState.Phase == EDigetherElevatorGaugePhase::Pulling
+		? GaugeState.PullerId : FGuid();
+}
+
+#include "Game/Core/DigetherAuthority.h"
 #include "Game/Elevator/DigetherElevatorLog.h"
 #include "Game/Elevator/DigetherElevatorRules.h"
-#include "GameFramework/Actor.h"
 #include "Net/UnrealNetwork.h"
 
 namespace
@@ -39,7 +46,7 @@ void UDigetherElevatorLeverComponent::GetLifetimeReplicatedProps(TArray<FLifetim
 
 void UDigetherElevatorLeverComponent::BeginNotificationBatch()
 {
-	if (HasServerAuthority())
+	if (DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		++NotificationBatchDepth;
 	}
@@ -47,7 +54,7 @@ void UDigetherElevatorLeverComponent::BeginNotificationBatch()
 
 void UDigetherElevatorLeverComponent::EndNotificationBatch()
 {
-	if (!HasServerAuthority() || NotificationBatchDepth <= 0)
+	if (!DigetherAuthority::HasOwnerAuthority(*this) || NotificationBatchDepth <= 0)
 	{
 		return;
 	}
@@ -76,12 +83,11 @@ void UDigetherElevatorLeverComponent::EndNotificationBatch()
 EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::Configure(const EDigetherElevatorLeverKind Kind,
 	const FDigetherElevatorTuning& Tuning)
 {
-	if (!HasServerAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherElevatorLeverResult::NotAuthority;
 	}
-	if ((Kind != EDigetherElevatorLeverKind::Ascent && Kind != EDigetherElevatorLeverKind::Departure)
-		|| !DigetherElevatorRules::IsValidTuning(Tuning))
+	if (!DigetherElevatorRules::IsValidLeverKind(Kind) || !DigetherElevatorRules::IsValidTuning(Tuning))
 	{
 		return EDigetherElevatorLeverResult::InvalidInput;
 	}
@@ -102,7 +108,7 @@ EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::Configure(const ED
 EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::TryBeginPull(const FGuid& PullerId,
 	const FDigetherElevatorPullContext& Context)
 {
-	if (!HasServerAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherElevatorLeverResult::NotAuthority;
 	}
@@ -115,7 +121,7 @@ EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::TryBeginPull(const
 
 EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::ReleasePull(const FGuid& PullerId)
 {
-	if (!HasServerAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherElevatorLeverResult::NotAuthority;
 	}
@@ -129,7 +135,7 @@ EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::ReleasePull(const 
 EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::AdvancePull(const float DeltaSeconds,
 	const FDigetherElevatorPullContext& Context)
 {
-	if (!HasServerAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherElevatorLeverResult::NotAuthority;
 	}
@@ -142,7 +148,7 @@ EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::AdvancePull(const 
 
 EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::ResetPull()
 {
-	if (!HasServerAuthority())
+	if (!DigetherAuthority::HasOwnerAuthority(*this))
 	{
 		return EDigetherElevatorLeverResult::NotAuthority;
 	}
@@ -161,11 +167,24 @@ FDigetherElevatorLeverPublicState UDigetherElevatorLeverComponent::GetPublicStat
 	return PublicState;
 }
 
+FText UDigetherElevatorLeverComponent::GetDepartureWarningText(const EDigetherDepartureWarningKind WarningKind)
+{
+	switch (WarningKind)
+	{
+	case EDigetherDepartureWarningKind::Standard:
+		return NSLOCTEXT("DigetherElevator", "DepartureWarningStandard", "승강기가 곧 출발합니다");
+	case EDigetherDepartureWarningKind::Deadline:
+		return NSLOCTEXT("DigetherElevator", "DepartureWarningDeadline", "현재 할당량 마감일입니다!");
+	default:
+		return FText::GetEmpty();
+	}
+}
+
 bool UDigetherElevatorLeverComponent::TryGetConfirmedAscent(FDigetherElevatorAscentConfirmed& OutAscent) const
 {
 	OutAscent = FDigetherElevatorAscentConfirmed();
-	if (!HasServerAuthority() || !bInitialized || LeverKind != EDigetherElevatorLeverKind::Ascent
-		|| GaugeState.Phase != EDigetherElevatorGaugePhase::Confirmed)
+	if (!DigetherAuthority::HasOwnerAuthority(*this) || !bInitialized
+		|| LeverKind != EDigetherElevatorLeverKind::Ascent || GaugeState.Phase != EDigetherElevatorGaugePhase::Confirmed)
 	{
 		return false;
 	}
@@ -173,18 +192,14 @@ bool UDigetherElevatorLeverComponent::TryGetConfirmedAscent(FDigetherElevatorAsc
 	return true;
 }
 
-bool UDigetherElevatorLeverComponent::HasServerAuthority() const
-{
-	const AActor* OwnerActor = GetOwner();
-	return IsValid(OwnerActor) && OwnerActor->HasAuthority();
-}
-
 bool UDigetherElevatorLeverComponent::RefreshPublicState()
 {
 	FDigetherElevatorLeverPublicState UpdatedState;
 	UpdatedState.Progress = DigetherElevatorRules::CalculateGaugeProgress(GaugeState);
 	UpdatedState.bWarningActive = GaugeState.bWarningActive;
-	if (PublicState.Progress == UpdatedState.Progress && PublicState.bWarningActive == UpdatedState.bWarningActive)
+	UpdatedState.WarningKind = DigetherElevatorRules::CalculateDepartureWarning(GaugeState);
+	if (PublicState.Progress == UpdatedState.Progress && PublicState.bWarningActive == UpdatedState.bWarningActive
+		&& PublicState.WarningKind == UpdatedState.WarningKind)
 	{
 		return false;
 	}

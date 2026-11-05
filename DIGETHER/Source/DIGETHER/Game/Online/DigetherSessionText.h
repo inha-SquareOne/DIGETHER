@@ -40,6 +40,10 @@ enum class EDigetherSessionText : uint8
 	JoinRequestFailed,
 	RoomFull,
 	RoomClosed,
+	// 호스트 입장 거절 사유(DigetherJoinRules::GetRejectionText). SteamIdRequired도 같은 경로로 쓴다.
+	AccountCheckFailed,
+	AccountAlreadyConnected,
+	RunInProgress,
 	JoinFailed,
 	Connecting,
 	HostConnected,

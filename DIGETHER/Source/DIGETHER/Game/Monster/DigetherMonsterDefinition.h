@@ -25,10 +25,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Monster")
 	FText DisplayName;
 
+	// MON_KILLABLE. 종별 값이며 일반 피해로 사망할 수 있는지다.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Monster")
 	bool bKillable = false;
 
-	// 승인된 종별 체력이 없으므로 기본값으로 처치 가능한 체력을 추정하지 않는다.
+	// MON_HP. 종별 값이며 종 데이터 에셋에 둔다. 코드 기본값으로 처치 가능한 체력을 추정하지 않는다.
+	// 땅거미는 기본 공격 약 8회 처치(2026-11-04 기획 답변 초안)를 기본 공격 12.5 가정으로 100에 둔다(임시값).
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Monster", meta=(ClampMin="0"))
 	float MaxHealth = 0.f;
 };

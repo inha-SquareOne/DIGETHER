@@ -36,7 +36,15 @@ public:
 	UFUNCTION(BlueprintPure, Category="Digether|Elevator")
 	FDigetherElevatorLeverPublicState GetPublicState() const;
 
+	// 경고 종류별 안내 문구다. Standard는 팀원에게, Deadline은 레버 조작자에게 보여 주는 것은 BP가 정한다.
+	UFUNCTION(BlueprintPure, Category="Digether|Elevator")
+	static FText GetDepartureWarningText(EDigetherDepartureWarningKind WarningKind);
+
+	// 서버가 실제 조작자와 레버 사이 거리를 유지 검사할 때만 사용한다.
+	FGuid GetActivePullerId() const;
+
 	// 매니페스트는 서버 조율자만 가져간다. Confirmed는 ResetPull/Configure 전까지 유지한다.
+	// 게이지 완료 순간의 스냅샷이다. 기획 A3의 편 확정 목록은 문이 완전히 닫힌 순간 조율자가 다시 만든다.
 	bool TryGetConfirmedAscent(FDigetherElevatorAscentConfirmed& OutAscent) const;
 
 	FOnDigetherElevatorLeverPublicStateChanged OnPublicStateChanged;
@@ -46,7 +54,6 @@ public:
 	FOnDigetherElevatorLeverDepartureConfirmed OnDepartureConfirmed;
 
 private:
-	bool HasServerAuthority() const;
 	bool RefreshPublicState();
 	void DispatchPublicStateNotification(const FDigetherElevatorLeverPublicState& StateSnapshot);
 	void DispatchFeedbackNotification(const FDigetherElevatorLeverFeedback& FeedbackSnapshot);

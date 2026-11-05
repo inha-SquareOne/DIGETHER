@@ -92,7 +92,14 @@ bool FDigetherTuningProfileTest::RunTest(const FString& Parameters)
 	FDigetherRunTuning ThreeTrips = MakeValidTuning();
 	ThreeTrips.ElevatorTripLimit = 3;
 	Problems.Reset();
-	TestFalse(TEXT("운행 3회는 실패(D24는 1·2회)"), ThreeTrips.CollectProblems(Problems));
+	TestFalse(TEXT("운행 3회는 실패(일반 상승 2회 확정)"), ThreeTrips.CollectProblems(Problems));
+
+	// ELV_ASCENT_LIMIT는 2회 확정이다. 1회 비교 프로필은 쓰지 않으므로 거절한다.
+	FDigetherRunTuning OneTrip = MakeValidTuning();
+	OneTrip.ElevatorTripLimit = 1;
+	Problems.Reset();
+	TestFalse(TEXT("운행 1회는 실패(1회 비교 프로필 폐기)"), OneTrip.CollectProblems(Problems));
+	TestEqual(TEXT("운행 1회 거절 사유 한 개"), Problems.Num(), 1);
 
 	FDigetherRunTuning OverRefund = MakeValidTuning();
 	OverRefund.CorpseRefundPercent = 101;

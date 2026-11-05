@@ -16,6 +16,8 @@ void UDigetherGameUserSettings::SetToDefaults()
 	MusicVolume = 1.f;
 	MouseSensitivity = 1.f;
 	bInvertMouseY = false;
+	MicrophoneMode = EDigetherMicrophoneMode::AlwaysOn;
+	bReduceCameraShake = false;
 }
 
 void UDigetherGameUserSettings::ApplyNonResolutionSettings()

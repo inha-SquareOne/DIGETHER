@@ -16,6 +16,11 @@ namespace DigetherRoomProtocol
 		const FString StateInGame(TEXT("ingame"));
 	}
 
+	FString NormalizeRoomCode(const FString& RoomCode)
+	{
+		return RoomCode.TrimStartAndEnd().ToUpper();
+	}
+
 	bool IsValidRoomCode(const FString& RoomCode)
 	{
 		if (RoomCode.IsEmpty() || RoomCode.Len() > MaxRoomCodeLength)
@@ -24,8 +29,8 @@ namespace DigetherRoomProtocol
 		}
 		for (const TCHAR C : RoomCode)
 		{
-			const bool bAsciiAlnum = (C >= TEXT('a') && C <= TEXT('z')) || (C >= TEXT('A') && C <= TEXT('Z')) || (C >= TEXT('0') && C <= TEXT('9'));
-			if (!bAsciiAlnum && C != TEXT('-') && C != TEXT('_'))
+			const bool bUpperAlnum = (C >= TEXT('A') && C <= TEXT('Z')) || (C >= TEXT('0') && C <= TEXT('9'));
+			if (!bUpperAlnum && C != TEXT('-') && C != TEXT('_'))
 			{
 				return false;
 			}
