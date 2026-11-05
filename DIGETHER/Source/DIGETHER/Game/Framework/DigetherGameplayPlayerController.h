@@ -20,13 +20,16 @@ class UInputAction;
 class UInputMappingContext;
 class ADigetherHubFacilityActor;
 class UDigetherHubFacilityWidget;
+class UDigetherHubInteractionComponent;
+class UDigetherPlayerScreenComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDigetherDepositResult,
 	EDigetherDepositOperation, Operation, FDigetherDepositResponse, Response);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDigetherChainSummoned, float, SummonSeconds);
 DECLARE_MULTICAST_DELEGATE(FOnDigetherPlayerStateChanged);
 
-// 소유 연결의 요청을 전달하며 게임 상태는 서버 GameMode가 확정한다.
+// 소유 연결 요청 전달, 게임 상태 확정은 서버 GameMode
+// 구현 파일: 본체·입력·런 결과(.cpp), 거점 상호작용(HubInteraction), 붓기·납부(Deposit), 저장 요청(Save), 개발 명령(Dev)
 UCLASS()
 class DIGETHER_API ADigetherGameplayPlayerController : public APlayerController
 {
@@ -46,8 +49,8 @@ public:
 	void RequestLoadGame();
 	void RequestNewGame();
 
-	// 폐기된 금액 입력 납부의 진입점이다. BP 참조가 남아 있을 수 있어 선언만 두며 아무 동작도 하지 않는다.
-	// 납부는 우클릭 유지 붓기(StartPour/StopPour)로 바뀌었다(기획 S24).
+	// 폐기된 금액 입력 납부 진입점, BP 참조 호환용 빈 구현
+	// 납부는 우클릭 유지 붓기(StartPour/StopPour)로 대체(기획 S24)
 	UFUNCTION(BlueprintCallable, Category="Digether|Deposit", meta=(DeprecatedFunction, DeprecationMessage="금액 입력 납부는 폐기됐습니다. StartPour/StopPour를 쓰세요."))
 	void RequestOpenDeposit(FName StationId);
 
@@ -60,11 +63,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Digether|Deposit", meta=(DeprecatedFunction, DeprecationMessage="금액 입력 납부는 폐기됐습니다. StartPour/StopPour를 쓰세요."))
 	void StartDepositInteraction(ADigetherDepositStationActor* Station);
 
-	// 사용 중단된 금액 입력 위젯(UDigetherDepositPanelWidget)이 부르는 함수다. 아무 동작도 하지 않는다.
+	// 사용 중단 금액 입력 위젯(UDigetherDepositPanelWidget) 호출용
 	void SubmitDepositInput(const FString& AmountInput);
 	void CloseDepositInteraction();
 
-	// 로컬 붓기 입력 진입점이다. 정식 캐릭터의 돈자루 사용 입력(우클릭 유지)이 부른다. 서버가 조건·차감을 판정한다.
+	// 로컬 붓기 입력 진입점, 정식 캐릭터의 돈자루 사용 입력(우클릭 유지)이 호출, 조건·차감은 서버 판정
 	UFUNCTION(BlueprintCallable, Category="Digether|Deposit")
 	void StartPour(ADigetherDepositStationActor* Station);
 
@@ -86,6 +89,17 @@ public:
 	void CloseHubInteraction();
 	FText GetInteractionHint() const;
 
+	UDigetherHubInteractionComponent* GetHubInteractionComponent() const { return HubInteractionComponent; }
+	TSubclassOf<UDigetherHubFacilityWidget> GetHubFacilityWidgetClass() const { return HubFacilityWidgetClass; }
+	UDigetherPlayerScreenComponent* GetPlayerScreenComponent() const { return PlayerScreenComponent; }
+	TSubclassOf<UDigetherRunHudWidget> GetHudWidgetClass() const { return HudWidgetClass; }
+	TSubclassOf<UDigetherRunResultWidget> GetRunResultWidgetClass() const { return RunResultWidgetClass; }
+	TSubclassOf<UDigetherGameOverCreditsWidget> GetGameOverCreditsWidgetClass() const { return GameOverCreditsWidgetClass; }
+	bool IsRunResultInputModeApplied() const;
+	bool IsLifeInputLocked() const { return bLifeInputLocked; }
+	// 화면 전환 전 공통 정리, 순서: 레버 해제 → 붓기 종료 → 시설 패널 닫기
+	void ReleaseHeldInputsAndHubPanel();
+
 	// 클라이언트 PlayerState 복제·교체(재접속 포함) 알림, HUD 재구독용
 	FOnDigetherPlayerStateChanged OnGameplayPlayerStateChanged;
 
@@ -99,19 +113,19 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_CloseHubForRun();
 
-	// 서버가 거점 문 닫힘 완료 순간 이 참가자를 사슬 소집으로 엘리베이터 안에 옮겼다. 위치 이동은 서버가 이미
-	// 끝냈고, 소유 클라이언트는 SummonSeconds(LOBBY_CHAIN_SUMMON_TIME) 길이의 암전 연출만 한다.
+	// 거점 문 닫힘 완료 순간 서버가 사슬 소집으로 엘리베이터 안에 이동 완료
+	// 소유 클라이언트는 SummonSeconds(LOBBY_CHAIN_SUMMON_TIME) 길이의 암전 연출만 담당
 	UFUNCTION(Client, Reliable)
 	void Client_ChainSummoned(float SummonSeconds);
 
-	// 사슬 소집 암전 연출 진입점이다. 실제 페이드·카메라 연출은 BP가 구현한다.
+	// 사슬 소집 암전 연출 진입점, 페이드·카메라 연출은 BP 구현
 	UFUNCTION(BlueprintImplementableEvent, Category="Digether|Departure", meta=(DisplayName="On Chain Summoned"))
 	void ReceiveChainSummoned(float SummonSeconds);
 
 	UPROPERTY(BlueprintAssignable, Category="Digether|Departure")
 	FOnDigetherChainSummoned OnChainSummoned;
 
-	// Client_DepositResult가 소유자에게 도착한 뒤 UI로 전달한다.
+	// Client_DepositResult 도착 뒤 UI 전달
 	UPROPERTY(BlueprintAssignable, Category="Digether|Deposit")
 	FOnDigetherDepositResult OnDepositResult;
 
@@ -127,7 +141,7 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_SaveResult(bool bSucceeded, const FText& Message);
 
-	// 붓기 시작·끝이다. 서버가 플레이어별 다음 주기 시각을 기록하고 GameMode Tick에서 차감한다(모델 A).
+	// 붓기 시작·끝, 서버가 플레이어별 다음 주기 시각 기록 후 GameMode Tick에서 차감(모델 A)
 	UFUNCTION(Server, Reliable)
 	void Server_BeginPour(ADigetherDepositStationActor* Station);
 
@@ -152,42 +166,42 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_SetLifeSpectating(bool bSpectating);
 
-	// 기획 S33 239행: 결과 크레딧 빨리감기 입력이다. 호스트만 반영되며 모두에게 같은 속도로 적용된다.
+	// 기획 S33 239행: 결과 크레딧 빨리감기 입력, 호스트만 반영·모두에게 같은 속도
 	UFUNCTION(BlueprintCallable, Category="Digether|Game Over")
 	void RequestCreditFastForward(bool bFastForward);
 
 	UFUNCTION(Server, Reliable)
 	void Server_SetCreditFastForward(bool bFastForward);
 
-	// 서버가 이 참가자를 실패 사건에서 흡입해 우물 아래 대기 지점으로 옮겼다(true) 또는 새 게임에서 풀었다(false).
-	// 대기 중에는 이동 입력만 막고 시점 조작은 유지한다.
+	// 실패 사건 흡입으로 우물 아래 대기 지점 이동(true), 새 게임에서 해제(false)
+	// 대기 중 이동 입력만 잠금, 시점 조작 유지
 	UFUNCTION(Client, Reliable)
 	void Client_SetGameOverAbsorbed(bool bAbsorbed);
 
-	// 흡입·대기 연출 진입점이다. 실제 화면 연출은 BP가 구현한다.
+	// 흡입·대기 연출 진입점, 화면 연출은 BP 구현
 	UFUNCTION(BlueprintImplementableEvent, Category="Digether|Game Over", meta=(DisplayName="On Game Over Absorbed"))
 	void ReceiveGameOverAbsorbed(bool bAbsorbed);
 
-	// UHT 선언은 모든 빌드에 유지하고 Shipping 구현은 상태를 변경하지 않는다.
+	// 개발용 RPC, UHT 선언은 모든 빌드 유지·Shipping 구현은 상태 불변
 	UFUNCTION(Server, Reliable)
 	void Server_RunSmoke();
 
 	UFUNCTION(Server, Reliable)
 	void Server_GrantCredits(int32 Amount);
 
-	// 다인 시험용: 자기 Pawn을 PlayerStart로 옮겨 엘리베이터 밖에 남긴다. Shipping 구현은 아무것도 하지 않는다.
+	// 다인 시험용: 자기 Pawn을 PlayerStart로 옮겨 엘리베이터 밖에 남김
 	UFUNCTION(Server, Reliable)
 	void Server_DevTeleportOut();
 
-	// 다인 시험용: 자기 Pawn을 지정 납부대 앞으로 옮긴다. Shipping 구현은 아무것도 하지 않는다.
+	// 다인 시험용: 자기 Pawn을 지정 납부대 앞으로 이동
 	UFUNCTION(Server, Reliable)
 	void Server_DevTeleportToDeposit(FName StationId);
 
-	// 시설 UI·다인 검증용 이동이며 Shipping에서는 상태를 바꾸지 않는다.
+	// 시설 UI·다인 검증용 이동
 	UFUNCTION(Server, Reliable)
 	void Server_DevTeleportToHubFacility(FName FacilityId);
 
-	// 신호기 경계 시험용: 현재 목표의 공동 인정액을 정한다. Shipping 구현은 아무것도 하지 않는다.
+	// 신호기 경계 시험용: 현재 목표의 공동 인정액 지정
 	UFUNCTION(Server, Reliable)
 	void Server_DevSetQuotaProgress(int32 DepositedCredits);
 
@@ -196,108 +210,91 @@ public:
 #endif
 
 private:
+	// --- 공통 ---
+	ADigetherGameplayGameMode* ResolveGameplayGameMode() const;
+
+	// --- 상호작용 입력·거점 시설 (HubInteraction.cpp, 로컬 상태는 컴포넌트) ---
+	UPROPERTY(VisibleAnywhere, Category="Digether|Interaction")
+	TObjectPtr<UDigetherHubInteractionComponent> HubInteractionComponent;
 	UPROPERTY(EditDefaultsOnly, Category="Digether|Interaction")
 	TObjectPtr<UInputMappingContext> InteractMappingContext;
 	UPROPERTY(EditDefaultsOnly, Category="Digether|Interaction")
 	TObjectPtr<UInputAction> InteractAction;
-	// 붓기(우클릭 유지) 입력이다. 에셋은 나중에 지정한다. 비어 있으면 개발 명령 DigetherPour로 시험한다.
+	UPROPERTY(EditDefaultsOnly, Category="Digether|Hub|UI")
+	TSubclassOf<UDigetherHubFacilityWidget> HubFacilityWidgetClass;
+	// 서버 측 시설 요청 간격 기록
+	double LastHubRequestSeconds = -1.0;
+
+	// --- 붓기·납부 (Deposit.cpp) ---
+	// 붓기(우클릭 유지) 입력, 에셋 미지정 시 개발 명령 DigetherPour로 시험
 	UPROPERTY(EditDefaultsOnly, Category="Digether|Deposit|Input")
 	TObjectPtr<UInputMappingContext> PourMappingContext;
 	UPROPERTY(EditDefaultsOnly, Category="Digether|Deposit|Input")
 	TObjectPtr<UInputAction> PourAction;
-	// 로컬 표시용이다. 서버가 멈춤을 알리면 비운다.
+	// 로컬 표시용, 서버 중단 알림 시 비움
 	TWeakObjectPtr<ADigetherDepositStationActor> HeldPourStation;
-	UPROPERTY(EditDefaultsOnly, Category="Digether|Hub|UI")
-	TSubclassOf<UDigetherHubFacilityWidget> HubFacilityWidgetClass;
-	UPROPERTY(Transient)
-	TObjectPtr<UDigetherHubFacilityWidget> HubFacilityWidget;
-	TWeakObjectPtr<ADigetherHubFacilityActor> ActiveHubFacility;
-	TWeakObjectPtr<ADigetherElevatorLeverActor> HeldInteractionLever;
-	FDigetherHubView CurrentHubView;
-	FGuid ActiveHubRequestId;
-	double LastHubRequestSeconds = -1.0;
-	bool bHubInputModeApplied = false;
-	bool bHubPreviousCursorVisible = false;
-	bool bHubRequestPending = false;
-	EDigetherHubAction LastHubAction = EDigetherHubAction::Inspect;
-	FTimerHandle HubViewRefreshTimer;
-	void HandleInteractStarted();
-	void HandleInteractReleased();
+	TMap<EDigetherDepositOperation, double> LastDepositRequestSeconds;
 	void HandlePourStarted();
 	void HandlePourReleased();
-	AActor* FindInteractionTarget() const;
-	void SendHubRequest(EDigetherHubAction Action, FName OptionId = NAME_None);
+	// 요청 종류별 최소 간격 적용, EndPour에는 미적용(놓친 끝 요청이 붓기를 남기지 않게)
+	ADigetherGameplayGameMode* ResolveDepositGameMode(EDigetherDepositOperation Operation,
+		FDigetherDepositResponse& OutResponse);
 
-	UPROPERTY(EditDefaultsOnly, Category="Digether|UI")
-	TSubclassOf<UDigetherRunHudWidget> HudWidgetClass;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UDigetherRunHudWidget> HudWidget;
-
-	UPROPERTY(EditDefaultsOnly, Category="Digether|Run Result|UI")
-	TSubclassOf<UDigetherRunResultWidget> RunResultWidgetClass;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UDigetherRunResultWidget> RunResultWidget;
-
-	// 결과 크레딧 화면이다. 비우면 만들지 않는다. 위젯이 공개 상태를 보고 크레딧 단계에만 스스로 보인다.
-	UPROPERTY(EditDefaultsOnly, Category="Digether|Game Over|UI")
-	TSubclassOf<UDigetherGameOverCreditsWidget> GameOverCreditsWidgetClass;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UDigetherGameOverCreditsWidget> GameOverCreditsWidget;
-
-	// 이 Controller가 흡입 대기 때문에 더한 이동 입력 잠금만 정확히 한 번 해제한다.
-	bool bGameOverInputLocked = false;
-
-	TWeakObjectPtr<ADigetherGameplayPlayerState> RunResultPlayerState;
-	FGuid LastPresentedRunResultId;
-	bool bRunResultPreviousCursorVisible = false;
-	bool bRunResultInputModeApplied = false;
-	void RefreshRunResultBinding();
-	void HandleRunResultChanged(const FDigetherRunResult& Result);
-
-	// 사용 중단: 금액 입력 납부 화면 클래스다. BP 기본값 호환을 위해 남기며 코드에서 만들지 않는다.
+	// 사용 중단: 금액 입력 납부 화면 클래스, BP 기본값 호환용으로 남기며 코드에서 미생성
 	UPROPERTY(EditDefaultsOnly, Category="Digether|Deposit|UI")
 	TSubclassOf<UDigetherDepositPanelWidget> DepositPanelWidgetClass;
 
-	// 사용 중단: 폐기된 금액 입력 화면이다. BP 기본값에 지정돼 있을 수 있어 프로퍼티만 남긴다.
+	// 사용 중단: 폐기된 금액 입력 화면, BP 기본값 호환용 프로퍼티
 	UPROPERTY(Transient)
 	TObjectPtr<UDigetherDepositPanelWidget> DepositPanelWidget;
 
-	// 사용 중단: 폐기된 금액 입력 시험 입력이다. BP 기본값 호환을 위해 프로퍼티만 남긴다.
+	// 사용 중단: 폐기된 금액 입력 시험 입력, BP 기본값 호환용 프로퍼티
 	UPROPERTY(EditDefaultsOnly, Category="Digether|Deposit|Test Input")
 	TObjectPtr<UInputMappingContext> TestDepositMappingContext;
 
 	UPROPERTY(EditDefaultsOnly, Category="Digether|Deposit|Test Input")
 	TObjectPtr<UInputAction> TestDepositInteractAction;
 
-	ADigetherGameplayGameMode* ResolveGameplayGameMode() const;
-	// 요청 종류별 최소 간격을 적용한다. 붓기 끝(EndPour)에는 쓰지 않는다(놓친 끝 요청이 붓기를 남기지 않게).
-	ADigetherGameplayGameMode* ResolveDepositGameMode(EDigetherDepositOperation Operation,
-		FDigetherDepositResponse& OutResponse);
+	// --- 화면: HUD·런 결과·크레딧 (위젯 수명·입력 모드는 컴포넌트) ---
+	UPROPERTY(VisibleAnywhere, Category="Digether|UI")
+	TObjectPtr<UDigetherPlayerScreenComponent> PlayerScreenComponent;
 
-	TMap<EDigetherDepositOperation, double> LastDepositRequestSeconds;
-	// 이 Controller가 관전 때문에 더한 입력 잠금만 정확히 한 번 해제한다.
+	UPROPERTY(EditDefaultsOnly, Category="Digether|UI")
+	TSubclassOf<UDigetherRunHudWidget> HudWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, Category="Digether|Run Result|UI")
+	TSubclassOf<UDigetherRunResultWidget> RunResultWidgetClass;
+
+	// 결과 크레딧 화면, 비우면 미생성, 위젯이 공개 상태를 보고 크레딧 단계에만 표시
+	UPROPERTY(EditDefaultsOnly, Category="Digether|Game Over|UI")
+	TSubclassOf<UDigetherGameOverCreditsWidget> GameOverCreditsWidgetClass;
+
+	void RefreshRunResultBinding();
+
+	// --- 관전·게임 오버 입력 잠금 ---
+	// 관전 때문에 더한 입력 잠금만 정확히 한 번 해제
 	bool bLifeInputLocked = false;
+	// 흡입 대기 때문에 더한 이동 입력 잠금만 정확히 한 번 해제
+	bool bGameOverInputLocked = false;
 
+	// --- 개발 명령 (Dev.cpp) ---
 #if !UE_BUILD_SHIPPING
 	void DigetherLever(const FString& Arguments);
 	void DigetherRunSmoke();
 	void DigetherGrantCredits(const FString& AmountInput);
-	// 붓기 입력 에셋 없이 시험한다: 가장 가까운(또는 지정한) 정산기에 <초> 동안 붓는다.
+	// 붓기 입력 에셋 없이 시험: 가장 가까운(또는 지정한) 정산기에 <초> 동안 붓기
 	void DigetherPour(const FString& Arguments);
 	void DigetherPourStop();
 	void DigetherSetQuotaProgress(const FString& AmountInput);
-	// 크레딧 빨리감기 시험용: DigetherCreditFastForward 1|0. 호스트가 아니면 서버가 거절한다.
+	// 크레딧 빨리감기 시험용: DigetherCreditFastForward 1|0, 호스트가 아니면 서버 거절
 	void DigetherCreditFastForward(const FString& Arguments);
-	// 다인 시험용: 이 프로세스가 받은 복제 상태(런·목표·엘리베이터·플레이어별 지갑·생존·바닥 금화)를 로그로 남긴다.
+	// 다인 시험용: 이 프로세스가 받은 복제 상태(런·목표·엘리베이터·플레이어별 지갑·생존·바닥 금화) 로그
 	void DigetherDumpState();
 	void DigetherTeleportOut();
 	void DigetherTeleportToDeposit(const FString& StationInput);
-	// 명령줄 -DigetherAutoCmds="초:명령|초:명령"을 이 Controller의 BeginPlay 기준으로 예약 실행한다.
+	// 명령줄 -DigetherAutoCmds="초:명령|초:명령"을 이 Controller의 BeginPlay 기준으로 예약 실행
 	void ScheduleAutoCommands();
-	// 개발 서버 RPC는 호스트 본인 또는 서버가 -DigetherDevRpc로 켠 경우에만 받는다.
+	// 개발 서버 RPC는 호스트 본인 또는 서버가 -DigetherDevRpc로 켠 경우만 수락
 	bool IsDevServerRpcAllowed() const;
 
 	FTimerHandle DevPourTimer;

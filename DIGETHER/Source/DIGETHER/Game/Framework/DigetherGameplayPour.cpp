@@ -53,7 +53,6 @@ namespace
 	{
 		switch (Reason)
 		{
-		case EDigetherPourStopReason::Released: return EDigetherEconomyResult::Success;
 		case EDigetherPourStopReason::InteractionLost: return EDigetherEconomyResult::PourInteractionLost;
 		case EDigetherPourStopReason::Disconnected: return EDigetherEconomyResult::PourInteractionLost;
 		case EDigetherPourStopReason::DepositClosed: return EDigetherEconomyResult::DepositClosed;

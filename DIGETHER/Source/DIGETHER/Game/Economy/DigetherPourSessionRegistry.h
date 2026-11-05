@@ -5,8 +5,6 @@
 // 붓기 중지 이유, 소유 클라이언트 알림·로그 전용(저장·복제 안 함)
 enum class EDigetherPourStopReason : uint8
 {
-	// 우클릭 해제(Server_EndPour)
-	Released,
 	// 거리·투입구 방향·가림·생존·요청자 조건 불일치
 	InteractionLost,
 	Disconnected,
