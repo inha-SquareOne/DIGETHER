@@ -100,17 +100,9 @@ AActor* ADigetherGameplayPlayerController::FindInteractionTarget() const
 	AActor* Best = nullptr;
 	double BestScore = TNumericLimits<double>::Max();
 	// 로컬 표시·입력용 후보 선택, 실제 상호작용은 서버 재검사
-	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	auto Consider = [&](AActor* Candidate, const ADigetherHubFacilityActor* Facility, const bool bFloorCoin)
 	{
-		AActor* Candidate = *It;
-		const ADigetherHubFacilityActor* Facility = Cast<ADigetherHubFacilityActor>(Candidate);
-		if (!Facility && !Candidate->IsA<ADigetherDepositStationActor>()
-			&& !Candidate->IsA<ADigetherElevatorLeverActor>() && !Candidate->IsA<ADigetherFloorCoinActor>())
-		{
-			continue;
-		}
 		// 시설·금화는 원점, 레버·정산기는 몸통 높이 기준
-		const bool bFloorCoin = Candidate->IsA<ADigetherFloorCoinActor>();
 		const FVector Target = Candidate->GetActorLocation() + (Facility || bFloorCoin ? FVector::ZeroVector : FVector(0, 0, 80));
 		const double Range = Facility ? Facility->InteractionDistanceCm : 200.0;
 		const double Distance = FVector::Dist(ControlledPawn->GetActorLocation(), Candidate->GetActorLocation());
@@ -119,14 +111,14 @@ AActor* ADigetherGameplayPlayerController::FindInteractionTarget() const
 		// 조작면 가까이에서는 시선각 조건 완화
 		if (Distance > Range || (Dot < .2 && Distance > 60))
 		{
-			continue;
+			return;
 		}
 		FHitResult Hit;
 		FCollisionQueryParams Params(SCENE_QUERY_STAT(HubInteractionSight), false, ControlledPawn);
 		if (GetWorld()->LineTraceSingleByChannel(Hit, Eye, Target, ECC_Visibility, Params)
 			&& Hit.GetActor() != Candidate && Hit.Distance + 4 < ToTarget.Size())
 		{
-			continue;
+			return;
 		}
 		const double Score = Distance + (1 - Dot) * 150;
 		if (Score < BestScore)
@@ -134,6 +126,23 @@ AActor* ADigetherGameplayPlayerController::FindInteractionTarget() const
 			Best = Candidate;
 			BestScore = Score;
 		}
+	};
+	// 후보 4종은 서로 다른 AActor 직계 계열, 클래스별 순회로 전체 Actor 순회 회피
+	for (TActorIterator<ADigetherHubFacilityActor> It(GetWorld()); It; ++It)
+	{
+		Consider(*It, *It, false);
+	}
+	for (TActorIterator<ADigetherDepositStationActor> It(GetWorld()); It; ++It)
+	{
+		Consider(*It, nullptr, false);
+	}
+	for (TActorIterator<ADigetherElevatorLeverActor> It(GetWorld()); It; ++It)
+	{
+		Consider(*It, nullptr, false);
+	}
+	for (TActorIterator<ADigetherFloorCoinActor> It(GetWorld()); It; ++It)
+	{
+		Consider(*It, nullptr, true);
 	}
 	return Best;
 }

@@ -201,6 +201,7 @@ void ADigetherGameplayPlayerController::OnRep_PlayerState()
 {
 	Super::OnRep_PlayerState();
 	RefreshRunResultBinding();
+	OnGameplayPlayerStateChanged.Broadcast();
 }
 
 void ADigetherGameplayPlayerController::OnPossess(APawn* InPawn)
@@ -440,33 +441,40 @@ void ADigetherGameplayPlayerController::HandlePourReleased()
 void ADigetherGameplayPlayerController::Server_ManualSave_Implementation()
 {
 #if !UE_BUILD_SHIPPING
-	ADigetherGameplayGameMode* GameMode = ResolveGameplayGameMode();
-	const bool bSucceeded = IsDevServerRpcAllowed() && IsValid(GameMode) && GameMode->SaveProgress(this);
-	Client_SaveResult(bSucceeded, bSucceeded
-		? NSLOCTEXT("DigetherSave", "ManualSaveSucceeded", "진행을 저장했습니다.")
-		: NSLOCTEXT("DigetherSave", "ManualSaveRejected", "진행 저장을 완료하지 못했습니다."));
+	// 결과는 GameMode가 한 번 보냄, 여기선 GameMode 전 거절만 보냄
+	ADigetherGameplayGameMode* GameMode = IsDevServerRpcAllowed() ? ResolveGameplayGameMode() : nullptr;
+	if (!IsValid(GameMode))
+	{
+		Client_SaveResult(false, NSLOCTEXT("DigetherSave", "ManualSaveRejected", "진행 저장을 완료하지 못했습니다."));
+		return;
+	}
+	GameMode->SaveProgress(this);
 #endif
 }
 
 void ADigetherGameplayPlayerController::Server_LoadGame_Implementation()
 {
 #if !UE_BUILD_SHIPPING
-	ADigetherGameplayGameMode* GameMode = ResolveGameplayGameMode();
-	const bool bSucceeded = IsDevServerRpcAllowed() && IsValid(GameMode) && GameMode->LoadProgress(this);
-	Client_SaveResult(bSucceeded, bSucceeded
-		? NSLOCTEXT("DigetherSave", "LoadSucceeded", "저장한 진행을 불러왔습니다.")
-		: NSLOCTEXT("DigetherSave", "LoadRejected", "저장한 진행을 불러오지 못했습니다."));
+	ADigetherGameplayGameMode* GameMode = IsDevServerRpcAllowed() ? ResolveGameplayGameMode() : nullptr;
+	if (!IsValid(GameMode))
+	{
+		Client_SaveResult(false, NSLOCTEXT("DigetherSave", "LoadRequestRejected", "저장한 진행을 불러오지 못했습니다."));
+		return;
+	}
+	GameMode->LoadProgress(this);
 #endif
 }
 
 void ADigetherGameplayPlayerController::Server_NewGame_Implementation()
 {
 #if !UE_BUILD_SHIPPING
-	ADigetherGameplayGameMode* GameMode = ResolveGameplayGameMode();
-	const bool bSucceeded = IsDevServerRpcAllowed() && IsValid(GameMode) && GameMode->StartNewGame(this);
-	Client_SaveResult(bSucceeded, bSucceeded
-		? NSLOCTEXT("DigetherSave", "NewGameSucceeded", "새 게임을 시작했습니다.")
-		: NSLOCTEXT("DigetherSave", "NewGameRejected", "새 게임을 시작하지 못했습니다."));
+	ADigetherGameplayGameMode* GameMode = IsDevServerRpcAllowed() ? ResolveGameplayGameMode() : nullptr;
+	if (!IsValid(GameMode))
+	{
+		Client_SaveResult(false, NSLOCTEXT("DigetherSave", "NewGameRejected", "새 게임을 시작하지 못했습니다."));
+		return;
+	}
+	GameMode->StartNewGame(this);
 #endif
 }
 

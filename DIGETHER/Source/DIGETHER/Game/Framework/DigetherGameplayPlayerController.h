@@ -24,6 +24,7 @@ class UDigetherHubFacilityWidget;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDigetherDepositResult,
 	EDigetherDepositOperation, Operation, FDigetherDepositResponse, Response);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDigetherChainSummoned, float, SummonSeconds);
+DECLARE_MULTICAST_DELEGATE(FOnDigetherPlayerStateChanged);
 
 // 소유 연결의 요청을 전달하며 게임 상태는 서버 GameMode가 확정한다.
 UCLASS()
@@ -84,6 +85,9 @@ public:
 	void SubmitHubOption(int32 OptionIndex);
 	void CloseHubInteraction();
 	FText GetInteractionHint() const;
+
+	// 클라이언트 PlayerState 복제·교체(재접속 포함) 알림, HUD 재구독용
+	FOnDigetherPlayerStateChanged OnGameplayPlayerStateChanged;
 
 	UFUNCTION(Server, Reliable)
 	void Server_HubFacilityRequest(ADigetherHubFacilityActor* Facility, EDigetherHubAction Action,

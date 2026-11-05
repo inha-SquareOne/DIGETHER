@@ -89,7 +89,7 @@ void ADigetherGameplayGameMode::StartPlay()
 	UDigetherQuotaStateComponent* Quota = IsValid(State) ? State->GetQuotaComponent() : nullptr;
 	const FDigetherQuotaState InitialQuota = FDigetherEconomyRules::MakeInitialQuotaState(Snapshot);
 	// 신호기 경계는 이 연결층이 보관하는 경제 튜닝 원본과 같아야 한다.
-	if (!IsValid(Quota) || Quota->SetSignalTuning(EconomyTuning) != EDigetherEconomyResult::Success
+	if (!IsValid(Quota) || Quota->SetSignalTuning(EconomyTuning, false) != EDigetherEconomyResult::Success
 		|| Quota->SetQuotaState(InitialQuota, false) != EDigetherEconomyResult::Success)
 	{
 		UE_LOG(LogDigetherFramework, Error, TEXT("Run initialization rejected: authoritative quota component unavailable."));

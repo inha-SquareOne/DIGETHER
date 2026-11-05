@@ -361,7 +361,7 @@ bool ADigetherGameplayGameMode::RestoreProgress(const FDigetherSaveSnapshot& Sna
 			}
 		}
 	}
-	ensure(State->GetQuotaComponent()->SetSignalTuning(EconomyTuning) == EDigetherEconomyResult::Success);
+	ensure(State->GetQuotaComponent()->SetSignalTuning(EconomyTuning, false) == EDigetherEconomyResult::Success);
 	State->GetQuotaComponent()->RestoreState(Snapshot.Quota, false);
 	// 기존 바닥 금화를 지우고 저장대로 다시 만든다(이어하기·공통 로딩 실패 복귀·새 게임은 빈 목록).
 	ensureMsgf(RestoreFloorCoins(Snapshot.FloorCoins), TEXT("Floor coin restore spawned fewer piles than saved."));
@@ -682,6 +682,11 @@ bool ADigetherGameplayGameMode::LoadProgress(ADigetherGameplayPlayerController* 
 	}
 	if (Result == EDigetherSaveResult::NotFound)
 	{
+		// 시작 시 빈 슬롯은 새 진행이라 알림 생략
+		if (!bStartup)
+		{
+			NotifySaveResult(Requester, false, NSLOCTEXT("DigetherSave", "LoadNotFound", "저장한 진행을 불러오지 못했습니다."));
+		}
 		return false;
 	}
 	if (Result == EDigetherSaveResult::Success && Snapshot.RunPublicState.bGameOver)
@@ -808,6 +813,7 @@ bool ADigetherGameplayGameMode::StartNewGame(ADigetherGameplayPlayerController* 
 	if (!IsHostRequester(Requester) || !ElevatorActor.IsValid()
 		|| RunCoordinatorComponent->CapturePublicState().Phase == EDigetherRunPhase::InProgress || IsGameOverActive())
 	{
+		NotifySaveResult(Requester, false, NSLOCTEXT("DigetherSave", "NewGameRejected", "새 게임을 시작하지 못했습니다."));
 		return false;
 	}
 	FDigetherSaveSnapshot Initial;
