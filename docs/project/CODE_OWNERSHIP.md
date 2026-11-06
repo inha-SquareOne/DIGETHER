@@ -14,3 +14,8 @@
 CODEOWNERS는 리뷰 책임을 표시하며 파일 쓰기 독점·기획 승인·브랜치 보호를 대신하지 않는다. 공유 문서·Config·Plugins·Git BP·SVN 아트/맵의 담당은 미확정이다. SVN 파일은 Git CODEOWNERS 대상이 아니므로 잠금·인계로 관리한다. 실제 GitHub 해석 오류와 자동 리뷰 동작은 원격에서 별도 확인한다.
 
 대표 원문: [납부 DEV-025](https://www.notion.so/4097458fa947818c9a32e2fbb4061d92), [장비 DEV-053](https://www.notion.so/4097458fa94781ee9b6cdbb8c18a04f1), [굴착 DEV-012](https://www.notion.so/4097458fa94781e6a635f1f3df0cedcc), [던전 진입 DEV-042](https://www.notion.so/4097458fa94781b1bc67cc8694bc9e81). 대표 페이지 수정 시각은 각각 11-05, 10-30, 10-30, 10-30이며 수정 시각을 승인일로 간주하지 않는다.
+
+## 원격 검사 결과
+
+2026-11-06 GitHub CODEOWNERS 오류 API에서 go5rae·zhun0922가 Unknown owner로 보고되었다. 계정 존재와 사용자 연결은 확인했으나 저장소 쓰기 권한은 미확인이다. 해당 3개 경로 규칙은 주석으로 보존했으며 권한 확인 후 활성화한다. 담당 배정을 바꾼 것이 아니며 다른 사람으로 대체하지 않는다.
+

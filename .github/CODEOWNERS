@@ -21,11 +21,11 @@
 /DIGETHER/Source/DIGETHER/Game/Dev/ @AidenKim923
 
 # 용다인: DEV-012 굴착. 갱도 전체에는 김민성 담당 보강도 있어 광역 지정하지 않는다.
-/DIGETHER/Source/DIGETHER/Prototype/World/DigetherExcavation* @go5rae
-/DIGETHER/Source/DIGETHER/Prototype/Tests/DigetherExcavationTerrainTest.cpp @go5rae
+# 권한 확인 대기: /DIGETHER/Source/DIGETHER/Prototype/World/DigetherExcavation* @go5rae
+# 권한 확인 대기: /DIGETHER/Source/DIGETHER/Prototype/Tests/DigetherExcavationTerrainTest.cpp @go5rae
 
 # 김지훈: DEV-042 던전 진입. 현재 시험용 양방향 포탈 경로
-/DIGETHER/Source/DIGETHER/Prototype/World/DigetherPrototypePortal.* @zhun0922
+# 권한 확인 대기: /DIGETHER/Source/DIGETHER/Prototype/World/DigetherPrototypePortal.* @zhun0922
 
 # 강태웅(@pajupaju0907-byte): 인벤토리·장비·팀킬 등은 현재 독립 경로 미분리.
 # 미구현 경로·통합 Character 전체를 임의 지정하지 않고 CODE_OWNERSHIP.md에 보존한다.
