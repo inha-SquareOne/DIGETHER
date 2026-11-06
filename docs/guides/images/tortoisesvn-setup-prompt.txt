@@ -1,0 +1,81 @@
+Use case: infographic-diagram
+Asset type: Korean team onboarding poster, a clear TortoiseSVN client setup guide for DIGETHER.
+Create ONE polished high-resolution portrait instructional image, approximately 2048x3072, with large perfectly legible Korean typography. Clean light background, deep navy titles, teal numbered badges, restrained orange callouts, thin gray dividers. Professional software onboarding handout. Flat UI illustrations with realistic Windows-style simplified dialogs and orange pointer arrows. This is an explanatory illustration, NOT a real screenshot. All text is Korean except actual English TortoiseSVN menu labels. Follow the exact text below and keep it readable. Do not add fictional server URLs, credentials, people, configuration values, or a pretend completed team deployment.
+
+Top heading:
+"DIGETHER"
+"TortoiseSVN 설정 가이드"
+"팀 PC의 SVN 서버에 접속하는 팀원용"
+Small visible badge: "도입 준비용 · 실제 이관은 별도"
+Small note: "화면은 설명용 예시입니다"
+
+Below heading, a two-cell scope strip:
+"Git  |  코드 · 설정 · 문서"
+"SVN  |  Content · 제작 원본"
+A small project-status line: "실제 전환 전까지 현재 Git LFS 유지"
+
+Six numbered steps, ordered left-to-right then downward. Steps 1 and 2 share a row. Step 3 spans full width and is the largest panel. Steps 4 and 5 share a row. Step 6 spans full width. Keep ample whitespace.
+
+STEP 1 title: "01  TortoiseSVN 설치"
+Body exact:
+"tortoisesvn.net/downloads.html"
+"PC에 맞는 설치 파일 선택"
+"한국어 언어팩은 선택 사항"
+Visual: simple Windows installer window with a download arrow and Install button. A small optional language setting chip "Settings → General → Language". Do not invent installer checkboxes or system requirements.
+
+STEP 2 title: "02  관리자에게 3가지 받기"
+Three large labeled lines with corresponding icons:
+"저장소 URL"
+"개인 계정과 비밀번호"
+"팀 지정 작업 폴더"
+Small body: "서버 주소와 폴더 경로는 팀 안내 사용"
+No example URL or actual account should appear.
+
+STEP 3 title: "03  빈 폴더에서 Checkout"
+Body: "폴더 우클릭 → SVN Checkout..."
+A large simplified accurate Checkout dialog, titled "Checkout", with these four form rows:
+"URL of repository:" field text "관리자에게 받은 SVN URL"
+"Checkout directory:" field text "팀이 지정한 빈 폴더"
+"Checkout Depth:" selected text "Fully recursive"
+"Revision:" radio dot selected "HEAD revision"
+Bottom button "OK"
+Callout arrows point to the first two fields, with labels "팀이 지정한 저장소 경로" and "처음에는 빈 폴더 사용".
+Small body below: "Windows 11에서 메뉴가 안 보이면 ‘더 많은 옵션 표시’"
+Orange small callout: "기존 Content 위에 바로 덮어받지 않기"
+
+STEP 4 title: "04  로그인 · 내려받기 확인"
+Body:
+"개인 SVN 계정으로 로그인"
+"진행 창의 Completed · 리비전 확인"
+"파일이 내려왔는지 확인"
+Visual: a simple username/password dialog with labels "Username", "Password", username field "개인 계정", password dots only, and "OK". Next to it a compact download status illustration "Completed". Do not include any made-up revision numbers.
+Small note: "실제 팀 서버 접속은 별도 확인"
+
+STEP 5 title: "05  편집 전 최신화 · 잠금"
+Small badge: "팀 잠금 정책 적용 후"
+Large horizontal flow:
+"SVN Update → Get Lock... → 편집"
+Body:
+"편집할 파일만 선택해 잠금"
+".uasset · .umap은 한 번에 한 명"
+Visual: one file icon with a padlock and a highlighted context menu "TortoiseSVN → Get Lock...". Do not show an entire folder being locked. Do not imply locks are already configured.
+
+STEP 6 title: "06  저장 후 Commit"
+Body:
+"저장 · 에디터 종료 → 변경 목록 확인 → SVN Commit..."
+"새 파일은 Add 후 Commit"
+"설명 입력 → 업로드 완료 · 리비전 확인"
+Visual: compact commit checklist, one unchecked checkbox labeled "Keep locks", and button "OK".
+Small caption: "작업이 끝났으면 Keep locks 해제 · 잠금 해제 확인"
+Optional concise technical hint in small text: "잠금 상태 확인: Check for Modifications → Check Repository"
+
+At bottom a distinct administrator handoff box, exactly:
+"관리자 준비"
+"계정 · 권한 · 백업 · 잠금 대상 확정"
+"svn:needs-lock 적용 범위와 새 파일 자동 적용 규칙은 별도 합의"
+"저장소 구조 · Git/SVN 버전 짝 맞추기 규칙도 이관 전에 결정"
+
+Footer small but readable:
+"공식 문서 기준: tortoisesvn.net  |  프로젝트 기준: ADR-004  |  2026-11-06"
+
+Constraints: Every Korean label must be correctly spelled, sharp, readable. UI illustrations should be educational and minimal, with no extra unreadable filler text. Do not include the SVN server installation wizard, VisualSVN settings, Unreal source control login, Jenkins setup, or Git migration commands. Keep the project adoption status explicit. No logos other than plain DIGETHER text, no watermark, no mascots, no decorative 3D scenes.

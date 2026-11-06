@@ -7,7 +7,7 @@
 1. 팀이 부여한 GitHub 저장소 읽기/쓰기 권한을 확인하고 저장소를 복제한다. 이미 복제되어 있으면 새 복제 없이 작업 트리 상태를 확인한다.
 2. README → 프로젝트 문서 지도 → Notion 기획 원본/이관 전 초안 → 작업 경계를 읽는다.
 3. Unreal Engine 5.8.4와 Windows C++ 컴파일 도구를 준비한다. 팀 배포 방식·SDK 기준은 프로필의 미결 상태를 확인한다. 다른 버전에서 프로젝트를 열어 자동 변환하지 않는다.
-4. 프로젝트의 `.gitattributes` LFS 패턴과 대용량 파일 정책을 확인하고 로컬 LFS 설치·객체 복원을 검증한다. 원격 용량·업로드·잠금은 아직 별도 확인 대상이다.
+4. 에셋 관리 방식([ADR-004](decisions/ADR-004-git-code-svn-assets.md): 로직 폴더는 Git, 아트·맵·제작 원본은 SVN)을 확인하고 SVN 클라이언트(TortoiseSVN)를 설치해 `DIGETHER/Content`·`DIGETHER/SourceArt`를 checkout한다. 절차는 [개발 흐름](project/DEVELOPMENT_WORKFLOW.md#git과-svn-전환-절차)을 따른다. 2026-11-06 기준 SVN 첫 등록은 미실행이다.
 
 아래는 소스 확보 절차이며 이번 작업에서 실행한 clone은 아니다.
 
@@ -23,7 +23,7 @@ git remote -v
 | 단계 | 필요한 확정값 | 성공 관찰 | 실패 시 확인 |
 |---|---|---|---|
 | 의존 복원 | 엔진 배포·SDK·플러그인 버전 | 팀 기준과 실제 버전 일치 | 임의 업데이트 대신 버전 차이 기록 |
-| 에셋 복원 | LFS 추적·권한 | 포인터가 아닌 실제 에셋 확보 | LFS 상태·객체 다운로드 오류 |
+| 에셋 복원 | Git 로직 폴더·SVN checkout·권한 | 에디터에서 맵·BP가 열림 | `git status`·`svn status`·누락 에셋 경고 |
 | 빌드 | `DIGETHEREditor`/`DIGETHER`, UE 5.8.4 루트 | 검사 실행기의 해당 타깃 성공 | 첫 오류와 새 경고, UBT 완료 출력 |
 | 프로젝트 열기 | `DIGETHER/DIGETHER.uproject` | Editor·필수 모듈 로드, Output Log 확인 | 엔진 버전·모듈·플러그인 |
 | 개발 도구 | 도구 → 개발 워크벤치 열기 | 필요한 도구와 상태 조회 | [개발 도구 안내](tools/DEVELOPER_TOOLS.md)의 적용 상태·한계 |

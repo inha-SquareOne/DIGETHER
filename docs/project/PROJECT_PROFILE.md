@@ -16,7 +16,7 @@
 | 소스 관리 | GitHub: https://github.com/inha-SquareOne/DIGETHER (로컬 origin 확인) |
 | 브랜치 | [Gitflow 채택](../COMMIT_CONVENTION.md). 로컬 main·develop 및 feature 작업 브랜치 운영. 원격 추적 HEAD는 origin/main이며 서버 보호 규칙·리뷰 계정은 미확인 |
 | 기획 관리 | Notion 사용은 사용자 확정. 워크스페이스·페이지 URL 미등록 |
-| 대용량 파일 | 2026-10-27 사용자 승인으로 `.uasset`·`.umap` Git LFS 설정. 로컬 필터·객체 검증, 원격 업로드·용량·잠금은 미검증. [개발 흐름](DEVELOPMENT_WORKFLOW.md) |
+| 대용량 파일 | 2026-11-06 사용자 선택으로 LFS를 쓰지 않고 로직 폴더 에셋은 Git, 아트·맵·제작 원본은 팀 PC SVN, CI는 같은 PC의 Jenkins([ADR-004](../decisions/ADR-004-git-code-svn-assets.md)). Git 쪽 설정 로컬 적용·미커밋, SVN 첫 등록 미실행. 이전: 2026-10-27 사용자 승인으로 `.uasset`·`.umap` Git LFS 설정. 기존 LFS 기록은 보존. SVN 서버 개설(사용자 보고). [개발 흐름](DEVELOPMENT_WORKFLOW.md#파일-분류-git과-svn) |
 | 제작 방향 | Cartoon Rendering + Low Poly. 구체 예산·성능 목표·최소 사양 미정 |
 | 검사 | 2026-10-28 Editor 기본/강제 Unity·Game 빌드 성공, 설정 격리 후 최종 Automation 64개 성공(경고 있는 테스트 2개), DataValidation 대상 3개 valid·경고/invalid/검사 불가 0개를 확인했다. 독립 비교에서 두 실행 전후 원본 사용자 설정 SHA-256이 같았다. [최신 결과와 한계](../tools/DEVELOPER_TOOLS.md#확인-결과와-남은-검증)를 따르며 2026-10-27의 [과거 범위](../../DIGETHER/Plugins/DevelopmentWorkbench/README.md#확인한-범위와-한계-2026-10-27)와 구분한다. Live Coding 재등록·실제 저장/복원·게임 M2/M3·전체 패키징은 미검증 |
 | 소유권 | 기획 역할은 기획 기준, 기술·리뷰·통합·계정 매핑은 [경계표](PROJECT_BOUNDARIES.md)에서 미정 관리 |
