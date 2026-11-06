@@ -1,4 +1,4 @@
-// DigetherSaveRules의 스냅샷·슬롯 검증을 구현한다. 폐기된 출발 기준점 필드는 이전 파일 읽기용으로만 검증한다.
+// DigetherSaveRules의 스냅샷·슬롯 검증, 폐기된 출발 기준점 필드는 이전 파일 읽기용으로만 검증
 #include "Game/Save/DigetherSaveRules.h"
 
 #include "Game/Economy/DigetherEconomyRules.h"
@@ -27,8 +27,8 @@ namespace
 		return true;
 	}
 
-	// 기획 S33: 이번 게임의 결과는 게임 오버 확정 저장에만 있고 같은 게임 ID다. 보관한 이전 결과는 다른 게임 ID이며
-	// 결과 ID가 겹치지 않는다(새 게임 ID가 하나만 만들어지는지·이전 결과가 섞이지 않는지 T38).
+	// 기획 S33: 이번 게임 결과는 게임 오버 확정 저장에만 있고 같은 게임 ID, 보관한 이전 결과는 다른 게임 ID
+	// 결과 ID 중복 불허(새 게임 ID가 하나만 만들어지는지·이전 결과가 섞이지 않는지 T38)
 	bool IsValidGameResults(const FDigetherSaveRuntimeState& State)
 	{
 		if (State.bHasGameResult && (!State.RunPublicState.bGameOver || State.GameResult.GameId != State.GameId
@@ -47,11 +47,16 @@ namespace
 		}
 		for (const FDigetherGameResult& Archived : State.ArchivedGameResults)
 		{
-			if (!IsValidStoredGameResult(Archived) || Archived.GameId == State.GameId || ResultIds.Contains(Archived.ResultId))
+			if (!IsValidStoredGameResult(Archived) || Archived.GameId == State.GameId)
 			{
 				return false;
 			}
-			ResultIds.Add(Archived.ResultId);
+			bool bDuplicateId = false;
+			ResultIds.Add(Archived.ResultId, &bDuplicateId);
+			if (bDuplicateId)
+			{
+				return false;
+			}
 		}
 		return true;
 	}
@@ -83,7 +88,7 @@ namespace
 			&& FDigetherRunRules::IsValidRuleTuning(State.RunRuleTuning);
 	}
 
-	// 바닥 금화는 금액 1 이상·고유 ID·정산기 ID·유한 변환만 받는다. Hub 확장 밖(구 v3)에는 숨길 수 없다.
+	// 바닥 금화는 금액 1 이상·고유 ID·정산기 ID·유한 변환만 허용, Hub 확장 밖(구 v3)에는 둘 수 없음
 	bool IsValidFloorCoins(const FDigetherSaveRuntimeState& State)
 	{
 		if (State.FloorCoins.Num() > DigetherSaveTuning::MaxFloorCoins
@@ -92,9 +97,10 @@ namespace
 			return false;
 		}
 		TSet<FGuid> CoinIds;
+		CoinIds.Reserve(State.FloorCoins.Num());
 		for (const FDigetherSaveFloorCoin& Coin : State.FloorCoins)
 		{
-			if (!Coin.CoinId.IsValid() || CoinIds.Contains(Coin.CoinId) || Coin.StationId.IsNone()
+			if (!Coin.CoinId.IsValid() || Coin.StationId.IsNone()
 				|| Coin.AmountCredits < 1
 				|| !DigetherSaveRulesInternal::IsBoundedString(Coin.StationId.ToString())
 				|| !DigetherSaveRulesInternal::IsValidTransformParts(Coin.Transform.GetTranslation(),
@@ -102,7 +108,12 @@ namespace
 			{
 				return false;
 			}
-			CoinIds.Add(Coin.CoinId);
+			bool bDuplicateId = false;
+			CoinIds.Add(Coin.CoinId, &bDuplicateId);
+			if (bDuplicateId)
+			{
+				return false;
+			}
 		}
 		return true;
 	}
@@ -151,22 +162,29 @@ bool DigetherSaveRulesInternal::IsValidPlayers(const TArray<FDigetherSavePlayerR
 	}
 	TSet<FString> AuthenticatedKeys;
 	TSet<FGuid> GameplayIds;
+	AuthenticatedKeys.Reserve(Players.Num());
+	GameplayIds.Reserve(Players.Num());
 	for (const FDigetherSavePlayerRecord& Player : Players)
 	{
-		if (!IsValidPlayerRecord(Player) || AuthenticatedKeys.Contains(Player.AuthenticatedPlayerKey)
-			|| GameplayIds.Contains(Player.GameplayPlayerId))
+		if (!IsValidPlayerRecord(Player))
 		{
 			return false;
 		}
-		AuthenticatedKeys.Add(Player.AuthenticatedPlayerKey);
-		GameplayIds.Add(Player.GameplayPlayerId);
+		bool bDuplicateKey = false;
+		bool bDuplicateId = false;
+		AuthenticatedKeys.Add(Player.AuthenticatedPlayerKey, &bDuplicateKey);
+		GameplayIds.Add(Player.GameplayPlayerId, &bDuplicateId);
+		if (bDuplicateKey || bDuplicateId)
+		{
+			return false;
+		}
 	}
 	return true;
 }
 
 EDigetherSaveResult DigetherSaveRulesInternal::ValidateSlot(const FDigetherSaveSlotData& Slot)
 {
-	// 0은 "알 수 없음"(v5 이전 파일)이다. FDateTime이 표현하지 못하는 틱은 목록 표시 전에 거절한다.
+	// 0은 "알 수 없음"(v5 이전 파일), FDateTime이 표현하지 못하는 틱은 목록 표시 전에 거절
 	if (Slot.SavedAtUtcTicks < 0 || Slot.SavedAtUtcTicks > FDateTime::MaxValue().GetTicks())
 	{
 		return EDigetherSaveResult::InvalidState;
@@ -253,13 +271,19 @@ EDigetherSaveResult DigetherSaveRules::ValidateSnapshot(const FDigetherSaveSnaps
 		}
 	}
 	TSet<FGuid> CompletedIds;
+	CompletedIds.Reserve(Snapshot.CompletedSettlementRunIds.Num());
 	for (const FGuid& RunId : Snapshot.CompletedSettlementRunIds)
 	{
-		if (!RunId.IsValid() || CompletedIds.Contains(RunId))
+		if (!RunId.IsValid())
 		{
 			return EDigetherSaveResult::InvalidState;
 		}
-		CompletedIds.Add(RunId);
+		bool bDuplicateId = false;
+		CompletedIds.Add(RunId, &bDuplicateId);
+		if (bDuplicateId)
+		{
+			return EDigetherSaveResult::InvalidState;
+		}
 	}
 	return EDigetherSaveResult::Success;
 }

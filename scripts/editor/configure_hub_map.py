@@ -75,9 +75,6 @@ def run():
         'boxExtent':{'x':200,'y':125,'z':100},'relativeLocation':{'x':0,'y':0,'z':100}})
     set_props(ref(elevator['refPath']+'.FloorMesh'),{
         'relativeScale3D':{'x':4,'y':2.5,'z':.2},'bVisible':False,'bHiddenInGame':True})
-    set_props(ref(elevator['refPath']+'.DoorThresholdVolume'),{
-        'relativeLocation':{'x':0,'y':-125,'z':100},'boxExtent':{'x':200,'y':50,'z':100}})
-    set_props(elevator,{'doorOutwardDirection':{'x':0,'y':-1,'z':0}})
     for index, x in [(0,-150),(1,150)]:
         lever=ref(PREFIX+'DigetherElevatorLeverActor_'+str(index))
         transform(lever,x,-590,0,90)

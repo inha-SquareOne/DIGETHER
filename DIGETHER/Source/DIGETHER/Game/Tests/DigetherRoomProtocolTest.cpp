@@ -7,7 +7,7 @@
 
 namespace
 {
-	// 검색 결과가 '유효'하려면 세션 정보가 필요하다. 시험용 최소 구현.
+	// 검색 결과 '유효' 판정에 세션 정보 필요, 시험용 최소 구현
 	class FTestSessionInfo final : public FOnlineSessionInfo
 	{
 	public:
@@ -47,7 +47,7 @@ bool FDigetherRoomProtocolTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("최대 길이 코드"), IsValidRoomCode(FString::ChrN(MaxRoomCodeLength, TEXT('A'))));
 	TestFalse(TEXT("최대 길이 초과"), IsValidRoomCode(FString::ChrN(MaxRoomCodeLength + 1, TEXT('A'))));
 	TestTrue(TEXT("대문자·숫자·하이픈·밑줄"), IsValidRoomCode(TEXT("AB-9_Z")));
-	// 2026-11-05 사용자 결정 "항상 대문자 정규화": 소문자는 정규화 전 입력으로 보고 거절한다.
+	// 2026-11-05 사용자 결정 "항상 대문자 정규화": 소문자는 정규화 전 입력으로 보고 거절
 	TestFalse(TEXT("정규화 전 소문자"), IsValidRoomCode(TEXT("Ab-9_z")));
 	TestFalse(TEXT("한글"), IsValidRoomCode(TEXT("방코드")));
 	TestFalse(TEXT("공백"), IsValidRoomCode(TEXT("A B")));

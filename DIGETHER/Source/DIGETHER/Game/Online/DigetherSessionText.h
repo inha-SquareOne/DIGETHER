@@ -3,9 +3,9 @@
 #include "CoreMinimal.h"
 #include "DigetherSessionText.generated.h"
 
-// 세션·대기실 상태 문구의 String Table 키. 값의 이름이 ST_Session의 키다.
-// 문구는 에디터에서 /Game/Frontend/Localization/ST_Session을 열어 고친다. 키를 추가하면 에셋에도 같은 키를 추가한다
-// (DIGETHER.Game.Online.SessionText 테스트가 빠진 키를 찾는다).
+// 세션·대기실 상태 문구 String Table 키, 값 이름이 ST_Session 키
+// 문구는 에디터에서 /Game/Frontend/Localization/ST_Session을 열어 수정, 키 추가 시 에셋에도 같은 키 추가
+// (DIGETHER.Game.Online.SessionText 테스트가 빠진 키 검출)
 UENUM()
 enum class EDigetherSessionText : uint8
 {
@@ -40,7 +40,7 @@ enum class EDigetherSessionText : uint8
 	JoinRequestFailed,
 	RoomFull,
 	RoomClosed,
-	// 호스트 입장 거절 사유(DigetherJoinRules::GetRejectionText). SteamIdRequired도 같은 경로로 쓴다.
+	// 호스트 입장 거절 사유(DigetherJoinRules::GetRejectionText), SteamIdRequired도 같은 경로
 	AccountCheckFailed,
 	AccountAlreadyConnected,
 	RunInProgress,
@@ -80,7 +80,7 @@ enum class EDigetherSessionText : uint8
 
 namespace DigetherSessionText
 {
-	// ST_Session 에셋의 경로(String Table ID).
+	// ST_Session 에셋 경로(String Table ID)
 	DIGETHER_API extern const TCHAR* const TableId;
 
 	DIGETHER_API FText Get(EDigetherSessionText Key);

@@ -2,7 +2,6 @@
 
 #include "Components/Button.h"
 #include "Components/EditableTextBox.h"
-#include "Components/TextBlock.h"
 #include "Game/Framework/DigetherGameplayPlayerController.h"
 
 void UDigetherDepositPanelWidget::NativeOnInitialized()
@@ -16,30 +15,6 @@ void UDigetherDepositPanelWidget::NativeOnInitialized()
 	if (Button_Cancel)
 	{
 		Button_Cancel->OnClicked.AddDynamic(this, &ThisClass::HandleCancelClicked);
-	}
-}
-
-void UDigetherDepositPanelWidget::SetStatus(const FText& Message)
-{
-	if (Text_Status)
-	{
-		Text_Status->SetText(Message);
-	}
-}
-
-void UDigetherDepositPanelWidget::SetCanSubmit(const bool bEnabled)
-{
-	if (Button_Submit)
-	{
-		Button_Submit->SetIsEnabled(bEnabled);
-	}
-}
-
-void UDigetherDepositPanelWidget::FocusAmountInput()
-{
-	if (Editable_Amount)
-	{
-		Editable_Amount->SetKeyboardFocus();
 	}
 }
 

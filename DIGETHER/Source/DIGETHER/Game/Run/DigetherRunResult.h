@@ -11,7 +11,7 @@ enum class EDigetherRunReturnOutcome : uint8
 	Missing
 };
 
-// 한 탐사의 귀환 커밋 뒤 소유 플레이어에게만 보낸다. 저장 파일의 장부를 대신하지 않는다.
+// 한 탐사의 귀환 커밋 뒤 소유 플레이어에게만 전송, 저장 파일 장부를 대체하지 않음
 USTRUCT(BlueprintType)
 struct DIGETHER_API FDigetherRunResult
 {

@@ -4,19 +4,19 @@
 
 #include "Game/Economy/DigetherEconomyTypes.h"
 #include "Game/Run/DigetherRunRuleTuning.h"
+#include "Game/Tests/DigetherTestValues.h"
 #include "Misc/AutomationTest.h"
 
-#include <cmath>
 #include <limits>
 
-// 이 파일의 숫자는 테스트 픽스처이며 최종 기획 값이 아니다.
+// 숫자는 테스트 픽스처, 기획 값 아님
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherRunTimeRulesTest,
 	"DIGETHER.Game.Run.Rules.Time", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FDigetherRunTimeRulesTest::RunTest(const FString& Parameters)
 {
-	// 테스트 픽스처이며 최종 기획 값이 아니다.
+	// 테스트 픽스처, 기획 값 아님
 	constexpr double FixtureRunSeconds = 600.0;
 	constexpr double FixtureElapsedSeconds = 100.0;
 	constexpr double FixturePenaltySeconds = 30.0;
@@ -52,7 +52,7 @@ bool FDigetherRunTimeRulesTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("0 남은 시간은 만료"), Result.bExpired);
 	}
 
-	const double InvalidSeconds[] = { -1.0, NAN, INFINITY, -INFINITY };
+	const double InvalidSeconds[] = { -1.0, DigetherTestValues::NaN<double>(), DigetherTestValues::Infinity<double>(), -DigetherTestValues::Infinity<double>() };
 	for (const double Invalid : InvalidSeconds)
 	{
 		const FDigetherRunTimeResult Results[] =
@@ -89,7 +89,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherRunAftershockRulesTest,
 
 bool FDigetherRunAftershockRulesTest::RunTest(const FString& Parameters)
 {
-	// 단조성·범위 검증을 위한 테스트 픽스처이며 최종 기획 값이 아니다.
+	// 단조성·범위 검증용 테스트 픽스처, 기획 값 아님
 	FDigetherRunRuleTuning Tuning;
 	Tuning.AftershockStageCount = 3;
 	Tuning.AftershockMaxIntervalSeconds = 30.0;
@@ -124,7 +124,7 @@ bool FDigetherRunAftershockRulesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("기획 근거 없는 단계 수 상한을 추가하지 않음"),
 		FDigetherRunRules::CalculateAftershock(FixtureRunSeconds, 0.0, Tuning).Stage, MAX_int32);
 
-	const double InvalidSeconds[] = { -1.0, NAN, INFINITY, -INFINITY };
+	const double InvalidSeconds[] = { -1.0, DigetherTestValues::NaN<double>(), DigetherTestValues::Infinity<double>(), -DigetherTestValues::Infinity<double>() };
 	for (const double Invalid : InvalidSeconds)
 	{
 		TestTrue(TEXT("잘못된 여진 전체 시간 거절"),
@@ -307,7 +307,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherRunQuotaRulesTest,
 
 bool FDigetherRunQuotaRulesTest::RunTest(const FString& Parameters)
 {
-	// 테스트 픽스처이며 최종 기획 값이 아니다.
+	// 테스트 픽스처, 기획 값 아님
 	FDigetherQuotaState Quota;
 	Quota.TargetCredits = 100;
 	Quota.DepositedCredits = 0;
@@ -323,7 +323,7 @@ bool FDigetherRunQuotaRulesTest::RunTest(const FString& Parameters)
 	const FDigetherRunQuotaResult LeverCompleted = FDigetherRunRules::EvaluateQuota(Quota);
 	TestTrue(TEXT("4일차 레버 완료 시 마감"), LeverCompleted.bPaymentDeadline);
 	TestFalse(TEXT("4일차 탐사 중에는 아직 게임 오버 아님"), LeverCompleted.bGameOver);
-	// 경제 일차 전환을 실행하지 않고 호출자가 전달할 귀환 후 스냅샷만 구성한다.
+	// 경제 일차 전환 없이 호출자가 전달할 귀환 후 스냅샷만 구성
 	FDigetherQuotaState MissedReturnSnapshot = Quota;
 	MissedReturnSnapshot.Day = 5;
 	const FDigetherRunQuotaResult Missed = FDigetherRunRules::EvaluateQuota(MissedReturnSnapshot);

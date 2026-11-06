@@ -33,6 +33,11 @@ namespace DigetherDev
 			}
 			return false;
 		}
+
+		FString MakeUnavailableMessage()
+		{
+			return TEXT("개발 명령은 Shipping 빌드에서 쓸 수 없다");
+		}
 	}
 
 	TConstArrayView<FCommandInfo> GetPlannedCommands()
@@ -72,11 +77,6 @@ namespace DigetherDev
 	FString MakeNotConnectedMessage(FName Command)
 	{
 		return FString::Printf(TEXT("%s: 아직 연결 안 됨"), *Command.ToString());
-	}
-
-	FString MakeUnavailableMessage()
-	{
-		return TEXT("개발 명령은 Shipping 빌드에서 쓸 수 없다");
 	}
 
 	FString Execute(FName Command, const TArray<FString>& Args)

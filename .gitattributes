@@ -1,2 +1,4 @@
-*.uasset filter=lfs diff=lfs merge=lfs -text
-*.umap filter=lfs diff=lfs merge=lfs -text
+# Unreal 바이너리. 로직 폴더만 Git으로 추적하며 LFS는 쓰지 않는다(ADR-004).
+# 아트·맵·제작 원본은 SVN에서 관리하고 .gitignore로 제외한다.
+*.uasset binary
+*.umap binary

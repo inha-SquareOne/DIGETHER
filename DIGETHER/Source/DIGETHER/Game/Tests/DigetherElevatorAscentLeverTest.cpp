@@ -5,6 +5,7 @@
 #include "Game/Elevator/DigetherElevatorComponent.h"
 #include "Game/Elevator/DigetherElevatorRules.h"
 #include "GameFramework/Actor.h"
+#include "Game/Tests/DigetherTestValues.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
 #include "UObject/UnrealType.h"
@@ -17,7 +18,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherElevatorAscentLeverTest,
 bool FDigetherElevatorAscentLeverTest::RunTest(const FString& Parameters)
 {
 	using namespace DigetherElevatorRules;
-	// 테스트 픽스처이며 최종 기획 용량·레버 홀드 시간이 아니다.
+	// 테스트 픽스처, 기획 용량·레버 홀드 시간 아님
 	FDigetherElevatorTuning Tuning;
 	Tuning.AscentHoldSeconds = 2.f;
 	FDigetherElevatorPullContext Context;
@@ -102,7 +103,7 @@ bool FDigetherElevatorAscentLeverTest::RunTest(const FString& Parameters)
 
 	Context.LoadEntries[0].WeightKg = 10.f;
 	State = BeginPull(FDigetherElevatorGaugeState(), EDigetherElevatorLeverKind::Ascent, Puller, Context, Tuning).State;
-	for (const float InvalidTime : { -1.f, NAN, INFINITY, -INFINITY })
+	for (const float InvalidTime : { -1.f, DigetherTestValues::NaN(), DigetherTestValues::Infinity(), -DigetherTestValues::Infinity() })
 	{
 		Update = AdvancePull(State, EDigetherElevatorLeverKind::Ascent, InvalidTime, Context, Tuning);
 		TestEqual(TEXT("손상된 상승 홀드 시간 거절"), Update.Feedback.Result, EDigetherElevatorLeverResult::InvalidInput);
@@ -117,8 +118,8 @@ bool FDigetherElevatorAscentLeverTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("정의되지 않은 적재 종류 거절"), Update.Feedback.Result, EDigetherElevatorLeverResult::InvalidInput);
 	TestTrue(TEXT("적재 종류 오류 상태 불변"), SameState(State, Update.State));
 
-	// 아래 명세는 게이지 완료 순간의 레버 스냅샷이다. 기획 A3의 편 확정 목록은 문이 완전히 닫힌 순간
-	// 조율자가 CaptureAscent로 다시 만든다(Elevator.Components, Framework.SaveIntegration 문 닫힘 검사).
+	// 아래 명세는 게이지 완료 순간의 레버 스냅샷, 기획 A3 편 확정 목록은 문이 완전히 닫힌 순간
+	// 조율자가 CaptureAscent로 재생성(Elevator.Components, Framework.SaveIntegration 문 닫힘 검사)
 	State = AdvancePull(State, EDigetherElevatorLeverKind::Ascent, 1.f, Context, Tuning).State;
 	TestEqual(TEXT("확정 전에는 명세를 동결하지 않음"), State.Ascent.LoadEntries.Num(), 0);
 	Context.LoadEntries[0].WeightKg = 25.f;
@@ -149,7 +150,7 @@ bool FDigetherElevatorAscentLeverTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("두 번째 확정 명세는 마지막 편"), LastTrip.bFinalAscent);
 	const FDigetherElevatorAscentConfirmed FirstTrip = CaptureAscent(0, 2, Context.LoadEntries, Context.CapacityKg, Tuning);
 	TestFalse(TEXT("2회 확정의 첫 편은 마지막 아님"), FirstTrip.bFinalAscent);
-	// 1회 비교 설정은 폐기되었으므로 명세를 만들지 않는다.
+	// 1회 비교 설정은 폐기, 명세 미생성
 	const FDigetherElevatorAscentConfirmed SingleTrip = CaptureAscent(0, 1, Context.LoadEntries, Context.CapacityKg, Tuning);
 	TestEqual(TEXT("1회 설정은 명세 거절"), SingleTrip.TripNumber, 0);
 	Context.LoadEntries[0].WeightKg = 999.f;
@@ -161,7 +162,7 @@ bool FDigetherElevatorAscentLeverTest::RunTest(const FString& Parameters)
 	Update = AdvancePull(State, EDigetherElevatorLeverKind::Ascent, 1.f, Context, Tuning);
 	TestEqual(TEXT("확정 후 완료 결과를 다시 내지 않음"), Update.Feedback.Result, EDigetherElevatorLeverResult::AlreadyConfirmed);
 	TestTrue(TEXT("중복 확정 요청은 명세와 상태 불변"), SameState(State, Update.State));
-	// float 저장 시 완료 시각으로 반올림돼도 Pulling에 갇히면 안 된다.
+	// float 저장 반올림으로 완료 시각이 돼도 Pulling 고착 금지
 	FDigetherElevatorGaugeState RoundingState = BeginPull(FDigetherElevatorGaugeState(),
 		EDigetherElevatorLeverKind::Ascent, Puller, Context, Tuning).State;
 	RoundingState.ElapsedSeconds = std::nextafter(Tuning.AscentHoldSeconds, 0.f);
@@ -178,7 +179,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherElevatorAscentLeverPairTest,
 bool FDigetherElevatorAscentLeverPairTest::RunTest(const FString& Parameters)
 {
 	using namespace DigetherElevatorRules;
-	// 테스트 픽스처이며 최종 기획 용량·레버 홀드 시간이 아니다.
+	// 테스트 픽스처, 기획 용량·레버 홀드 시간 아님
 	FDigetherElevatorTuning Tuning;
 	Tuning.AscentHoldSeconds = 2.f;
 	FDigetherElevatorPullContext Context;
@@ -197,7 +198,7 @@ bool FDigetherElevatorAscentLeverPairTest::RunTest(const FString& Parameters)
 	Cargo.WeightKg = 30.f;
 	Context.LoadEntries.Add(Cargo);
 
-	// S15: 안팎 레버를 동시에 당겨도 먼저 시작한 한 건만 받는다. 늦은 레버는 Idle을 유지한다.
+	// S15: 안팎 레버 동시 당김은 먼저 시작한 한 건만 수락, 늦은 레버는 Idle 유지
 	const FDigetherElevatorGaugeState Idle = FDigetherElevatorGaugeState();
 	FDigetherElevatorPullContext Occupied = Context;
 	Occupied.bOtherLeverOccupied = true;
@@ -207,23 +208,23 @@ bool FDigetherElevatorAscentLeverPairTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Busy 거절 진행률 0"), CalculateGaugeProgress(Update.State), 0.f);
 	TestFalse(TEXT("Busy 거절은 경고 없음"), Update.Feedback.bWarning);
 	TestFalse(TEXT("Busy 거절은 덜컹 없음"), Update.Feedback.bRattle);
-	// 기획 확인 항목: 무게 초과여도 다른 레버 점유를 먼저 알린다.
+	// 기획 확인 항목: 무게 초과여도 다른 레버 점유 먼저 통지
 	Occupied.LoadEntries[0].WeightKg = 101.f;
 	Update = BeginPull(Idle, EDigetherElevatorLeverKind::Ascent, Puller, Occupied, Tuning);
 	TestEqual(TEXT("점유 중 무게 초과도 Busy 우선"), Update.Feedback.Result, EDigetherElevatorLeverResult::Busy);
 	TestFalse(TEXT("점유 중 무게 초과는 덜컹 없음"), Update.Feedback.bRattle);
 	TestTrue(TEXT("점유 중 무게 초과도 Idle 유지"), SameState(Idle, Update.State));
 
-	// 점유가 풀리면(먼저 당긴 사람이 놓음) 같은 레버를 바로 시작할 수 있다.
+	// 점유 해제(먼저 당긴 사람이 놓음) 시 같은 레버 즉시 시작 가능
 	Update = BeginPull(Idle, EDigetherElevatorLeverKind::Ascent, Puller, Context, Tuning);
 	TestEqual(TEXT("점유 해제 후 시작"), Update.Feedback.Result, EDigetherElevatorLeverResult::Started);
-	// 진행 중인 자기 레버는 점유 표시와 무관하게 진행 유지로 답한다.
+	// 진행 중인 자기 레버는 점유 표시와 무관하게 진행 유지
 	const FDigetherElevatorGaugeState Pulling = Update.State;
 	Update = BeginPull(Pulling, EDigetherElevatorLeverKind::Ascent, Puller, Occupied, Tuning);
 	TestEqual(TEXT("진행 중 자기 레버 재요청은 진행 유지"), Update.Feedback.Result, EDigetherElevatorLeverResult::InProgress);
 	TestTrue(TEXT("진행 중 자기 레버 상태 보존"), SameState(Pulling, Update.State));
 
-	// 맵 레버 구성: 출발 1, 상승 안 1, 밖 1만 허용한다.
+	// 맵 레버 구성: 출발 1, 상승 안 1, 밖 1만 허용
 	TestTrue(TEXT("출발 1·안 1·밖 1 허용"), IsValidLeverLayout(1, 1, 1));
 	TestFalse(TEXT("밖 레버 없음 거절"), IsValidLeverLayout(1, 1, 0));
 	TestFalse(TEXT("안 레버 없음 거절"), IsValidLeverLayout(1, 0, 1));
@@ -233,7 +234,7 @@ bool FDigetherElevatorAscentLeverPairTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("밖 레버 2개 거절"), IsValidLeverLayout(1, 1, 2));
 	TestFalse(TEXT("음수 개수 거절"), IsValidLeverLayout(1, -1, 1));
 
-	// T93: 아무도 타지 않은 화물 단독 편도 같은 명세로 고정한다.
+	// T93: 탑승자 없는 화물 단독 편도 같은 명세로 고정
 	const FDigetherElevatorAscentConfirmed CargoOnly = CaptureAscent(0, Context.TripLimit, Context.LoadEntries,
 		Context.CapacityKg, Tuning);
 	TestEqual(TEXT("화물 단독 편 번호"), CargoOnly.TripNumber, 1);
@@ -248,8 +249,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherElevatorCargoOnlyAscentTest,
 
 bool FDigetherElevatorCargoOnlyAscentTest::RunTest(const FString& Parameters)
 {
-	// T93 밖 레버 화물 단독 상승: 탑승자 없는 화물 명세도 운행 컴포넌트가 상승으로 받는지 확인한다.
-	// 화물 적재 경로는 아직 없으므로 조율자 대신 문 닫힘 순간의 화물 목록을 직접 전달한다. 값은 테스트 픽스처다.
+	// T93 밖 레버 화물 단독 상승: 탑승자 없는 화물 명세의 운행 컴포넌트 상승 수락 확인
+	// 화물 적재 경로가 없어 조율자 대신 문 닫힘 순간 화물 목록 직접 전달, 값은 테스트 픽스처
 	FDigetherRunTuning Run;
 	Run.ElevatorCapacityKg = 100.f;
 	Run.ElevatorTripLimit = 2;

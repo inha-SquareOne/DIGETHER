@@ -1,7 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
-// 기획 S33 게임 오버·결과 크레딧의 순수 규칙·진행 컴포넌트·저장 왕복 검사다.
-// 아래 시각·거리·금액·ID는 테스트 픽스처이며 기획 값이 아니다(T29 금액만 작업리스트 1.1.0 S33 247행 예시를 따른다).
+// 기획 S33 게임 오버·결과 크레딧의 순수 규칙·진행 컴포넌트·저장 왕복 검사
+// 시각·거리·금액·ID는 테스트 픽스처, 기획 값 아님(T29 금액만 작업리스트 1.1.0 S33 247행 예시)
 
 #include "Game/Economy/DigetherEconomyRules.h"
 #include "Game/Run/DigetherGameOverFlowComponent.h"
@@ -119,7 +119,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherGameOverFlowTest,
 
 bool FDigetherGameOverFlowTest::RunTest(const FString& Parameters)
 {
-	// T28·T34·T38: 정산 화면 → 실패 사건 → (가까운 사람부터 흡입, 먼저 흡입된 사람 대기, 떠난 사람 제외) → 크레딧 → 새 게임 한 번.
+	// T28·T34·T38: 정산 화면 → 실패 사건 → (가까운 사람부터 흡입, 먼저 흡입된 사람 대기, 떠난 사람 제외) → 크레딧 → 새 게임 한 번
 	UDigetherGameOverFlowComponent* Flow = NewObject<UDigetherGameOverFlowComponent>();
 	FDigetherGameOverTuning Tuning;
 	Tuning.SettlementScreenSeconds = 5.f;
@@ -143,7 +143,7 @@ bool FDigetherGameOverFlowTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("실패 사건 단계"), Flow->GetPhase(), EDigetherGameOverPhase::FailureEvent);
 	const double FailureStart = Flow->GetPublicState().PhaseStartServerSeconds;
 	TestEqual(TEXT("실패 사건 시작 시각"), FailureStart, 105.0);
-	// 흡입 시작 = 105 + 5. A(500cm)는 110.5, B(2500cm)는 112.5에 흡입된다.
+	// 흡입 시작 = 105 + 5, A(500cm)는 110.5, B(2500cm)는 112.5에 흡입
 	Step = Flow->Advance(109.9, Both);
 	TestTrue(TEXT("범람·침수 중 흡입 없음"), Step.NewlyAbsorbedPlayerIds.IsEmpty());
 	TestEqual(TEXT("범람 중 대기 인원 2"), Flow->GetPublicState().WaitingPlayerCount, 2);
@@ -189,7 +189,7 @@ bool FDigetherGameOverLeaveAndDeadlineTest::RunTest(const FString& Parameters)
 	Tuning.FailMotionSeconds = 10.f;
 	Tuning.FloodRatio = 0.5f;
 	Tuning.SuctionSpeedCmPerSecond = 1000.f;
-	// T34: B가 흡입 대기 중 떠나면 기다릴 인원에서 빠져 진행이 멈추지 않는다.
+	// T34: B가 흡입 대기 중 떠나면 대기 인원에서 제외, 진행 계속
 	{
 		UDigetherGameOverFlowComponent* Flow = NewObject<UDigetherGameOverFlowComponent>();
 		Flow->Begin(0.0, MakeFlowResult(2), Tuning);
@@ -200,7 +200,7 @@ bool FDigetherGameOverLeaveAndDeadlineTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("B가 떠나면 기다리지 않고 크레딧"), Step.bEnteredCredits);
 		TestEqual(TEXT("떠난 사람은 대기 인원 아님"), Flow->GetPublicState().WaitingPlayerCount, 0);
 	}
-	// 연출 오류·먼 거리로 흡입되지 않아도 마감에 남은 사람을 강제로 흡입해 크레딧으로 넘긴다(S33 244행).
+	// 연출 오류·먼 거리로 미흡입이어도 마감에 남은 사람 강제 흡입 후 크레딧(S33 244행)
 	{
 		UDigetherGameOverFlowComponent* Flow = NewObject<UDigetherGameOverFlowComponent>();
 		Flow->Begin(0.0, MakeFlowResult(1), Tuning);
@@ -211,7 +211,7 @@ bool FDigetherGameOverLeaveAndDeadlineTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("마감에 강제 흡입"), Step.NewlyAbsorbedPlayerIds == TArray<int32>({ 1 }));
 		TestTrue(TEXT("마감에 크레딧 시작"), Step.bEnteredCredits);
 	}
-	// 1인: 혼자면 자기 흡입이 끝나는 순간 크레딧이다. 전원 퇴장이면 바로 크레딧이다.
+	// 1인: 자기 흡입 종료 순간 크레딧, 전원 퇴장이면 즉시 크레딧
 	{
 		UDigetherGameOverFlowComponent* Flow = NewObject<UDigetherGameOverFlowComponent>();
 		Flow->Begin(0.0, MakeFlowResult(1), Tuning);
@@ -219,7 +219,7 @@ bool FDigetherGameOverLeaveAndDeadlineTest::RunTest(const FString& Parameters)
 		const FDigetherGameOverStep Step = Flow->Advance(0.1, TArray<FDigetherGameOverPresentPlayer>());
 		TestTrue(TEXT("남은 참가자가 없으면 기다리지 않고 크레딧"), Step.bEnteredCredits);
 	}
-	// 흡입 시각 계산: 마감을 넘지 않는다.
+	// 흡입 시각 계산: 마감 이내
 	TestEqual(TEXT("거리 0은 흡입 시작 시각"), DigetherGameOverRules::CalculateAbsorbSeconds(0.0, 0.0, Tuning), 5.0);
 	TestEqual(TEXT("먼 거리도 마감 이하"), DigetherGameOverRules::CalculateAbsorbSeconds(0.0, 1.0e9, Tuning), 10.0);
 	TestEqual(TEXT("범람 진행률 시작"), DigetherGameOverRules::CalculateFloodAlpha(0.0, 0.0, Tuning), 0.f);
@@ -234,7 +234,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherGameOverCreditSyncTest,
 
 bool FDigetherGameOverCreditSyncTest::RunTest(const FString& Parameters)
 {
-	// T33: 모든 화면이 같은 기준점·같은 서버 시각으로 같은 진행을 계산한다. 빨리감기는 기준점을 다시 정한다.
+	// T33: 모든 화면이 같은 기준점·서버 시각으로 같은 진행 계산, 빨리감기는 기준점 재설정
 	FDigetherGameOverTuning Tuning;
 	Tuning.CreditFastForwardMultiplier = 4.f;
 	const FDigetherCreditPlayback Start = DigetherGameOverRules::MakeCreditPlayback(50.0, 4, Tuning);
@@ -263,7 +263,7 @@ bool FDigetherGameOverCreditSyncTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("끝 이후 진행은 전체 길이"), DigetherGameOverRules::IsCreditFinished(Start, 50.0 + Start.TotalSeconds + 1.0));
 	TestEqual(TEXT("진행은 전체 길이를 넘지 않음"),
 		DigetherGameOverRules::CalculateCreditProgressSeconds(Start, 1.0e6), Start.TotalSeconds);
-	// 진행 컴포넌트: 크레딧 단계에서만 빨리감기를 받는다.
+	// 진행 컴포넌트: 크레딧 단계에서만 빨리감기 수락
 	UDigetherGameOverFlowComponent* Flow = NewObject<UDigetherGameOverFlowComponent>();
 	FDigetherGameOverTuning FlowTuning;
 	FlowTuning.SettlementScreenSeconds = 0.f;
@@ -282,8 +282,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherGameOverResultStatsTest,
 
 bool FDigetherGameOverResultStatsTest::RunTest(const FString& Parameters)
 {
-	// T29·S33 247행: A 일반 600 + 히든 100, B 일반 300 + 히든 50 → 전체 1,050, 획득 A 700·B 350, 히든 A 100·B 50.
-	// 추가로 A가 구매로 300을 쓴 뒤 사망(차감 400)하고 시체 회수 복구 200을 받으면 사망 손실 200이다.
+	// T29·S33 247행: A 일반 600 + 히든 100, B 일반 300 + 히든 50 → 전체 1,050, 획득 A 700·B 350, 히든 A 100·B 50
+	// A가 구매 300 뒤 사망(차감 400), 시체 회수 복구 200이면 사망 손실 200
 	FDigetherWalletState A = FDigetherEconomyRules::ApplyRunSettlement(FDigetherWalletState(), MakePayout(600, 100)).State;
 	FDigetherWalletState B = FDigetherEconomyRules::ApplyRunSettlement(FDigetherWalletState(), MakePayout(300, 50)).State;
 	TestEqual(TEXT("A 누적 획득"), A.LifetimeEarnedCredits, 700);
@@ -330,7 +330,7 @@ bool FDigetherGameOverResultStatsTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("결과 값 형태 유효"), DigetherGameOverRules::IsValidGameResult(Result, DigetherSaveTuning::MaxPlayerRecords));
 
-	// 복구 신호 재전송: 같은 탐사의 복구 정산은 한 번만 적용된다(AlreadySettled). 손실 200·복구 200 유지.
+	// 복구 신호 재전송: 같은 탐사 복구 정산은 한 번만(AlreadySettled), 손실 200·복구 200 유지
 	FDigetherSaveSnapshot Snapshot = MakeGameOverSaveFixture();
 	Snapshot.Players[0].Wallet = A;
 	Snapshot.Players[0].Wallet.LifetimeCorpseRefundCredits = 0;
@@ -348,7 +348,7 @@ bool FDigetherGameOverResultStatsTest::RunTest(const FString& Parameters)
 			DigetherGameOverRules::CalculateNetDeathLoss(Twice.Players[0].Wallet), 200);
 	}
 
-	// 이전 게임 결과 보관: 같은 결과는 한 번, 상한을 넘으면 오래된 것부터 버린다.
+	// 이전 게임 결과 보관: 같은 결과는 한 번, 상한 초과 시 오래된 것부터 삭제
 	TArray<FDigetherGameResult> Archive;
 	for (int32 Index = 0; Index < DigetherSaveTuning::MaxArchivedGameResults + 2; ++Index)
 	{
@@ -368,7 +368,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherGameOverSaveRoundTripTest,
 
 bool FDigetherGameOverSaveRoundTripTest::RunTest(const FString& Parameters)
 {
-	// 게임 오버 확정 저장(정산·통계·bGameOver·결과 기록)과 이전 결과 보관 목록이 진행 확장 v2로 왕복한다.
+	// 게임 오버 확정 저장(정산·통계·bGameOver·결과 기록)과 이전 결과 보관 목록의 진행 확장 v2 왕복
 	FDigetherSaveSlotData Slot;
 	Slot.Progress = MakeGameOverSaveFixture();
 	Slot.Progress.Quota.Quota.Day = 5;
@@ -424,11 +424,11 @@ bool FDigetherGameOverSaveRoundTripTest::RunTest(const FString& Parameters)
 	TArray<uint8> Reencoded;
 	TestTrue(TEXT("재직렬화가 바이트 단위로 동일"), DigetherSaveRules::SerializeSlot(Restored, Reencoded)
 		== EDigetherSaveResult::Success && Reencoded == Bytes);
-	// 결과 플레이어 수가 기본 본문과 맞지 않으면 거절한다(손상 파일).
+	// 결과 플레이어 수가 기본 본문과 불일치하면 거절(손상 파일)
 	TArray<uint8> Truncated = Bytes;
 	Truncated.SetNum(Truncated.Num() - 1);
 	TestTrue(TEXT("잘린 결과 확장 거절"), DigetherSaveRules::DeserializeSlot(Truncated, Restored) == EDigetherSaveResult::CorruptData);
-	// 제어 문자가 섞인 이름은 저장 가능한 형태로 만든다.
+	// 제어 문자가 섞인 이름은 저장 가능한 형태로 정리
 	TestEqual(TEXT("표시 이름 제어 문자 제거"), DigetherSaveRules::MakeStoredDisplayName(TEXT("A\tB\nC")), FString(TEXT("ABC")));
 	return true;
 }

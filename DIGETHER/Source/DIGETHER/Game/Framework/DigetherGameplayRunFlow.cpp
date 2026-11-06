@@ -19,6 +19,7 @@
 #include "Game/Framework/DigetherGameplayGameState.h"
 #include "Game/Framework/DigetherGameplayPlayerController.h"
 #include "Game/Framework/DigetherGameplayPlayerState.h"
+#include "Game/Framework/DigetherGameplayRunFlowInternal.h"
 #include "Game/Life/DigetherLifeRules.h"
 #include "Game/Life/DigetherLifeStateComponent.h"
 #include "Game/Hub/DigetherHubStateActor.h"
@@ -31,11 +32,11 @@
 #include "Misc/ScopeExit.h"
 #include "Templates/UnrealTemplate.h"
 
-namespace
+namespace DigetherGameplayRunFlowInternal
 {
-	// 관전·복귀 시점 전환. 이미 보고 있는 대상이면 바꾸지 않는다.
-	// 네트워크 연결이 없는 원격 컨트롤러(자동 테스트 월드)는 ClientSetViewTarget이 즉시 실행되어
-	// 블렌드 중 같은 대상으로 되돌릴 때 엔진 SetViewTarget과 서로 재귀한다. 그런 경우는 블렌드 없이 바꾼다.
+	// 관전·복귀 시점 전환, 이미 보는 대상이면 유지
+	// 네트워크 연결 없는 원격 컨트롤러(자동 테스트 월드)는 ClientSetViewTarget 즉시 실행
+	// 블렌드 중 같은 대상 복귀 시 엔진 SetViewTarget과 상호 재귀, 이 경우 블렌드 없이 전환
 	void SetSpectateViewTarget(APlayerController* Controller, AActor* Target)
 	{
 		if (!IsValid(Controller) || !IsValid(Target))
@@ -54,7 +55,37 @@ namespace
 		Controller->SetViewTargetWithBlend(Target, bCanBlend ? DigetherFrameworkDefaults::SpectateBlendSeconds : 0.f);
 	}
 
-	// 도메인의 확정 signal은 큐 입력으로 받고, 표현 통지는 복합 변경이 끝난 뒤 내보낸다.
+	// 같은 엘리베이터·같은 종류의 다른 레버 중 진행 중·확정 레버 검색
+	// 기획 S15: 안팎 상승 레버 동시 당김은 먼저 시작한 한 건만 수락
+	const ADigetherElevatorLeverActor* FindOccupiedSiblingLever(
+		const TArray<TWeakObjectPtr<ADigetherElevatorLeverActor>>& Levers, const ADigetherElevatorLeverActor* Lever)
+	{
+		if (!IsValid(Lever))
+		{
+			return nullptr;
+		}
+		for (const TWeakObjectPtr<ADigetherElevatorLeverActor>& Candidate : Levers)
+		{
+			const ADigetherElevatorLeverActor* Sibling = Candidate.Get();
+			if (!IsValid(Sibling) || Sibling == Lever || Sibling->GetLeverKind() != Lever->GetLeverKind()
+				|| Sibling->GetElevatorActor() != Lever->GetElevatorActor())
+			{
+				continue;
+			}
+			const UDigetherElevatorLeverComponent* Component = Sibling->GetLeverComponent();
+			FDigetherElevatorAscentConfirmed Confirmed;
+			if (IsValid(Component) && (Component->GetActivePullerId().IsValid() || Component->TryGetConfirmedAscent(Confirmed)))
+			{
+				return Sibling;
+			}
+		}
+		return nullptr;
+	}
+}
+
+namespace
+{
+	// 도메인 확정 signal은 큐 입력, 표현 통지는 복합 변경 완료 뒤 송출
 	class FScopedDigetherRunNotifications
 	{
 	public:
@@ -134,37 +165,10 @@ namespace
 		bool bOpen = false;
 	};
 
-	// 레버 상호작용 시선 기준점 높이다(IsWithinLeverRange와 같은 값). 맵 배치 위치 경고에만 쓴다.
+	// 레버 상호작용 시선 기준점 높이(IsWithinLeverRange와 같은 값), 맵 배치 경고 전용
 	constexpr double LeverSightHeightCm = 80.0;
 
-	// 같은 엘리베이터·같은 종류의 다른 레버 중 진행 중이거나 확정된 레버를 찾는다.
-	// 기획 S15: 안팎 상승 레버를 여러 명이 동시에 당겨도 먼저 시작한 한 건만 받는다.
-	const ADigetherElevatorLeverActor* FindOccupiedSiblingLever(
-		const TArray<TWeakObjectPtr<ADigetherElevatorLeverActor>>& Levers, const ADigetherElevatorLeverActor* Lever)
-	{
-		if (!IsValid(Lever))
-		{
-			return nullptr;
-		}
-		for (const TWeakObjectPtr<ADigetherElevatorLeverActor>& Candidate : Levers)
-		{
-			const ADigetherElevatorLeverActor* Sibling = Candidate.Get();
-			if (!IsValid(Sibling) || Sibling == Lever || Sibling->GetLeverKind() != Lever->GetLeverKind()
-				|| Sibling->GetElevatorActor() != Lever->GetElevatorActor())
-			{
-				continue;
-			}
-			const UDigetherElevatorLeverComponent* Component = Sibling->GetLeverComponent();
-			FDigetherElevatorAscentConfirmed Confirmed;
-			if (IsValid(Component) && (Component->GetActivePullerId().IsValid() || Component->TryGetConfirmedAscent(Confirmed)))
-			{
-				return Sibling;
-			}
-		}
-		return nullptr;
-	}
-
-	// 게이지가 확정된 상승 레버를 찾는다. 확정 레버 수를 함께 돌려줘 둘 이상인 비정상을 호출자가 거절하게 한다.
+	// 게이지 확정 상승 레버 검색, 확정 수도 반환해 둘 이상인 비정상은 호출자가 거절
 	ADigetherElevatorLeverActor* FindConfirmedAscentLever(
 		const TArray<TWeakObjectPtr<ADigetherElevatorLeverActor>>& Levers, int32& OutConfirmedCount)
 	{
@@ -184,7 +188,7 @@ namespace
 		return Found;
 	}
 
-	// 레버 시선 기준점이 탑승 영역 상자 안인지 본다. 맵 배치 경고에만 쓰며 판정에는 쓰지 않는다.
+	// 레버 시선 기준점의 탑승 영역 상자 내부 여부, 맵 배치 경고 전용·판정 미사용
 	bool IsLeverInsideBoardingVolume(const ADigetherElevatorLeverActor& Lever, const UBoxComponent& Volume)
 	{
 		const FVector Local = Volume.GetComponentTransform().InverseTransformPosition(
@@ -239,8 +243,8 @@ bool ADigetherGameplayGameMode::InitializeRunActors()
 	{
 		bool bAllowInsideOnly = false;
 #if !UE_BUILD_SHIPPING
-		// 개발 빌드 임시 허용: 밖 레버를 아직 배치하지 않은 맵(L_GameTest·L_Hub 등)은 안쪽 레버만으로 시작한다.
-		// 기획상 안·밖 2개가 필수이므로 Shipping은 실패한다.
+		// 개발 빌드 임시 허용: 밖 레버 미배치 맵(L_GameTest·L_Hub 등)은 안쪽 레버만으로 시작
+		// 기획상 안·밖 2개 필수, Shipping은 실패
 		bAllowInsideOnly = AscentOutsideLevers == 0
 			&& DigetherElevatorRules::IsValidLeverLayout(DepartureLevers, AscentInsideLevers, 1);
 #endif
@@ -266,8 +270,8 @@ bool ADigetherGameplayGameMode::InitializeRunActors()
 		UE_LOG(LogDigetherFramework, Error, TEXT("Run actor initialization rejected: invalid components/tuning."));
 		return false;
 	}
-	// 안쪽 레버는 탑승 영역 안, 밖 레버는 밖에 있어야 기획 의도(밖 레버 조작자는 타지 않음)가 성립한다.
-	// 아트 배치 조정 여지를 두려고 시작은 막지 않고 경고만 남긴다.
+	// 안쪽 레버는 탑승 영역 안, 밖 레버는 밖이어야 기획 의도(밖 레버 조작자 미탑승) 성립
+	// 아트 배치 조정 여지로 시작은 막지 않고 경고만
 	for (const TWeakObjectPtr<ADigetherElevatorLeverActor>& Lever : Levers)
 	{
 		if (Lever->GetLeverKind() != EDigetherElevatorLeverKind::Ascent)
@@ -313,17 +317,17 @@ void ADigetherGameplayGameMode::EndPlay(const EEndPlayReason::Type EndPlayReason
 	{
 		World->GetTimerManager().ClearTimer(AutosaveRetryTimer);
 	}
-	// 호스트 종료 저장은 월드 정리 시작(HandleWorldBeginTearDown)에서 끝났다. 남은 재시도는 종료를 붙잡지 않는다.
+	// 호스트 종료 저장은 월드 정리 시작(HandleWorldBeginTearDown)에서 완료, 남은 재시도가 종료를 막지 않게 함
 	FWorldDelegates::OnWorldBeginTearDown.Remove(WorldTearDownHandle);
 	WorldTearDownHandle.Reset();
 	PendingAutosave.Reset();
 	bAutosaveRecapturePending = false;
 	DepartureBaseline.Reset();
-	// PreLoginAsync 계약상 남은 교체 대기의 완료 콜백도 부른 뒤 끝낸다.
+	// PreLoginAsync 계약상 남은 교체 대기의 완료 콜백도 호출
 	CompletePendingLoginReplacementsOnEnd();
 	AcceptedBeforeLockIds.Reset();
 	JoinSpectators.Reset();
-	// 게임 오버 세부 단계는 저장하지 않는다. 확정 저장이 됐다면 다음 실행이 같은 슬롯 새 게임으로 시작한다(S33 240행).
+	// 게임 오버 세부 단계는 미저장, 확정 저장이 됐다면 다음 실행은 같은 슬롯 새 게임(S33 240행)
 	GameOverFlowComponent->Cancel();
 	for (const TWeakObjectPtr<ADigetherElevatorLeverActor>& Lever : LeverActors)
 	{
@@ -384,8 +388,8 @@ void ADigetherGameplayGameMode::CollectDeparturePlayers(TArray<ADigetherGameplay
 	{
 		return;
 	}
-	// 거점에서 끊긴 플레이어는 자리를 반환해 이 명단에 없다(ReleaseHubSeat). 비활성 PS는 이전 탐사 중 끊긴 뒤
-	// 아직 돌아오지 않은 참가자다. 잠금 중 확정된 관전 합류자도 그날 출발 인원에 넣지 않는다(S01).
+	// 거점에서 끊긴 플레이어는 자리 반환으로 명단에 없음(ReleaseHubSeat)
+	// 비활성 PS는 이전 탐사 중 끊긴 뒤 미복귀 참가자, 잠금 중 확정된 관전 합류자도 그날 출발 인원 제외(S01)
 	for (APlayerState* State : GameState->PlayerArray)
 	{
 		ADigetherGameplayPlayerState* Player = Cast<ADigetherGameplayPlayerState>(State);
@@ -409,7 +413,7 @@ void ADigetherGameplayGameMode::CollectRunParticipants(TArray<ADigetherGameplayP
 	{
 		return;
 	}
-	// 출발 때 확정한 같은 원본만 정산한다. 탐사 중 끊겨 inactive가 되어도 참가 자격은 유지한다.
+	// 출발 때 확정한 같은 원본만 정산, 탐사 중 끊겨 inactive여도 참가 자격 유지
 	for (const TWeakObjectPtr<ADigetherGameplayPlayerState>& Participant : RunParticipants)
 	{
 		ADigetherGameplayPlayerState* Player = Participant.Get();
@@ -488,7 +492,7 @@ bool ADigetherGameplayGameMode::TryMakePullContext(FDigetherElevatorPullContext&
 			PassengerIds.Add(Player->GetGameplayPlayerId());
 		}
 	}
-	// 엔진 overlap 배열 순서 변화가 같은 탑승자의 매니페스트 순서를 바꾸지 않게 한다.
+	// 엔진 overlap 배열 순서 변화가 같은 탑승자의 매니페스트 순서를 바꾸지 않게 함
 	PassengerIds.Sort([](const FGuid& Left, const FGuid& Right) { return Left.ToString() < Right.ToString(); });
 	if (!DigetherFrameworkRules::TryMakePlayerLoad(PassengerIds, Context.LoadEntries))
 	{
@@ -506,7 +510,7 @@ bool ADigetherGameplayGameMode::IsDepositClosed() const
 
 bool ADigetherGameplayGameMode::BeginLeverPull(ADigetherGameplayPlayerController* Requester, ADigetherElevatorLeverActor* Lever)
 {
-	// 관전 합류자는 몸이 없고 그날 운행에 참여하지 않으므로 레버를 쓰지 않는다(S01).
+	// 관전 합류자는 몸이 없고 그날 운행 불참, 레버 사용 불가(S01)
 	if (!IsValidRequester(Requester) || !IsConfiguredLever(Lever) || IsJoinSpectator(Requester)
 		|| RunCoordinatorComponent->CapturePublicState().bGameOver)
 	{
@@ -534,15 +538,15 @@ bool ADigetherGameplayGameMode::BeginLeverPull(ADigetherGameplayPlayerController
 		CollectRunParticipants(Participants);
 		if (!Participants.Contains(Player))
 		{
-			// 거점에 남았다 재접속한 플레이어는 이번 탐사의 운행도 변경하지 않는다.
+			// 거점에 남았다 재접속한 플레이어는 이번 탐사 운행 변경 불가
 			return false;
 		}
 	}
 	const EDigetherLifeState Life = Player->GetLifeComponent()->CaptureState().PublicState.Life;
 	bool bCanOperate = Life == EDigetherLifeState::Active;
 #if !UE_BUILD_SHIPPING
-	// DigetherRunSmoke 자동 시험 중에만 탈출한 시험자가 남은 빈 편을 구동할 수 있다.
-	// 개발 빌드의 일반 플레이에서는 관전자가 레버를 쓰지 못한다.
+	// DigetherRunSmoke 자동 시험 중에만 탈출한 시험자의 남은 빈 편 구동 허용
+	// 개발 빌드 일반 플레이에서도 관전자는 레버 사용 불가
 	bCanOperate |= bSmokeActive && SmokeController.Get() == Requester && Life == EDigetherLifeState::Escaped;
 #endif
 	if (!IsValid(Requester->GetPawn()) || !bCanOperate)
@@ -554,7 +558,7 @@ bool ADigetherGameplayGameMode::BeginLeverPull(ADigetherGameplayPlayerController
 	{
 		return false;
 	}
-	Context.bOtherLeverOccupied = FindOccupiedSiblingLever(LeverActors, Lever) != nullptr;
+	Context.bOtherLeverOccupied = DigetherGameplayRunFlowInternal::FindOccupiedSiblingLever(LeverActors, Lever) != nullptr;
 	const EDigetherElevatorLeverResult Result = Lever->GetLeverComponent()->TryBeginPull(Player->GetGameplayPlayerId(), Context);
 	if (Result == EDigetherElevatorLeverResult::Started)
 	{
@@ -611,7 +615,7 @@ bool ADigetherGameplayGameMode::IsWithinLeverRange(const ADigetherGameplayPlayer
 		|| Hit.GetActor() == Lever || Hit.Distance + 4 >= FVector::Dist(Eye, Target);
 }
 
-// 도메인 확정 알림에서는 사건만 보관한다. 아래 조율 함수는 도메인 호출이 반환된 뒤 실행한다.
+// 도메인 확정 알림은 사건만 보관, 아래 조율 함수는 도메인 호출 반환 뒤 실행
 void ADigetherGameplayGameMode::HandleDepartureConfirmed(const FDigetherElevatorDepartureConfirmed& Confirmation)
 {
 	bDeparturePending = true;
@@ -656,12 +660,12 @@ void ADigetherGameplayGameMode::Tick(const float DeltaSeconds)
 	{
 		return;
 	}
-	// 잠금이 풀리면(탐사 종료 귀환·출발 실패로 문 재개방) 관전 합류자를 일반 참가자로 합류시킨다.
+	// 잠금 해제(탐사 종료 귀환·출발 실패로 문 재개방) 시 관전 합류자를 일반 참가자로 합류
 	if (!JoinSpectators.IsEmpty() && !IsNewJoinLockedNow())
 	{
 		ReleaseJoinSpectators();
 	}
-	// 기획 S33: 게임 오버 단계(정산 화면·실패 사건·크레딧)에는 출발·납부·레버를 처리하지 않고 그 단계만 진행한다.
+	// 기획 S33: 게임 오버 단계(정산 화면·실패 사건·크레딧)는 출발·납부·레버 없이 그 단계만 진행
 	if (GameOverFlowComponent->IsActive())
 	{
 		TickGameOverAt(GetGameOverNowSeconds());
@@ -678,7 +682,7 @@ void ADigetherGameplayGameMode::Tick(const float DeltaSeconds)
 		}
 		if (bTimeExpiredPending)
 		{
-			// 기획: 갱도 문 닫힘 완료와 시간 종료가 같은 처리 시점이면 문 닫힘 완료를 먼저 판정한다.
+			// 기획: 갱도 문 닫힘 완료와 시간 종료가 같은 처리 시점이면 문 닫힘 완료 먼저 판정
 			AdvanceMineDoorBeforeTimeExpiry(DeltaSeconds);
 			ProcessPendingRunEnd();
 			return;
@@ -692,7 +696,7 @@ void ADigetherGameplayGameMode::Tick(const float DeltaSeconds)
 	{
 		return;
 	}
-	// 문이 닫히는 동안에도 탑승·하차가 바뀌므로 무게를 갱신한다. 갱도 상승 문만 초과면 다시 열린다.
+	// 문 닫힘 중에도 탑승·하차가 바뀌어 무게 갱신, 갱도 상승 문만 초과 시 재개방
 	if (Context.ElevatorPhase == EDigetherElevatorPhase::BottomWaiting
 		|| Context.ElevatorPhase == EDigetherElevatorPhase::DoorClosing)
 	{
@@ -702,8 +706,8 @@ void ADigetherGameplayGameMode::Tick(const float DeltaSeconds)
 			ProcessDoorReopenedByOverweight();
 		}
 	}
-	// 기획 S24·T63·T78: 같은 처리 시점의 붓기 주기를 레버보다 먼저 판정한다. 달성하면 아래 레버 처리가 바뀐 기간
-	// 세대를 보고, 게이지가 이번에 차지 않는 레버는 취소하고 이번에 차는 레버는 새 기간 1일차로 출발한다.
+	// 기획 S24·T63·T78: 같은 처리 시점의 붓기 주기를 레버보다 먼저 판정
+	// 달성 시 아래 레버 처리가 바뀐 기간 세대를 참조, 이번에 차지 않는 게이지는 취소·이번에 차는 레버는 새 기간 1일차 출발
 	ProcessPourTicks(DeltaSeconds);
 	for (const TWeakObjectPtr<ADigetherElevatorLeverActor>& Lever : LeverActors)
 	{
@@ -738,13 +742,13 @@ void ADigetherGameplayGameMode::Tick(const float DeltaSeconds)
 					}
 				}
 			}
-			// 게이지 확정 화면도 문 닫힘 시작이 끝날 때까지 보류한다.
+			// 게이지 확정 화면도 문 닫힘 시작 완료까지 보류
 			Component->BeginNotificationBatch();
 			const EDigetherElevatorLeverResult Advanced = Component->AdvancePull(DeltaSeconds, Context);
 			if (Advanced == EDigetherElevatorLeverResult::InterruptedConditions
 				&& Lever->GetLeverKind() == EDigetherElevatorLeverKind::Departure)
 			{
-				// 레버 조작 중 목표 달성 등으로 취소된 출발은 목적지 고정도 푼다.
+				// 레버 조작 중 목표 달성 등으로 취소된 출발은 목적지 고정도 해제
 				if (ADigetherHubStateActor* Hub = ADigetherHubStateActor::Find(GetWorld())) Hub->LockDestination(false);
 			}
 			if (bDeparturePending)
@@ -763,7 +767,7 @@ void ADigetherGameplayGameMode::Tick(const float DeltaSeconds)
 		ProcessPendingRunEnd();
 		return;
 	}
-	// 문이 닫히는 동안에도 걸어서 탈 수 있다(기획). 문턱에서 밀어내지 않는다.
+	// 문 닫힘 중에도 걸어서 탑승 가능(기획), 문턱에서 밀어내지 않음
 	const EDigetherElevatorPhase PreviousPhase = Elevator->GetPublicState().Phase;
 	Elevator->AdvanceTravel(DeltaSeconds);
 	if (PreviousPhase != Elevator->GetPublicState().Phase)
@@ -775,7 +779,7 @@ void ADigetherGameplayGameMode::Tick(const float DeltaSeconds)
 		&& RunCoordinatorComponent->CapturePublicState().Phase == EDigetherRunPhase::InProgress
 		&& !RunCoordinatorComponent->IsClockStarted())
 	{
-		// 기획: 제한 시간은 최초 하강을 마치고 갱도에 도착한 순간부터 흐른다(첫 사람이 나갈 때까지 기다리지 않음).
+		// 기획: 제한 시간은 최초 하강 후 갱도 도착 순간부터(첫 사람이 나갈 때까지 대기 안 함)
 		RunCoordinatorComponent->StartClock(GetWorld()->GetTimeSeconds());
 		LogRunStep(TEXT("RunClockStarted"));
 	}
@@ -796,7 +800,7 @@ void ADigetherGameplayGameMode::AdvanceMineDoorBeforeTimeExpiry(const float Delt
 	FDigetherElevatorPullContext Context;
 	if (TryMakePullContext(Context))
 	{
-		// 닫힘 직전 무게 초과면 평소처럼 문이 다시 열리고, 시간 종료는 갱도 대기 편으로 처리한다.
+		// 닫힘 직전 무게 초과면 평소처럼 재개방, 시간 종료는 갱도 대기 편으로 처리
 		Elevator->UpdateLoad(Context.LoadEntries);
 		if (bDoorReopenedPending)
 		{
@@ -807,7 +811,7 @@ void ADigetherGameplayGameMode::AdvanceMineDoorBeforeTimeExpiry(const float Delt
 	{
 		return;
 	}
-	// 이번 처리 시점 안에 닫힘이 끝날 때만 편을 고정한다. 끝나지 않으면 시간 종료가 닫히는 중인 편을 처리한다.
+	// 이번 처리 시점 안에 닫힘이 끝날 때만 편 고정, 아니면 시간 종료가 닫히는 중인 편 처리
 	Elevator->AdvanceTravel(DeltaSeconds);
 	if (bDoorClosedPending)
 	{
@@ -844,7 +848,7 @@ void ADigetherGameplayGameMode::BeginDoorClose(const EDigetherElevatorLeverKind 
 	const FDigetherRunPublicState Run = RunCoordinatorComponent->CapturePublicState();
 	const bool bRunInProgress = Run.Phase == EDigetherRunPhase::InProgress;
 	const bool bAllowed = bDeparture ? !bRunInProgress && !Run.bGameOver : bRunInProgress;
-	// 확정된 게이지는 문이 닫히는 동안 유지되어 레버를 계속 잡지 않아도 된다. 실패하면 게이지를 0으로 돌린다.
+	// 확정 게이지는 문 닫힘 동안 유지되어 레버 계속 잡기 불필요, 실패 시 게이지 0
 	if (!bAllowed || ElevatorActor->GetElevatorComponent()->BeginDoorClose() != EDigetherElevatorResult::Success)
 	{
 		ResetLeverPull(Kind);
@@ -853,8 +857,8 @@ void ADigetherGameplayGameMode::BeginDoorClose(const EDigetherElevatorLeverKind 
 	if (bDeparture)
 	{
 		CloseHubTradingForDeparture();
-		// 기획 S02·S24(PQ-22 현재 기준): 4일차 납부 마감은 게이지 완료 순간에 기록한다. 문 닫힘 뒤 출발 실패·
-		// 공통 로딩 실패로 거점에 돌아와도 기록한 마감은 유지한다. 1~3일차는 마감이 아니므로 값이 바뀌지 않는다.
+		// 기획 S02·S24(PQ-22 현재 기준): 4일차 납부 마감은 게이지 완료 순간 기록
+		// 문 닫힘 뒤 출발 실패·공통 로딩 실패로 거점 복귀해도 기록 유지, 1~3일차는 마감 아님
 		if (const ADigetherGameplayGameState* State = GetGameState<ADigetherGameplayGameState>())
 		{
 			RunCoordinatorComponent->HandleDepartureLeverCompleted(State->GetQuotaComponent()->CaptureState().Quota);
@@ -865,8 +869,8 @@ void ADigetherGameplayGameMode::BeginDoorClose(const EDigetherElevatorLeverKind 
 
 void ADigetherGameplayGameMode::CloseHubTradingForDeparture()
 {
-	// 기획: 출발 게이지가 완료된 순간 구매·납부·신규 참가 접수를 닫고 열린 상점·외형·납부 창을 닫는다.
-	// 새 요청은 문 닫힘 단계에서 각 판정(시설·납부·참가)이 거절한다. 여기서는 진행 중인 납부 입력과 화면을 끝낸다.
+	// 기획: 출발 게이지 완료 순간 구매·납부·신규 참가 접수 종료, 열린 상점·외형·납부 창 닫기
+	// 새 요청은 문 닫힘 단계의 각 판정(시설·납부·참가)이 거절, 여기서는 진행 중 납부 입력·화면만 종료
 	StopAllPours(EDigetherPourStopReason::DepositClosed);
 	for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
 	{
@@ -880,7 +884,7 @@ void ADigetherGameplayGameMode::CloseHubTradingForDeparture()
 void ADigetherGameplayGameMode::ProcessDoorReopenedByOverweight()
 {
 	bDoorReopenedPending = false;
-	// 기획 A3: 다시 열린 시도는 게이지 0으로 돌리고 상승 횟수에 넣지 않는다.
+	// 기획 A3: 재개방된 시도는 게이지 0, 상승 횟수 미포함
 	ResetLeverPull(PendingDoorOriginPhase == EDigetherElevatorPhase::HubWaiting
 		? EDigetherElevatorLeverKind::Departure : EDigetherElevatorLeverKind::Ascent);
 	LogRunStep(TEXT("DoorReopenedOverweight"));
@@ -912,7 +916,7 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 				Lever->GetLeverComponent()->ResetPull();
 			}
 		}
-		// 출발 실패는 거점 문을 다시 열어 참가 잠금(C3)도 푼다. 문 닫힘 없이 부른 경우에는 변화가 없다.
+		// 출발 실패는 거점 문 재개방으로 참가 잠금(C3)도 해제, 문 닫힘 없이 호출 시 변화 없음
 		if (!bDeparturePullConsumed && ElevatorActor.IsValid())
 		{
 			ElevatorActor->GetElevatorComponent()->ReopenDoor();
@@ -951,9 +955,9 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 		if (!Hub->GetSelectedStageTransform(StageTransform)) return;
 		DestinationVolume = Volume->GetRelativeTransform() * StageTransform;
 	}
-	// 기획 사슬 소집: 문이 완전히 닫힌 이 순간 거점에서 엘리베이터 밖에 있는 참가자(자리 비운 사람 포함)를
-	// 엘리베이터 바닥 안쪽 빈 위치로 옮긴다. 직접 탑승자는 엘리베이터 안의 상대 위치를 유지한다.
-	// 거점에서 이미 끊긴 참가자는 CollectDeparturePlayers가 빼므로 소집·출발 인원에 들지 않는다.
+	// 기획 사슬 소집: 문이 완전히 닫힌 순간 엘리베이터 밖 참가자(자리 비운 사람 포함)를 바닥 안쪽 빈 위치로 이동
+	// 직접 탑승자는 엘리베이터 안 상대 위치 유지
+	// 거점에서 이미 끊긴 참가자는 CollectDeparturePlayers가 제외, 소집·출발 인원 미포함
 	TArray<APawn*> BoardedPawns;
 	ElevatorActor->GetOverlappingPawns(BoardedPawns);
 	TArray<FVector> LocalDestinations;
@@ -984,7 +988,7 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 	if (!DigetherFrameworkRules::TryPlanChainSummon(Extent, DigetherFrameworkDefaults::PlayerSpacingCm,
 		OccupiedLocal, SummonCount, SummonLocal))
 	{
-		// 임시 처리: 기획은 빈 위치가 없으면 겹침을 허용하고 밀어내라고 하지만, MVP는 소집 위치 계산 실패만 출발 거절로 남긴다.
+		// 임시 처리: 기획은 빈 위치가 없으면 겹침 허용 후 밀어내기, MVP는 소집 위치 계산 실패를 출발 거절로 처리
 		UE_LOG(LogDigetherFramework, Error, TEXT("Departure rejected: chain summon space unavailable (%d summoned)."), SummonCount);
 		return;
 	}
@@ -994,8 +998,8 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 		const FVector Local = SummonedFlags[Index] ? SummonLocal[SummonIndex++] : LocalDestinations[Index];
 		Destinations.Add(DestinationVolume.TransformPosition(Local));
 	}
-	// 기획 1.1.0(S30·T91): 출발은 저장 성공에 의존하지 않는다. 공통 로딩 실패 복귀용으로 확정 직전 진행을
-	// 메모리에만 남긴다(디스크 기준점 저장·복원 규칙 폐기). 캡처할 수 없어도 출발은 막지 않는다.
+	// 기획 1.1.0(S30·T91): 출발은 저장 성공과 무관
+	// 공통 로딩 실패 복귀용으로 확정 직전 진행을 메모리에만 보관(디스크 기준점 저장·복원 규칙 폐기), 캡처 실패해도 출발 허용
 	FDigetherSaveSnapshot Baseline;
 	if (CaptureProgress(Baseline))
 	{
@@ -1006,7 +1010,7 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 		DepartureBaseline.Reset();
 		UE_LOG(LogDigetherFramework, Warning, TEXT("출발 기준점 캡처 실패: 이번 출발은 공통 로딩 실패 복귀를 할 수 없습니다."));
 	}
-	// 모든 값·대상·공간 검사 뒤 같은 서버 호출 안에서 전원 이동과 런·운행을 확정한다.
+	// 모든 값·대상·공간 검사 뒤 같은 서버 호출 안에서 전원 이동과 런·운행 확정
 	FScopedDigetherRunNotifications Notifications(RunCoordinatorComponent, Elevator, LeverActors);
 	if (IsValid(Hub))
 	{
@@ -1017,7 +1021,7 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 	DeparturePlayerCount = Players.Num();
 	LastRecordedAscent = 0;
 	PendingRecordedAscent = 0;
-	// 4일차 납부 마감은 게이지 완료(BeginDoorClose) 때 이미 기록했다.
+	// 4일차 납부 마감은 게이지 완료(BeginDoorClose) 때 기록 완료
 	for (int32 Index = 0; Index < Players.Num(); ++Index)
 	{
 		RunParticipants.Add(Players[Index]);
@@ -1025,10 +1029,10 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 		{
 			Movement->StopMovementImmediately();
 		}
-		// 끌려가는 동안 충돌 판정이 없도록 sweep 없이 순간이동 1회로 옮긴다.
+		// 끌려가는 동안 충돌 판정이 없도록 sweep 없이 순간이동 1회
 		Players[Index]->GetGameplayPawn()->SetActorLocation(Destinations[Index], false, nullptr, ETeleportType::TeleportPhysics);
 	}
-	// 제한 시간은 최초 하강을 마치고 갱도에 도착할 때 StartClock으로 흐르기 시작한다.
+	// 제한 시간은 최초 하강 후 갱도 도착 때 StartClock으로 시작
 	RunCoordinatorComponent->StartRun(RunTuning, FixedRunRuleTuning, GetWorld()->GetTimeSeconds(), false);
 	Elevator->DepartHub();
 	for (const TWeakObjectPtr<ADigetherElevatorLeverActor>& Lever : LeverActors)
@@ -1039,7 +1043,7 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 		}
 	}
 	bDeparturePullConsumed = true;
-	// 납부 입력과 거점 화면은 게이지 완료 때 CloseHubTradingForDeparture가 이미 닫았다.
+	// 납부 입력·거점 화면은 게이지 완료 때 CloseHubTradingForDeparture가 이미 닫음
 	Notifications.Complete();
 	TArray<ADigetherGameplayPlayerState*> AllPlayers;
 	CollectPlayers(AllPlayers);
@@ -1056,11 +1060,11 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 			{
 				if (ADigetherGameplayPlayerController* Gameplay = Cast<ADigetherGameplayPlayerController>(Controller))
 				{
-					// 암전 연출은 소유 클라이언트 BP가 맡는다. 위치 보정보다 먼저 보내 연출 시작이 앞서게 한다.
+					// 암전 연출은 소유 클라이언트 BP 담당, 위치 보정보다 먼저 보내 연출 시작 선행
 					Gameplay->Client_ChainSummoned(ChainSummonSeconds);
 				}
 			}
-			// DefaultPawn의 소유자 위치에도 서버 순간이동을 명시적으로 전달한다.
+			// DefaultPawn 소유자 위치에도 서버 순간이동 명시 전달
 			Controller->ClientSetLocation(Destinations[Index], Players[Index]->GetGameplayPawn()->GetActorRotation());
 		}
 	}
@@ -1070,7 +1074,7 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 
 void ADigetherGameplayGameMode::ProcessAscent()
 {
-	// 안·밖 중 게이지가 확정된 레버로 이번 편을 처리한다. 점유 규칙상 확정 레버는 하나여야 한다.
+	// 안·밖 중 게이지 확정 레버로 이번 편 처리, 점유 규칙상 확정 레버는 하나
 	int32 ConfirmedLevers = 0;
 	ADigetherElevatorLeverActor* AscentLever = FindConfirmedAscentLever(LeverActors, ConfirmedLevers);
 	UDigetherElevatorComponent* Elevator = ElevatorActor->GetElevatorComponent();
@@ -1079,9 +1083,9 @@ void ADigetherGameplayGameMode::ProcessAscent()
 	{
 		if (!bPullConsumed)
 		{
-			// 성공·실패 모두 다음 편을 위해 안·밖 상승 레버 전체를 0으로 돌린다.
+			// 성공·실패 모두 다음 편을 위해 안·밖 상승 레버 전체 0
 			ResetLeverPull(EDigetherElevatorLeverKind::Ascent);
-			// 고정·출발에 실패한 시도는 문을 다시 열고 상승 횟수에 넣지 않는다(기획 A3).
+			// 고정·출발 실패 시도는 문 재개방, 상승 횟수 미포함(기획 A3)
 			Elevator->ReopenDoor();
 		}
 	};
@@ -1094,14 +1098,14 @@ void ADigetherGameplayGameMode::ProcessAscent()
 		UE_LOG(LogDigetherFramework, Error, TEXT("Ascent rejected: %d ascent levers confirmed at once."), ConfirmedLevers);
 		return;
 	}
-	// 레버 게이지가 이번 편을 위해 확정된 상태인지 확인한다. 게이지 완료 때의 목록은 쓰지 않는다.
+	// 레버 게이지가 이번 편용으로 확정됐는지 확인, 게이지 완료 때 목록은 미사용
 	FDigetherElevatorAscentConfirmed LeverAscent;
 	if (!IsValid(AscentLever) || !AscentLever->GetLeverComponent()->TryGetConfirmedAscent(LeverAscent)
 		|| LeverAscent.TripNumber != LastRecordedAscent + 1)
 	{
 		return;
 	}
-	// 기획 A3: 문이 완전히 닫힌 이 순간 안에 있는 생존자·화물로 편을 고정한다.
+	// 기획 A3: 문이 완전히 닫힌 순간 안에 있는 생존자·화물로 편 고정
 	FDigetherElevatorPullContext Context;
 	if (!TryMakePullContext(Context))
 	{
@@ -1145,7 +1149,7 @@ void ADigetherGameplayGameMode::ProcessAscent()
 	{
 		Player->GetLifeComponent()->ApplyEscape(EDigetherEscapeKind::Elevator, false);
 	}
-	// 레버의 통지가 아니라 실제 운행 컴포넌트의 확정 사건을 한 편에 한 번 소비한다.
+	// 레버 통지가 아닌 실제 운행 컴포넌트 확정 사건을 한 편에 한 번 소비
 	if (PendingRecordedAscent == Ascent.TripNumber && PendingRecordedAscent > LastRecordedAscent)
 	{
 		LastRecordedAscent = PendingRecordedAscent;
@@ -1231,7 +1235,7 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 		AActor* Start = IsValid(Controller) ? FindPlayerStart(Controller) : nullptr;
 		if (!IsValid(Start) && Player->IsInactive())
 		{
-			// 끊긴 참가자도 같은 귀환·정산을 받는다. Controller 없이 남은 Pawn만 이동한다.
+			// 끊긴 참가자도 같은 귀환·정산, Controller 없이 남은 Pawn만 이동
 			for (TActorIterator<APlayerStart> Iterator(GetWorld()); Iterator; ++Iterator)
 			{
 				Start = *Iterator;
@@ -1255,8 +1259,8 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 		UE_LOG(LogDigetherFramework, Error, TEXT("Run return candidate rejected before commit."));
 		return;
 	}
-	// 기획 S33 241행: 히든 수익·사망 손실은 귀환 순간이 아니라 결과 크레딧에 들어갈 때 공개한다.
-	// 귀환 확정에서는 공개 목록(HiddenReveals)을 채우지 않는다. 결과 기록은 귀환 적용 뒤 BeginGameOverAfterReturn이 만든다.
+	// 기획 S33 241행: 히든 수익·사망 손실은 귀환 순간이 아닌 결과 크레딧 진입 때 공개
+	// 귀환 확정에서는 공개 목록(HiddenReveals) 미작성, 결과 기록은 귀환 적용 뒤 BeginGameOverAfterReturn이 생성
 	FDigetherElevatorAscentConfirmed ReturnAscent;
 	if (Plan.Termination.ElevatorAction != EDigetherRunElevatorAction::Unchanged)
 	{
@@ -1264,7 +1268,7 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 			? TArray<FDigetherElevatorLoadEntry>() : Context.LoadEntries;
 		ReturnAscent = DigetherElevatorRules::CaptureAscent(Context.CompletedAscents, Context.TripLimit,
 			ReturnLoad, Context.CapacityKg, FDigetherElevatorTuning());
-		// 하부 대기와 하부 문 닫힘 모두 갱도 대기로 귀환·사출한다(기획 A3). 닫힘 완료를 기다리지 않는다.
+		// 하부 대기·하부 문 닫힘 모두 갱도 대기로 귀환·사출(기획 A3), 닫힘 완료 대기 안 함
 		FDigetherElevatorState ElevatorState;
 		if (!Elevator->TryGetServerState(ElevatorState)
 			|| DigetherElevatorRules::Transition(ElevatorState, EDigetherElevatorCommand::RequestAscent, 0.f,
@@ -1273,7 +1277,7 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 			return;
 		}
 	}
-	// 여기까지 모든 생사·손실·정산·일차·귀환 후보 검사를 마쳤다. 다음 블록은 같은 서버 실행 안에서 적용한다.
+	// 여기까지 생사·손실·정산·일차·귀환 후보 검사 완료, 다음 블록은 같은 서버 실행 안에서 적용
 	FScopedDigetherRunNotifications Notifications(RunCoordinatorComponent, Elevator, LeverActors);
 	for (int32 Index = 0; Index < Players.Num(); ++Index)
 	{
@@ -1344,7 +1348,7 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 			Controller->Client_SetLifeSpectating(false);
 			if (IsValid(Controller->GetPawn()))
 			{
-				SetSpectateViewTarget(Controller, Controller->GetPawn());
+				DigetherGameplayRunFlowInternal::SetSpectateViewTarget(Controller, Controller->GetPawn());
 			}
 		}
 	}
@@ -1365,7 +1369,7 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 	PendingRecordedAscent = 0;
 	LastRecordedAscent = 0;
 	RunParticipants.Reset();
-	// 공개 귀환 사건은 부활·이동·다음 운행 준비를 모두 마친 뒤 보낸다.
+	// 공개 귀환 사건은 부활·이동·다음 운행 준비 완료 뒤 송출
 	RunCoordinatorComponent->HandleBaseReturn(Plan.ReturnedQuota);
 	Notifications.Complete();
 	for (int32 Index = 0; Index < Players.Num(); ++Index)
@@ -1384,8 +1388,8 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 		ADigetherGameplayPlayerState* Player = Players[Index];
 		Player->GetWalletComponent()->NotifyStateChanged();
 		Player->GetLifeComponent()->NotifyStateChanged();
-		// 기획 S33 220행 ④: 5일차 실패 귀환도 같은 검은 개인 정산 화면을 거친다. 게임 오버 단계가 정산 화면 시간 뒤
-		// 실패 사건으로 넘어가며 이 결과를 닫는다(ClearRunResult). 크레딧 진행을 이 화면이 막지 않는다.
+		// 기획 S33 220행 ④: 5일차 실패 귀환도 같은 검은 개인 정산 화면 경유
+		// 게임 오버 단계가 정산 화면 시간 뒤 실패 사건으로 넘어가며 결과 닫음(ClearRunResult), 크레딧 진행은 미차단
 		const FDigetherRunResult Result = DigetherFrameworkRules::MakeRunResult(
 			CurrentRunId, PreviousQuota.Day, Plan.Players[Index]);
 		const bool bPublished = Player->PublishRunResult(Result);
@@ -1402,9 +1406,9 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 			HandleStartingNewPlayer(Controller);
 		}
 	}
-	// 기획 S30 ①·④: 일차 변경·정산·복구금·지급 완료 기록·부활·거점 귀환 판정과 귀환 합류를 모두 반영한 뒤
-	// 한 번 저장한다. 실패하면 알리고 자동 재시도하며 다음 출발을 막지 않는다.
-	// 기획 S33 220행 ⑦: 5일차 실패 귀환은 이 저장에 게임 오버 확정과 결과 기록을 함께 쓴다(슬롯 초기화는 크레딧 뒤).
+	// 기획 S30 ①·④: 일차 변경·정산·복구금·지급 완료 기록·부활·거점 귀환 판정·귀환 합류 반영 뒤 한 번 저장
+	// 실패 시 알림·자동 재시도, 다음 출발은 미차단
+	// 기획 S33 220행 ⑦: 5일차 실패 귀환은 이 저장에 게임 오버 확정·결과 기록 포함(슬롯 초기화는 크레딧 뒤)
 	if (Plan.bGameOver)
 	{
 		BeginGameOverAfterReturn(GetGameOverNowSeconds());
@@ -1424,133 +1428,6 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 #endif
 }
 
-void ADigetherGameplayGameMode::CycleSpectateTarget(ADigetherGameplayPlayerController* Requester, const bool bNext)
-{
-	if (IsJoinSpectator(Requester))
-	{
-		CycleJoinSpectateTarget(Requester, bNext);
-		return;
-	}
-	if (!IsValidRequester(Requester))
-	{
-		return;
-	}
-	ADigetherGameplayPlayerState* Self = Requester->GetPlayerState<ADigetherGameplayPlayerState>();
-	if (!Self->GetLifeComponent()->CaptureState().PublicState.bSpectating)
-	{
-		return;
-	}
-	TArray<ADigetherGameplayPlayerState*> Players;
-	CollectPlayers(Players);
-	TArray<FDigetherSpectateCandidate> Candidates;
-	for (const ADigetherGameplayPlayerState* Player : Players)
-	{
-		if (IsValid(Player->GetGameplayPawn()))
-		{
-			FDigetherSpectateCandidate Candidate;
-			// 관전 대상 키는 공개 PlayerId만 사용한다. 런 매니페스트의 서버 GUID는 전달하지 않는다.
-			Candidate.PlayerKey = FString::FromInt(Player->GetPlayerId());
-			Candidate.Life = Player->GetLifeComponent()->CaptureState().PublicState.Life;
-			Candidates.Add(Candidate);
-		}
-	}
-	if (Self->GetLifeComponent()->SelectSpectateTarget(Candidates, FString::FromInt(Self->GetPlayerId()), bNext
-		? EDigetherSpectateDirection::Next : EDigetherSpectateDirection::Previous) != EDigetherLifeResult::Success)
-	{
-		return;
-	}
-	const FString TargetKey = Self->GetLifeComponent()->CaptureState().PrivateState.SpectateTargetPlayerKey;
-	AActor* Target = ElevatorActor.Get();
-	for (ADigetherGameplayPlayerState* Player : Players)
-	{
-		if (FString::FromInt(Player->GetPlayerId()) == TargetKey && IsValid(Player->GetGameplayPawn()))
-		{
-			Target = Player->GetGameplayPawn();
-			break;
-		}
-	}
-	if (IsValid(Target))
-	{
-		SetSpectateViewTarget(Requester, Target);
-	}
-}
-
-void ADigetherGameplayGameMode::EnterJoinSpectate(APlayerController* Controller)
-{
-	ADigetherGameplayPlayerController* Gameplay = Cast<ADigetherGameplayPlayerController>(Controller);
-	if (!HasAuthority() || !IsValid(Gameplay) || Gameplay->GetWorld() != GetWorld())
-	{
-		return;
-	}
-	// 몸이 없으므로 생존 컴포넌트의 관전 상태(사망·탈출 전용 규칙)는 바꾸지 않고 입력 잠금과 카메라만 쓴다.
-	// TODO(UI): "탐사가 끝나면 거점에서 합류합니다" 안내 문구는 HUD 작업에서 붙인다.
-	Gameplay->Client_SetLifeSpectating(true);
-	CycleJoinSpectateTarget(Gameplay, true);
-}
-
-void ADigetherGameplayGameMode::CycleJoinSpectateTarget(ADigetherGameplayPlayerController* Requester, const bool bNext)
-{
-	FDigetherJoinSpectator* Spectator = JoinSpectators.FindByPredicate([Requester](const FDigetherJoinSpectator& Entry)
-	{
-		return Entry.Controller.Get() == Requester;
-	});
-	if (!HasAuthority() || Spectator == nullptr || !IsValid(Requester) || Requester->GetWorld() != GetWorld()
-		|| !IsValid(Requester->PlayerState))
-	{
-		return;
-	}
-	const APlayerState* Self = Requester->PlayerState;
-	TArray<ADigetherGameplayPlayerState*> Players;
-	CollectPlayers(Players);
-	TArray<FDigetherSpectateCandidate> Candidates;
-	for (const ADigetherGameplayPlayerState* Player : Players)
-	{
-		if (Player != Self && IsValid(Player->GetGameplayPawn()))
-		{
-			FDigetherSpectateCandidate Candidate;
-			// 일반 관전과 같이 공개 PlayerId만 키로 쓴다.
-			Candidate.PlayerKey = FString::FromInt(Player->GetPlayerId());
-			Candidate.Life = Player->GetLifeComponent()->CaptureState().PublicState.Life;
-			Candidates.Add(Candidate);
-		}
-	}
-	const FDigetherSpectateSelectionResult Selection = FDigetherLifeRules::SelectSpectateTarget(Candidates,
-		FString::FromInt(Self->GetPlayerId()), Spectator->TargetPlayerKey,
-		bNext ? EDigetherSpectateDirection::Next : EDigetherSpectateDirection::Previous);
-	AActor* Target = ElevatorActor.Get();
-	if (Selection.Result == EDigetherLifeResult::Success)
-	{
-		Spectator->TargetPlayerKey = Selection.TargetPlayerKey;
-		for (ADigetherGameplayPlayerState* Player : Players)
-		{
-			if (!Selection.TargetPlayerKey.IsEmpty() && FString::FromInt(Player->GetPlayerId()) == Selection.TargetPlayerKey
-				&& IsValid(Player->GetGameplayPawn()))
-			{
-				Target = Player->GetGameplayPawn();
-				break;
-			}
-		}
-	}
-	if (IsValid(Target))
-	{
-		SetSpectateViewTarget(Requester, Target);
-	}
-}
-
-void ADigetherGameplayGameMode::ReleaseJoinSpectators()
-{
-	TArray<FDigetherJoinSpectator> Released = MoveTemp(JoinSpectators);
-	JoinSpectators.Reset();
-	for (const FDigetherJoinSpectator& Spectator : Released)
-	{
-		APlayerController* Controller = Spectator.Controller.Get();
-		if (IsValid(Controller) && Controller->GetWorld() == GetWorld() && !IsValid(Controller->GetPawn()))
-		{
-			// 신규 참가자는 여기서 캐릭터 생성·시작 지급을 한 번 받고, 기존 참가자는 저장 장부로 지급 없이 합류한다.
-			HandleStartingNewPlayer(Controller);
-		}
-	}
-}
 
 void ADigetherGameplayGameMode::LogRunStep(const TCHAR* Step) const
 {
@@ -1581,93 +1458,7 @@ void ADigetherGameplayGameMode::LogRunStep(const TCHAR* Step) const
 		Quota.Day, Active, Dead, Escaped,
 		RunCoordinatorComponent->GetConfirmedAscentCount(), RunCoordinatorComponent->CapturePublicState().AftershockStage,
 		RunCoordinatorComponent->GetRemainingSeconds());
-	// 기획 S24: 정확한 공동 인정액은 어디에도 공개하지 않는다. 호스트 개발 로그에서도 기본 표시에서 빼고 Verbose로만 남긴다.
+	// 기획 S24: 정확한 공동 인정액 비공개, 호스트 개발 로그도 기본 표시 제외·Verbose만
 	UE_LOG(LogDigetherFramework, Verbose, TEXT("Step=%s RemainingQuota=%d"), Step,
 		FMath::Max(0, Quota.TargetCredits - Quota.DepositedCredits));
 }
-
-bool ADigetherGameplayGameMode::GrantCredits(ADigetherGameplayPlayerController* Requester, const int32 Amount)
-{
-#if !UE_BUILD_SHIPPING
-	// 기획 S33: 게임 오버 중에는 개발 지급도 받지 않는다(결과 기록 확정 뒤 잔고를 바꾸지 않는다).
-	if (IsValidRequester(Requester) && Amount > 0 && !IsGameOverActive())
-	{
-		UDigetherWalletComponent* Wallet = Requester->GetPlayerState<ADigetherGameplayPlayerState>()->GetWalletComponent();
-		FDigetherWalletState Candidate = Wallet->CaptureState();
-		Candidate.BalanceCredits = FDigetherEconomyRules::AddCredits(Candidate.BalanceCredits, Amount);
-		const bool bApplied = Wallet->RestoreState(Candidate) == EDigetherEconomyResult::Success;
-		UE_LOG(LogDigetherFramework, Log, TEXT("GrantCredits Result=%d (owner wallet only)."), bApplied);
-		return bApplied;
-	}
-#endif
-	return false;
-}
-
-bool ADigetherGameplayGameMode::StartRunSmoke(ADigetherGameplayPlayerController* Requester)
-{
-#if !UE_BUILD_SHIPPING
-	if (!IsValidRequester(Requester) || bSmokeActive || !ElevatorActor.IsValid()
-		|| RunCoordinatorComponent->CapturePublicState().bGameOver
-		|| ElevatorActor->GetElevatorComponent()->GetPublicState().Phase != EDigetherElevatorPhase::HubWaiting)
-	{
-		return false;
-	}
-	SmokeController = Requester;
-	bSmokeActive = true;
-	LogRunStep(TEXT("SmokeStarted"));
-	return true;
-#else
-	return false;
-#endif
-}
-
-#if !UE_BUILD_SHIPPING
-void ADigetherGameplayGameMode::AdvanceSmoke()
-{
-	if (!bSmokeActive)
-	{
-		return;
-	}
-	ADigetherGameplayPlayerController* Controller = SmokeController.Get();
-	if (!IsValidRequester(Controller))
-	{
-		bSmokeActive = false;
-		SmokeController.Reset();
-		UE_LOG(LogDigetherFramework, Warning, TEXT("SmokeAborted: requesting player disconnected."));
-		return;
-	}
-	FDigetherElevatorPullContext Context;
-	if (!TryMakePullContext(Context))
-	{
-		return;
-	}
-	if (Context.ElevatorPhase != EDigetherElevatorPhase::HubWaiting
-		&& Context.ElevatorPhase != EDigetherElevatorPhase::BottomWaiting)
-	{
-		return;
-	}
-	const EDigetherElevatorLeverKind Kind = Context.ElevatorPhase == EDigetherElevatorPhase::HubWaiting
-		? EDigetherElevatorLeverKind::Departure : EDigetherElevatorLeverKind::Ascent;
-	for (const TWeakObjectPtr<ADigetherElevatorLeverActor>& Lever : LeverActors)
-	{
-		if (Lever.IsValid() && Lever->GetLeverKind() == Kind)
-		{
-			// 개발 자동 운전자다. 첫 편에 탈출한 뒤에도 남은 빈 편을 구동해 최종 도착까지 검사한다.
-			// 안·밖 상승 레버 중 이미 점유된 레버가 있으면 다른 레버를 시작하지 않는다(BeginLeverPull과 같은 규칙).
-			FDigetherElevatorPullContext LeverContext = Context;
-			LeverContext.bOtherLeverOccupied = FindOccupiedSiblingLever(LeverActors, Lever.Get()) != nullptr;
-			const EDigetherElevatorLeverResult Result = Lever->GetLeverComponent()->TryBeginPull(
-				Controller->GetPlayerState<ADigetherGameplayPlayerState>()->GetGameplayPlayerId(), LeverContext);
-			if (Result == EDigetherElevatorLeverResult::Started)
-			{
-				if (Kind == EDigetherElevatorLeverKind::Departure)
-				{
-					DepartureRequester = Controller;
-				}
-				LogRunStep(Kind == EDigetherElevatorLeverKind::Departure ? TEXT("DeparturePullStarted") : TEXT("AscentPullStarted"));
-				break;
-			}
-		}
-	}
-}
-#endif

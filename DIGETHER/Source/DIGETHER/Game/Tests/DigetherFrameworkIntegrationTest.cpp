@@ -15,17 +15,16 @@
 #include "Game/Life/DigetherLifeStateComponent.h"
 #include "Game/Run/DigetherRunCoordinatorComponent.h"
 #include "Game/Run/DigetherRunPublicStateComponent.h"
+#include "Game/Tests/DigetherTestValues.h"
 #include "Misc/AutomationTest.h"
 #include "Net/UnrealNetwork.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectGlobals.h"
 
-#include <cmath>
-
 namespace
 {
-	// 숫자·식별자는 테스트 픽스처이며 최종 기획 수치가 아니다.
-	// 기존 Framework.Tuning 검사와 같은 유효한 프로필 값으로 연결층을 검사한다.
+	// 숫자·식별자는 테스트 픽스처, 기획 수치 아님
+	// Framework.Tuning 검사와 같은 유효 프로필 값으로 연결층 검사
 	FDigetherRunTuning MakeIntegrationTuningFixture()
 	{
 		FDigetherRunTuning Tuning;
@@ -62,7 +61,7 @@ namespace
 		Quota.TargetCredits = 175;
 		Quota.DepositedCredits = 35;
 		Quota.PeriodGeneration = 3;
-		// 전체 일차는 기간 일차와 다른 픽스처 값이다(이전 기간들을 지난 뒤의 1일차).
+		// 전체 일차는 기간 일차와 다른 픽스처 값(이전 기간들을 지난 뒤 1일차)
 		Quota.TotalDay = 8;
 		return Quota;
 	}
@@ -154,7 +153,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkIntegrationDefaultsTest,
 
 bool FDigetherFrameworkIntegrationDefaultsTest::RunTest(const FString& Parameters)
 {
-	// CDO의 배치·복제 등록만 검사한다. 실제 월드 겹침과 원격 전송은 M2 검사 범위다.
+	// CDO의 배치·복제 등록만 검사, 실제 월드 겹침·원격 전송은 M2 범위
 	const ADigetherGameplayGameMode* GameMode = GetDefault<ADigetherGameplayGameMode>();
 	const ADigetherGameplayGameState* GameState = GetDefault<ADigetherGameplayGameState>();
 	const ADigetherGameplayPlayerState* PlayerState = GetDefault<ADigetherGameplayPlayerState>();
@@ -211,13 +210,13 @@ bool FDigetherFrameworkIntegrationDefaultsTest::RunTest(const FString& Parameter
 	TestTrue(TEXT("탑승 겹침 생성 활성"), BoardingVolume->GetGenerateOverlapEvents());
 	const FVector Extent = BoardingVolume->GetUnscaledBoxExtent();
 	TestTrue(TEXT("탑승 볼륨의 세 축 크기는 양수"), Extent.X > 0.0 && Extent.Y > 0.0 && Extent.Z > 0.0);
-	// 기획: 문이 닫히는 동안에도 걸어서 탈 수 있으므로 문턱 밀어내기 볼륨을 두지 않는다. 박스는 탑승 볼륨 하나뿐이다.
+	// 기획: 문 닫히는 중에도 걸어서 탑승 가능, 문턱 밀어내기 볼륨 없이 탑승 볼륨 박스 하나
 	TArray<UBoxComponent*> ElevatorBoxes;
 	Elevator->GetComponents<UBoxComponent>(ElevatorBoxes);
 	TestEqual(TEXT("엘리베이터 박스는 탑승 볼륨 하나"), ElevatorBoxes.Num(), 1);
 	TestNull(TEXT("문 바깥 방향 설정 프로퍼티 없음"),
 		FindFProperty<FProperty>(Elevator->GetClass(), TEXT("DoorOutwardDirection")));
-	// 기획: 공동 인정액은 숫자 대신 신호기 색으로만 공개한다. 누적 인정액을 담은 서버 원본은 복제하지 않는다.
+	// 기획: 공동 인정액은 신호기 색으로만 공개, 누적 인정액 서버 원본은 비복제
 	const UDigetherQuotaStateComponent* Quota = GameState->GetQuotaComponent();
 	if (TestNotNull(TEXT("할당량 상태 부착"), Quota))
 	{
@@ -269,7 +268,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkPlayerLoadTest,
 
 bool FDigetherFrameworkPlayerLoadTest::RunTest(const FString& Parameters)
 {
-	// 숫자·식별자는 테스트 픽스처이며 최종 기획 값이 아니다.
+	// 숫자·식별자는 테스트 픽스처, 기획 값 아님
 	const TArray<FGuid> PassengerIds = { FGuid(1, 2, 3, 4), FGuid(5, 6, 7, 8) };
 	TArray<FDigetherElevatorLoadEntry> Entries;
 	if (!TestTrue(TEXT("유효한 탑승자 목록 변환"), DigetherFrameworkRules::TryMakePlayerLoad(PassengerIds, Entries))
@@ -334,14 +333,14 @@ bool FDigetherFrameworkDepositBoundaryTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("광산 바닥은 런 광산 정지로 변환"),
 		DigetherFrameworkRules::MakeRunElevatorState(EDigetherElevatorPhase::BottomWaiting),
 		EDigetherRunElevatorState::StoppedInMine);
-	// 기획 A3: 문이 닫히는 중 시간 종료는 갱도 대기로 처리한다.
+	// 기획 A3: 문 닫히는 중 시간 종료는 갱도 대기로 처리
 	TestEqual(TEXT("문 닫힘은 런 광산 정지로 변환"),
 		DigetherFrameworkRules::MakeRunElevatorState(EDigetherElevatorPhase::DoorClosing),
 		EDigetherRunElevatorState::StoppedInMine);
 	Run = FDigetherRunPublicState();
 	TestTrue(TEXT("거점 문 닫힘은 납부 거절"),
 		DigetherFrameworkRules::IsDepositClosed(Run, EDigetherElevatorPhase::DoorClosing));
-	// 기획 C3: 출발 게이지가 찬 순간(거점 문 닫힘)부터 새 참가를 막고, 문이 다시 열리면 푼다.
+	// 기획 C3: 출발 게이지 완료(거점 문 닫힘)부터 새 참가 차단, 문 재개방 시 해제
 	TestFalse(TEXT("거점 대기는 새 참가 허용"),
 		DigetherFrameworkRules::IsNewJoinLocked(Run, EDigetherElevatorPhase::HubWaiting));
 	TestTrue(TEXT("거점 문 닫힘은 새 참가 잠금"),
@@ -352,7 +351,7 @@ bool FDigetherFrameworkDepositBoundaryTest::RunTest(const FString& Parameters)
 	Run.Phase = EDigetherRunPhase::Ended;
 	TestFalse(TEXT("귀환 정리 뒤 거점 대기는 새 참가 허용"),
 		DigetherFrameworkRules::IsNewJoinLocked(Run, EDigetherElevatorPhase::HubWaiting));
-	// 기획 S33: 실패 사건·크레딧(게임 오버) 중에는 거점 대기여도 새 참가를 열지 않는다.
+	// 기획 S33: 실패 사건·크레딧(게임 오버) 중에는 거점 대기여도 새 참가 차단
 	Run.bGameOver = true;
 	TestTrue(TEXT("게임 오버 중 거점 대기는 새 참가 잠금"),
 		DigetherFrameworkRules::IsNewJoinLocked(Run, EDigetherElevatorPhase::HubWaiting));
@@ -457,7 +456,7 @@ bool FDigetherFrameworkTimeoutReturnTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("4일차 귀환에 전체 일차도 하루 증가"), Plan.ReturnedQuota.TotalDay, 9);
 	TestTrue(TEXT("마감 이후 미달 귀환은 게임 오버"), Plan.bGameOver);
 
-	// 전원 사망(전멸)으로 일찍 끝나도 탐사는 끝났으므로 두 일차가 똑같이 오른다(기획 02 개요 5행).
+	// 전원 사망(전멸)으로 일찍 끝나도 탐사 종료라 두 일차 동일 증가(기획 02 개요 5행)
 	FDigetherRunTerminationInput Wipe = Input;
 	Wipe.ElevatorState = EDigetherRunElevatorState::StoppedInMine;
 	Wipe.bElevatorOverweight = false;
@@ -508,7 +507,7 @@ bool FDigetherFrameworkRejectInvalidReturnTest::RunTest(const FString& Parameter
 	{
 		return false;
 	}
-	// 실패 도중 새 계획의 일부를 출력에 썼는지도 잡도록 모든 출력 묶음을 구별한다.
+	// 실패 도중 새 계획 일부가 출력에 쓰였는지 잡으려 출력 묶음 모두 구별
 	PreviousPlan.Termination.Result = EDigetherRunResult::AlreadyEnded;
 	PreviousPlan.Termination.bEjectCargo = true;
 	PreviousPlan.Termination.ElevatorAction = EDigetherRunElevatorAction::EmptyAscentAfterEjection;
@@ -572,7 +571,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkChainSummonPlanTest,
 
 bool FDigetherFrameworkChainSummonPlanTest::RunTest(const FString& Parameters)
 {
-	// 탑승 볼륨 크기·간격은 테스트 픽스처이며 최종 기획 탑승 경계가 아니다.
+	// 탑승 볼륨 크기·간격은 테스트 픽스처, 기획 탑승 경계 아님
 	const FVector Extent(250.0, 250.0, 100.0);
 	constexpr double Spacing = 100.0;
 	const auto IsSpaced = [Spacing](const TArray<FVector>& Points)
@@ -594,7 +593,7 @@ bool FDigetherFrameworkChainSummonPlanTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("소집 0명은 성공"), DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, {}, 0, Planned));
 	TestEqual(TEXT("소집 0명은 위치 없음"), Planned.Num(), 0);
 
-	// 아무도 타지 않았으면 4명 모두 바닥 안쪽 서로 떨어진 위치로 옮긴다. 첫 소집자는 중심이다.
+	// 탑승자 없으면 4명 모두 바닥 안쪽 서로 떨어진 위치로 이동, 첫 소집자는 중심
 	TestTrue(TEXT("빈 엘리베이터 4명 소집"), DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, {}, 4, Planned));
 	TestEqual(TEXT("소집 인원만큼 위치"), Planned.Num(), 4);
 	TestTrue(TEXT("첫 소집 위치는 중심"), Planned.Num() > 0 && Planned[0].Equals(FVector::ZeroVector));
@@ -605,19 +604,78 @@ bool FDigetherFrameworkChainSummonPlanTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("소집 위치 높이는 볼륨 중심"), Point.Z, 0.0);
 	}
 
-	// 직접 탑승자가 서 있는 자리는 피한다.
+	// 직접 탑승자 자리 회피
 	const TArray<FVector> Boarded = { FVector(0.0, 0.0, 12.0), FVector(100.0, 0.0, 0.0) };
 	TestTrue(TEXT("직접 탑승자와 함께 2명 소집"), DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, Boarded, 2, Planned));
 	TArray<FVector> All = Boarded;
 	All.Append(Planned);
 	TestTrue(TEXT("직접 탑승자와 소집자 간격 유지"), IsSpaced(All));
 
-	// 같은 입력은 같은 배치다(서버 재시도·로그 재현).
+	// 같은 입력은 같은 배치(서버 재시도·로그 재현)
 	TArray<FVector> Again;
 	DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, Boarded, 2, Again);
 	TestTrue(TEXT("같은 입력의 같은 배치"), Again == Planned);
 
-	// 자리가 모자라면 실패하고 출력은 보존한다(임시: 기획의 겹침 허용 대신 출발 거절).
+	// 직사각 볼륨의 짝수 행·열도 반 칸 여유를 유지하며 모두 사용
+	const FVector RectExtent(200.0, 125.0, 100.0);
+	TestTrue(TEXT("직사각 빈 엘리베이터 4명 소집"),
+		DigetherFrameworkRules::TryPlanChainSummon(RectExtent, Spacing, {}, 4, Planned));
+	TestEqual(TEXT("직사각 4명 위치 수"), Planned.Num(), 4);
+	TestTrue(TEXT("직사각 소집 위치 간격"), IsSpaced(Planned));
+	const TArray<FVector> RectFour = Planned;
+	TestTrue(TEXT("직사각 4명 중앙 정렬·거리와 X/Y 정렬"), Planned == TArray<FVector>({
+		FVector(-50.0, -50.0, 0.0), FVector(-50.0, 50.0, 0.0),
+		FVector(50.0, -50.0, 0.0), FVector(50.0, 50.0, 0.0) }));
+	TestTrue(TEXT("직사각 최대 8명 소집"),
+		DigetherFrameworkRules::TryPlanChainSummon(RectExtent, Spacing, {}, 8, Planned));
+	TestEqual(TEXT("직사각 4열·2행 위치 수"), Planned.Num(), 8);
+	TestTrue(TEXT("직사각 최대 인원 간격"), IsSpaced(Planned));
+	for (const FVector& Point : Planned)
+	{
+		TestTrue(TEXT("직사각 소집 위치는 경계에서 반 칸 안쪽"),
+			FMath::Abs(Point.X) <= RectExtent.X - Spacing / 2.0
+			&& FMath::Abs(Point.Y) <= RectExtent.Y - Spacing / 2.0);
+		TestEqual(TEXT("직사각 위치 높이는 볼륨 중심"), Point.Z, 0.0);
+	}
+	TArray<FVector> RectPreserved = { FVector(9.0, 8.0, 7.0) };
+	TestFalse(TEXT("직사각 9명은 자리 부족"),
+		DigetherFrameworkRules::TryPlanChainSummon(RectExtent, Spacing, {}, 9, RectPreserved));
+	TestTrue(TEXT("직사각 자리 부족은 출력 보존"),
+		RectPreserved == TArray<FVector>({ FVector(9.0, 8.0, 7.0) }));
+	TestTrue(TEXT("직사각 기존 탑승자 2명과 함께 2명 소집"),
+		DigetherFrameworkRules::TryPlanChainSummon(RectExtent, Spacing, Boarded, 2, Planned));
+	All = Boarded;
+	All.Append(Planned);
+	TestTrue(TEXT("직사각 기존 탑승자·소집자 간격"), IsSpaced(All));
+	TestTrue(TEXT("직사각 탑승자가 있으면 먼 쪽 두 자리 사용"), Planned == TArray<FVector>({
+		FVector(-150.0, -50.0, 0.0), FVector(-150.0, 50.0, 0.0) }));
+	TestTrue(TEXT("직사각 반복 소집 성공"),
+		DigetherFrameworkRules::TryPlanChainSummon(RectExtent, Spacing, {}, 4, Again));
+	TestTrue(TEXT("직사각 소집 결정성"), Again == RectFour);
+	TestTrue(TEXT("기본 정사각은 5열·5행 25명 유지"),
+		DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, {}, 25, Planned));
+	TestEqual(TEXT("기본 격자 25개 유지"), Planned.Num(), 25);
+	TestTrue(TEXT("기본 최대 격자도 중심 우선·간격 유지"),
+		Planned.Num() > 0 && Planned[0].Equals(FVector::ZeroVector) && IsSpaced(Planned));
+
+	// 반 칸 경계는 포함하고 바로 아래는 공간 부족, 실패 시 출력 보존
+	const FVector HalfCellExtent(Spacing / 2.0, Spacing / 2.0, 100.0);
+	TestTrue(TEXT("반 칸 경계 1명 소집"),
+		DigetherFrameworkRules::TryPlanChainSummon(HalfCellExtent, Spacing, {}, 1, Planned));
+	TestTrue(TEXT("반 칸 경계는 중심 한 자리"), Planned == TArray<FVector>({ FVector::ZeroVector }));
+	TestFalse(TEXT("반 칸보다 작은 축은 1명도 부족"), DigetherFrameworkRules::TryPlanChainSummon(
+		FVector(HalfCellExtent.X - 0.001, HalfCellExtent.Y, HalfCellExtent.Z), Spacing, {}, 1, Planned));
+	TestTrue(TEXT("반 칸 아래 실패는 출력 보존"), Planned == TArray<FVector>({ FVector::ZeroVector }));
+	TestTrue(TEXT("짝수 축 경계 2명 소집"), DigetherFrameworkRules::TryPlanChainSummon(
+		FVector(Spacing, HalfCellExtent.Y, HalfCellExtent.Z), Spacing, {}, 2, Planned));
+	TestTrue(TEXT("짝수 축 경계는 반 간격 중심 정렬"), Planned == TArray<FVector>({
+		FVector(-50.0, 0.0, 0.0), FVector(50.0, 0.0, 0.0) }));
+	const TArray<FVector> EvenBoundary = Planned;
+	TestFalse(TEXT("짝수 축 경계 바로 아래는 2명 부족"), DigetherFrameworkRules::TryPlanChainSummon(
+		FVector(Spacing - 0.001, HalfCellExtent.Y, HalfCellExtent.Z), Spacing, {}, 2, Planned));
+	TestTrue(TEXT("짝수 경계 아래 실패는 출력 보존"), Planned == EvenBoundary);
+
+	// 자리 부족 시 실패, 출력 보존(임시: 기획의 겹침 허용 대신 출발 거절)
 	const FVector Narrow(60.0, 60.0, 100.0);
 	TArray<FVector> Preserved = { FVector(1.0, 2.0, 3.0) };
 	TestFalse(TEXT("좁은 볼륨 2명 소집 실패"), DigetherFrameworkRules::TryPlanChainSummon(Narrow, Spacing, {}, 2, Preserved));
@@ -626,7 +684,7 @@ bool FDigetherFrameworkChainSummonPlanTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("잘못된 간격 거절"), DigetherFrameworkRules::TryPlanChainSummon(Extent, 0.0, {}, 1, Planned));
 	TestFalse(TEXT("음수 인원 거절"), DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, {}, -1, Planned));
 	TestFalse(TEXT("NaN 탑승 위치 거절"),
-		DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, { FVector(NAN, 0.0, 0.0) }, 1, Planned));
+		DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, { FVector(DigetherTestValues::NaN<double>(), 0.0, 0.0) }, 1, Planned));
 	return true;
 }
 

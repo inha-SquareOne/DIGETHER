@@ -64,7 +64,7 @@ void UDigetherRunCoordinatorComponent::EndNotificationBatch()
 		return;
 	}
 
-	// 외부 콜백이 새 배치를 시작해도 이미 소비할 통지와 새 통지가 섞이지 않게 먼저 비운다.
+	// 외부 콜백이 새 배치를 시작해도 소비할 통지와 새 통지가 섞이지 않도록 먼저 비움
 	const bool bNotifyPublicState = bPendingPublicStateChanged;
 	bPendingPublicStateChanged = false;
 	TArray<TFunction<void()>> Notifications = MoveTemp(PendingNotifications);
@@ -106,7 +106,7 @@ EDigetherRunResult UDigetherRunCoordinatorComponent::PublishCandidate(
 	bOutChanged = !ArePublicStatesEqual(Candidate, ConfirmedPublicState);
 	if (UDigetherRunPublicStateComponent* Component = PublicStateComponent.Get())
 	{
-		// 외부에서 복원된 공개 값도 다음 확정 시점에 조율자의 원본과 맞춘다.
+		// 외부에서 복원된 공개 값도 다음 확정 시점에 조율자 원본과 동기화
 		bOutChanged |= !ArePublicStatesEqual(Candidate, Component->CaptureState());
 		const EDigetherRunResult Result = Component->RestoreState(Candidate, false);
 		if (Result != EDigetherRunResult::Success)
@@ -311,8 +311,8 @@ FDigetherRunQuotaResult UDigetherRunCoordinatorComponent::HandleBaseReturn(const
 	}
 	FDigetherRunPublicState Candidate = ConfirmedPublicState;
 	Candidate.bGameOver = Result.bGameOver;
-	// 미달 게임 오버에서는 이미 닫힌 납부를 다시 열지 않는다.
-	// 다음 탐사를 허용하는 귀환에서는 아직 다음 출발 레버를 완료하지 않았다.
+	// 미달 게임 오버에서는 이미 닫힌 납부를 다시 열지 않음
+	// 다음 탐사를 허용하는 귀환에서는 아직 다음 출발 레버 미완료
 	Candidate.bPaymentDeadline = Result.bGameOver && ConfirmedPublicState.bPaymentDeadline;
 	Result.bPaymentDeadline = Candidate.bPaymentDeadline;
 	bool bPublicChanged = false;

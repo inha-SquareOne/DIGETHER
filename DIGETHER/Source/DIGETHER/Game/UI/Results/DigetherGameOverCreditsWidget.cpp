@@ -23,7 +23,7 @@ namespace
 		Lines.Add(Title);
 		for (const FDigetherGameResultPlayer& Player : Result.Players)
 		{
-			// 블록 안의 플레이어는 참가 순서대로이며 순위를 매기지 않는다. 0원도 생략하지 않는다(S33 236행).
+			// 참가 순서 유지·순위 없음, 0원도 표시(S33 236행)
 			Lines.Add(FText::Format(LOCTEXT("PlayerAmount", "{0}: {1}"), MakePlayerName(Player),
 				FText::AsNumber(SelectAmount(Player))));
 		}
@@ -71,9 +71,71 @@ void UDigetherGameOverCreditsWidget::NativeOnInitialized()
 void UDigetherGameOverCreditsWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
-	// 크레딧 단계가 아니면 접어 둔다. 단계는 매 프레임 공개 상태에서 다시 읽어 늦은 복제도 따라간다.
+	// 접힌 위젯은 Tick하지 않으므로 단계 알림으로 표시, 늦은 GameState도 재연결
 	bShown = false;
 	SetVisibility(ESlateVisibility::Collapsed);
+	if (UWorld* World = GetWorld())
+	{
+		BoundWorld = World;
+		GameStateSetHandle = World->GameStateSetEvent.AddUObject(this, &ThisClass::HandleGameStateSet);
+		BindPublicState(World->GetGameState());
+	}
+}
+
+void UDigetherGameOverCreditsWidget::NativeDestruct()
+{
+	if (UWorld* World = BoundWorld.Get())
+	{
+		World->GameStateSetEvent.Remove(GameStateSetHandle);
+	}
+	BoundWorld.Reset();
+	GameStateSetHandle.Reset();
+	UnbindPublicState();
+	Super::NativeDestruct();
+}
+
+void UDigetherGameOverCreditsWidget::HandleGameStateSet(AGameStateBase* GameState)
+{
+	BindPublicState(GameState);
+}
+
+void UDigetherGameOverCreditsWidget::BindPublicState(AGameStateBase* GameState)
+{
+	const ADigetherGameplayGameState* State = Cast<ADigetherGameplayGameState>(GameState);
+	UDigetherGameOverPublicStateComponent* Public = IsValid(State) ? State->GetGameOverPublicStateComponent() : nullptr;
+	if (BoundPublicState.Get() != Public)
+	{
+		UnbindPublicState();
+		BoundPublicState = Public;
+		if (Public)
+		{
+			Public->OnGameOverPhaseChanged.AddUniqueDynamic(this, &ThisClass::HandlePhaseChanged);
+		}
+	}
+	// 위젯 재사용·크레딧 중 도착에도 현재 공개 스냅샷부터 반영
+	HandlePhaseChanged(Public ? Public->GetPhase() : EDigetherGameOverPhase::None);
+}
+
+void UDigetherGameOverCreditsWidget::UnbindPublicState()
+{
+	if (UDigetherGameOverPublicStateComponent* Public = BoundPublicState.Get())
+	{
+		Public->OnGameOverPhaseChanged.RemoveDynamic(this, &ThisClass::HandlePhaseChanged);
+	}
+	BoundPublicState.Reset();
+}
+
+void UDigetherGameOverCreditsWidget::HandlePhaseChanged(const EDigetherGameOverPhase Phase)
+{
+	const UDigetherGameOverPublicStateComponent* Public = BoundPublicState.Get();
+	if (Phase == EDigetherGameOverPhase::Credits && IsValid(Public))
+	{
+		Show(Public->GetPublishedResult());
+	}
+	else if (bShown)
+	{
+		Hide();
+	}
 }
 
 void UDigetherGameOverCreditsWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)
@@ -97,11 +159,12 @@ void UDigetherGameOverCreditsWidget::NativeTick(const FGeometry& MyGeometry, con
 	const float ScrollOffset = Public->GetCreditScrollOffset();
 	if (Panel_Scroll)
 	{
-		// 기본 평면 스크롤: 화면 아래(1)에서 시작해 위로 올라간다. 원근은 BP가 덧입힌다.
+		// 기본 평면 스크롤, 화면 아래(1)에서 위로 이동, 원근은 BP가 덧입힘
 		const float Height = MyGeometry.GetLocalSize().Y;
 		Panel_Scroll->SetRenderTranslation(FVector2D(0.0, (1.0 - ScrollOffset) * Height));
 	}
-	RefreshFastForwardLabel();
+	// 같은 프레임의 Public 재사용, 월드·GameState 재조회 생략
+	RefreshFastForwardLabel(Public->IsCreditFastForward());
 	BP_OnCreditScroll(ScrollOffset, Public->GetCreditProgressSeconds(), Public->GetCreditTotalSeconds());
 }
 
@@ -152,11 +215,11 @@ void UDigetherGameOverCreditsWidget::Hide()
 	BP_OnCreditsHidden();
 }
 
-void UDigetherGameOverCreditsWidget::RefreshFastForwardLabel()
+void UDigetherGameOverCreditsWidget::RefreshFastForwardLabel(const bool bFastForward)
 {
 	if (Text_FastForward)
 	{
-		Text_FastForward->SetText(IsFastForward() ? LOCTEXT("FastForwardOn", "빨리감기 중") : LOCTEXT("FastForwardOff", "빨리감기"));
+		Text_FastForward->SetText(bFastForward ? LOCTEXT("FastForwardOn", "빨리감기 중") : LOCTEXT("FastForwardOff", "빨리감기"));
 	}
 }
 

@@ -27,7 +27,7 @@
 #include "Misc/AutomationTest.h"
 #include "UObject/UnrealType.h"
 
-// 준비만 노출한다. 거래·점유·레버 시작/유지는 제품의 서버 함수를 그대로 호출한다.
+// 준비만 노출, 거래·점유·레버 시작/유지는 제품 서버 함수 직접 호출
 class FDigetherHubWorldTestAccess
 {
 public:
@@ -82,7 +82,7 @@ namespace
 		bool IsReady() const { return IsValid(Controller) && IsValid(State) && IsValid(Pawn); }
 	};
 
-	// 새 GameInstance의 임시 월드만 쓴다. 로그인·자동 저장·세션 생성은 하지 않는다.
+	// 새 GameInstance의 임시 월드만 사용, 로그인·자동 저장·세션 생성 없음
 	class FHubFacilityWorld
 	{
 	public:
@@ -102,7 +102,7 @@ namespace
 			Elevator = World->SpawnActor<ADigetherElevatorActor>();
 			Departure = AddLever(EDigetherElevatorLeverKind::Departure, FVector(-100, 0, 0));
 			Ascent = AddLever(EDigetherElevatorLeverKind::Ascent, FVector(100, 0, 0));
-			// 기획 S15: 갱도 상승 레버는 안·밖 하나씩이다. 밖 레버는 탑승 영역(반폭 250cm) 밖에 둔다.
+			// 기획 S15: 갱도 상승 레버는 안·밖 하나씩, 밖 레버는 탑승 영역(반폭 250cm) 밖
 			AscentOutside = AddLever(EDigetherElevatorLeverKind::Ascent, FVector(400, 0, 0),
 				EDigetherElevatorLeverPlacement::Outside);
 			if (!IsValid(Elevator) || !IsValid(Departure) || !IsValid(Ascent) || !IsValid(AscentOutside)

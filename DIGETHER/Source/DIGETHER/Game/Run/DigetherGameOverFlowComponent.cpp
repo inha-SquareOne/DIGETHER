@@ -53,7 +53,7 @@ FDigetherGameOverStep UDigetherGameOverFlowComponent::Advance(const double NowSe
 		AdvanceFailureEvent(NowSeconds, PresentPlayers, Step);
 		break;
 	case EDigetherGameOverPhase::Credits:
-		// 끝 판정은 서버만 한다. 종료 신호가 다시 와도 새 게임 요청은 한 번이다(S33 240행·T38).
+		// 끝 판정은 서버 전용, 종료 신호가 다시 와도 새 게임 요청은 1회(S33 240행·T38)
 		if (!bNewGameRequested && DigetherGameOverRules::IsCreditFinished(State.Playback, NowSeconds))
 		{
 			bNewGameRequested = true;
@@ -82,7 +82,7 @@ void UDigetherGameOverFlowComponent::AdvanceFailureEvent(const double NowSeconds
 		bool bAbsorbNow = NowSeconds >= Deadline;
 		if (!bAbsorbNow && NowSeconds >= SuctionStart)
 		{
-			// 흡입 시작 뒤 처음 본 사람의 흡입 시각을 정한다. 늦게 돌아온 사람은 지금 거리 기준이라 바로 흡입될 수 있다.
+			// 흡입 시작 뒤 처음 본 사람의 흡입 시각 결정, 늦게 돌아온 사람은 지금 거리 기준이라 즉시 흡입될 수 있음
 			const double* Scheduled = AbsorbSchedule.Find(Player.PlayerId);
 			const double AbsorbAt = Scheduled != nullptr ? *Scheduled
 				: AbsorbSchedule.Add(Player.PlayerId,
@@ -105,7 +105,7 @@ void UDigetherGameOverFlowComponent::AdvanceFailureEvent(const double NowSeconds
 		State.WaitingPlayerCount = Waiting;
 		OutStep.bPublicStateChanged = true;
 	}
-	// 기다릴 현재 참가자가 없으면(전원 흡입·퇴장) 함께 크레딧을 시작한다. 떠난 사람은 기다리지 않는다(T34).
+	// 기다릴 현재 참가자가 없으면(전원 흡입·퇴장) 크레딧 시작, 떠난 사람은 기다리지 않음(T34)
 	if (DigetherGameOverRules::ShouldStartCredits(Waiting, FailureStart, NowSeconds, State.Tuning)
 		&& EnterPhase(EDigetherGameOverPhase::Credits, NowSeconds))
 	{

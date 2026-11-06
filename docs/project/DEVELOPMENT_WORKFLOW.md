@@ -14,23 +14,44 @@ GitHub 사용과 Gitflow 전략은 확정이다. 한국어 커밋·공동 작성
 
 실제 GitHub Issue/PR은 아직 생성하지 않았다. 강제 보호 규칙·필수 승인 수·CI는 담당자가 정해야 한다.
 
-## 파일 분류와 LFS 제안
+## 파일 분류: Git과 SVN
 
-| 대상 | 관리 방향 |
+2026-11-06 사용자 선택으로 코드·로직 에셋은 Git, 아트·맵·제작 원본은 팀 PC의 SVN에서 관리한다. Git LFS는 쓰지 않는다. 결정·배경·전환 상태는 [ADR-004](../decisions/ADR-004-git-code-svn-assets.md)가 단일 기준이다.
+
+| 대상 | 관리 |
 |---|---|
-| `.uproject`, Source, Config, 텍스트 문서 | 일반 Git |
-| `.uasset`, `.umap` | Git LFS 적용, 단일 편집자·원격 잠금 운영은 별도 합의 |
-| 모델·텍스처·오디오 제작 원본 | 권리 확인 후 LFS 패턴·크기 기준·보관 경로 결정 |
-| Binaries, Intermediate, Saved, DerivedDataCache | 생성물 제외. 기존 `.gitignore` 유지 |
-| 플러그인의 필수 바이너리·Build 필수 자원 | 기존 ignore에 가려지는지 개별 검사 후 예외 결정 |
+| `.uproject`, Source, Config, Plugins, Build, 텍스트 문서·스크립트 | Git |
+| `Content/Game/Blueprints`, `Content/Game/UI`, `Content/Game/Input`, `Content/Data`, `Content/Input`, `Content/Editor`, `Content/Frontend/UI`, `Content/Frontend/Localization` | Git(바이너리, 잠금 없음 → 편집 예약) |
+| 그 밖의 `Content` 전부(맵·메시·텍스처·머티리얼·애니메이션·사운드·VFX·외형 BP·템플릿) | SVN, 바이너리는 `svn:needs-lock` |
+| `DIGETHER/SourceArt` 등 제작 원본 | SVN |
+| Binaries, Intermediate, Saved, DerivedDataCache | 생성물 제외. `.gitignore` 유지 |
+| 플러그인의 필수 바이너리·Build 필수 자원 | ignore에 가려지는지 개별 검사 후 예외 결정 |
 | 엔진 설치물·개인 설정·비밀값 | 저장소에 포함하지 않음 |
 
-2026-10-27 사용자 승인으로 `.gitattributes`에 `*.uasset`, `*.umap` LFS 패턴을 적용했다. 각 개발 PC에서 Git LFS 설치 후 복제/체크아웃한다. 원격 업로드·저장 용량·권한·잠금은 아직 검증하지 않았다. 이번 작업은 로컬 커밋이며 푸시는 수행하지 않는다.
+Git·SVN 경계는 루트 `.gitignore`의 Content 분리 규칙과 [SVN 첫 등록 스크립트](../../scripts/svn/Initialize-SvnAssets.ps1)의 `svn:ignore`가 함께 정한다. 한쪽만 고치지 않는다. 경로 소속은 `git check-ignore -v <경로>`로 확인한다(제외되면 SVN 쪽).
 
-`.gitignore`는 프로젝트·플러그인 깊이와 무관하게 Binaries, Intermediate, Saved, DerivedDataCache와 IDE 캐시·생성된 솔루션을 제외한다. Build 필수 자원, SourceArt, `.vsconfig`, 맵 BuiltData는 추적 가능하게 유지한다. 전역 바이너리 확장자 제외를 없애 ThirdParty SDK·OBJ 원본이 숨지 않게 했다. 필수 사전 컴파일 플러그인을 도입할 때는 해당 Binaries 경로에 명시적 예외를 추가한다. `git check-ignore -v <실제경로>`로 누락 여부를 검사한다.
+`.gitignore`는 프로젝트·플러그인 깊이와 무관하게 Binaries, Intermediate, Saved, DerivedDataCache와 IDE 캐시·생성된 솔루션을 제외한다. Build 필수 자원과 `.vsconfig`는 추적한다. 필수 사전 컴파일 플러그인을 도입할 때는 해당 Binaries 경로에 명시적 예외를 추가한다.
 
 Android File Server의 개인 SecurityToken은 공유 DefaultEngine.ini에 넣지 않고 Git에서 제외되는 Saved/Config/WindowsEditor/Engine.ini에서 관리한다.
 
-`--lockable` 속성만으로 팀 전체의 편집 충돌 방지가 검증되는 것은 아니다. 실제 잠금·해제와 권한 실패를 시험하고 담당 예약 절차를 병행한다. 기존 기록의 LFS 이관은 히스토리를 바꿀 수 있으므로 별도 계획으로 다룬다. 에셋은 로컬 LFS 객체로 저장하며 원격 업로드·히스토리 이관은 수행하지 않았다.
+### 커밋 규칙
 
-근거: [GitHub의 LFS 구성 안내](https://docs.github.com/en/repositories/working-with-files/managing-large-files/configuring-git-large-file-storage), 2026-10-23 확인. Unreal 파일 분류와 협업 절차는 이 프로젝트의 제안이다.
+- C++·Git 쪽 에셋만 바뀌면 Git에만 커밋한다.
+- SVN 쪽 에셋(맵·메시 등)도 함께 바뀌면 **SVN을 먼저 커밋**하고, 그 리비전 번호를 루트 `content.rev`에 넣어 같은 Git 커밋에 포함한다. PR 설명에도 SVN 리비전을 적는다.
+- SVN은 trunk 하나로 운영하며 `develop` 코드와 맞는 상태를 유지한다. 개인 실험 에셋은 `Content/Developers/<이름>`에 둔다.
+- SVN 잠금은 편집 전에 걸고(TortoiseSVN Get Lock 또는 에디터 Check Out), 커밋 뒤 바로 풀린다. 잠금을 건 채 퇴근하지 않는다.
+
+### Git과 SVN 전환 절차
+
+2026-11-06 기준 1단계를 로컬 적용했으며, 사용자 후속 지시로 2단계 전에 Git 전환 변경을 로컬 커밋했다. SVN 첫 등록·content.rev와 팀원 전환·푸시는 미실행이다(ADR-004의 로컬 커밋 순서 예외).
+
+1. **Git 설정(로컬 커밋):** `.gitattributes`에서 LFS 제거, `.gitignore` Content 분리 규칙 추가, SVN 쪽 파일 `git rm --cached`.
+2. **SVN 첫 등록:** 최신 Content를 가진 PC에 SVN 명령줄 도구(TortoiseSVN의 command line client tools)를 설치하고 `.\scripts\svn\Initialize-SvnAssets.ps1 -RepoUrl <저장소 주소> -DryRun`으로 명령을 확인한 뒤 `-DryRun` 없이 실행한다. 끝나면 `content.rev`가 생긴다.
+3. **Git 커밋:** `git add --renormalize DIGETHER/Content`로 Git 폴더 에셋을 LFS 포인터에서 실제 파일로 바꾸고, `.gitattributes`·`.gitignore`·`content.rev`와 추적 제거를 한 커밋으로 만든다. 아직 푸시하지 않는다.
+4. **팀원 준비:** 각 팀원은 Unreal 에디터를 닫고 작업 중인 에셋을 백업한다. 폴더를 옮기지 말고 그 자리에서 SVN 작업 사본으로 만든다: `svn checkout <주소>/trunk/Content DIGETHER/Content --force`(SourceArt도 동일). Git 폴더는 `svn:ignore`로 제외된다. `svn status`에 `M`으로 보이는 파일은 서버와 다른 로컬 변경이므로 백업과 대조해 커밋하거나 `svn revert`한다.
+5. **푸시와 pull:** 전원이 4단계를 마친 뒤 3단계 커밋을 푸시한다. pull하면 Git이 추적에서 빠진 아트·맵 파일을 디스크에서 지운다. **pull 직후 `svn update DIGETHER/Content DIGETHER/SourceArt`를 실행해 SVN에서 복원한다.**
+6. **확인:** 에디터에서 맵·BP가 열리는지, `git status`·`svn status`에 의도하지 않은 변경이 없는지 확인한다.
+
+**브랜치 전환 주의:** 전환 전 커밋(아트를 Git이 추적하던 시점)과 전환 후 커밋 사이를 checkout하면 Git이 SVN 쪽 파일을 덮어쓰거나 지운다. 전환 뒤에는 이전 브랜치를 checkout하지 않고, 했다면 돌아온 뒤 `svn revert -R`·`svn update`로 복원한다. 팀원의 다른 feature 브랜치는 전환 커밋을 merge한 뒤 사용한다.
+
+기존 LFS 기록은 히스토리 재작성 없이 둔다. 과거 커밋을 checkout할 때를 위해 Git LFS 설치는 유지해도 된다.

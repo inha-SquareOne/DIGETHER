@@ -7,6 +7,22 @@
 #include "Game/Frontend/Lobby/DigetherLobbyGameState.h"
 #include "Game/Frontend/Lobby/DigetherLobbyPlayerState.h"
 #include "Game/Online/DigetherSessionSubsystem.h"
+#include "Game/Voice/DigetherVoiceComponent.h"
+
+ADigetherLobbyPlayerController::ADigetherLobbyPlayerController()
+{
+	VoiceComponent = CreateDefaultSubobject<UDigetherVoiceComponent>(TEXT("VoiceComponent"));
+}
+
+void ADigetherLobbyPlayerController::ClientEnableNetworkVoice_Implementation(const bool bEnable)
+{
+	if (VoiceComponent)
+	{
+		VoiceComponent->HandleServerVoiceEnabled(bEnable);
+		return;
+	}
+	Super::ClientEnableNetworkVoice_Implementation(bEnable);
+}
 
 TSoftClassPtr<UCommonActivatableWidget> ADigetherLobbyPlayerController::GetScreenClass() const
 {
@@ -37,7 +53,7 @@ void ADigetherLobbyPlayerController::Server_SetReady_Implementation(bool bReady)
 
 void ADigetherLobbyPlayerController::RequestStartGame()
 {
-	// 호스트는 리슨 서버의 로컬 플레이어이므로 RPC 없이 GameMode에 바로 요청한다.
+	// 호스트는 리슨 서버 로컬 플레이어라 RPC 없이 GameMode에 직접 요청
 	if (!HasAuthority() || !IsLocalController()) return;
 	if (ADigetherLobbyGameMode* LobbyMode = GetWorld()->GetAuthGameMode<ADigetherLobbyGameMode>())
 	{
@@ -45,7 +61,7 @@ void ADigetherLobbyPlayerController::RequestStartGame()
 	}
 }
 
-// UHT가 생성한 Exec 진입점이 정의를 요구하므로 함수는 남기고 본문만 출시 빌드에서 뺀다.
+// UHT 생성 Exec 진입점이 정의를 요구해 함수는 유지하고 본문만 Shipping에서 제외
 void ADigetherLobbyPlayerController::LobbyReady(bool bReady)
 {
 #if !UE_BUILD_SHIPPING

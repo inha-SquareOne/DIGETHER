@@ -12,7 +12,7 @@
 
 namespace
 {
-	// 디스크 맵과 기존 에디터 월드에 영향을 주지 않고 조기 반환 때도 정리한다.
+	// 디스크 맵·기존 에디터 월드 영향 없음, 조기 반환에도 정리
 	class FDigetherElevatorTestWorld
 	{
 	public:
@@ -95,7 +95,7 @@ namespace
 			{
 				return false;
 			}
-			// 비복제 필드의 RepIndex는 미할당이므로 인덱스 비교에 쓰지 않는다.
+			// 비복제 필드 RepIndex는 미할당이라 인덱스 비교 제외
 		}
 		return true;
 	}
@@ -106,10 +106,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherElevatorComponentsTest,
 
 bool FDigetherElevatorComponentsTest::RunTest(const FString& Parameters)
 {
-	// 테스트 픽스처이며 최종 기획 값이 아니다.
+	// 테스트 픽스처, 기획 값 아님
 	FDigetherRunTuning Run;
 	Run.ElevatorCapacityKg = 100.f;
-	// ELV_ASCENT_LIMIT 확정값 2회. 1회 비교 프로필은 쓰지 않는다.
+	// ELV_ASCENT_LIMIT 확정값 2회, 1회 비교 프로필 미사용
 	Run.ElevatorTripLimit = 2;
 	Run.ElevatorTravelSeconds = 2.f;
 	FDigetherElevatorTuning Tuning;
@@ -242,7 +242,7 @@ bool FDigetherElevatorComponentsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("새 런 초기화"), Elevator->InitializeForRun(Run, Tuning), EDigetherElevatorResult::Success);
 	TestEqual(TEXT("거점 출발 레버 설정"), Lever->Configure(EDigetherElevatorLeverKind::Departure, Tuning), EDigetherElevatorLeverResult::Released);
 	Context.DayNumber = Tuning.WarningDayNumber;
-	// 크레딧 중 출발 차단은 게임 오버 단계가 연결층에서 막는다(S33). 컴포넌트는 거점 대기가 아니면 시작을 거부한다.
+	// 크레딧 중 출발 차단은 게임 오버 단계가 연결층에서 담당(S33), 컴포넌트는 거점 대기가 아니면 시작 거부
 	const EDigetherElevatorPhase HubPhase = Context.ElevatorPhase;
 	Context.ElevatorPhase = EDigetherElevatorPhase::DoorClosing;
 	TestEqual(TEXT("거점 대기 밖 출발 시작 거부"), Lever->TryBeginPull(Puller, Context), EDigetherElevatorLeverResult::InvalidPhase);
@@ -258,14 +258,14 @@ bool FDigetherElevatorComponentsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("레버는 하강을 직접 명령하지 않음"), Elevator->GetPublicState().Phase, EDigetherElevatorPhase::HubWaiting);
 	TestEqual(TEXT("출발 중복 진행은 확정 상태"), Lever->AdvancePull(1.f, Context), EDigetherElevatorLeverResult::AlreadyConfirmed);
 	TestEqual(TEXT("출발 확정 중복 통지 없음"), DepartureNotifications, 1);
-	// 기획 A3: 게이지 완료는 문 닫힘만 시작하고, 첫 하강은 문이 완전히 닫힌 뒤 조율자가 명령한다.
+	// 기획 A3: 게이지 완료는 문 닫힘만 시작, 첫 하강은 문이 완전히 닫힌 뒤 조율자가 명령
 	TestEqual(TEXT("문이 열린 거점에서는 재개방 거부"), Elevator->ReopenDoor(), EDigetherElevatorResult::InvalidPhase);
 	TestEqual(TEXT("출발 게이지 완료 뒤 거점 문 닫힘 시작"), Elevator->BeginDoorClose(), EDigetherElevatorResult::Success);
 	TestEqual(TEXT("거점 문 닫힘 공개 단계"), Elevator->GetPublicState().Phase, EDigetherElevatorPhase::DoorClosing);
 	TestEqual(TEXT("거점 문 닫힘 중 위치는 상부"), Elevator->GetPublicState().TravelProgress, 1.f);
 	TestEqual(TEXT("문 닫힘 시작 공개 진행률 0"), Elevator->GetPublicState().DoorCloseProgress, 0.f);
 	TestEqual(TEXT("문 닫힘 중복 시작 거부"), Elevator->BeginDoorClose(), EDigetherElevatorResult::InvalidPhase);
-	// 기획: 거점 게이지 완료 뒤에는 출발 취소가 없다. 문 닫힘 중 무게가 초과돼도 거점 문은 다시 열지 않는다.
+	// 기획: 거점 게이지 완료 뒤 출발 취소 없음, 문 닫힘 중 무게 초과에도 거점 문 재개방 없음
 	FDigetherElevatorLoadEntry HubCargo;
 	HubCargo.EntryId = FGuid(13, 14, 15, 16);
 	HubCargo.Kind = EDigetherElevatorLoadKind::Cargo;
@@ -313,7 +313,7 @@ bool FDigetherElevatorComponentsTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("2회 한도의 첫 상승은 최종 아님"), Snapshot.bFinalAscent);
 	TestEqual(TEXT("레버는 엘리베이터를 직접 상승시키지 않음"), Elevator->GetPublicState().Phase, EDigetherElevatorPhase::BottomWaiting);
 
-	// 기획 A3: 게이지 완료 뒤 문이 닫히고, 닫히는 동안 무게 초과는 문을 다시 연다.
+	// 기획 A3: 게이지 완료 뒤 문 닫힘, 닫히는 동안 무게 초과면 재개방
 	TestEqual(TEXT("상승 게이지 완료 뒤 갱도 문 닫힘 시작"), Elevator->BeginDoorClose(), EDigetherElevatorResult::Success);
 	TestEqual(TEXT("갱도 문 닫힘 중 위치는 바닥"), Elevator->GetPublicState().TravelProgress, 0.f);
 	TestEqual(TEXT("갱도 문 닫힘 진행"), Elevator->AdvanceTravel(Tuning.MineDoorCloseSeconds / 2.f), EDigetherElevatorResult::Success);
@@ -341,7 +341,7 @@ bool FDigetherElevatorComponentsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("갱도 문 닫힘 완료"), Elevator->AdvanceTravel(Tuning.MineDoorCloseSeconds), EDigetherElevatorResult::DoorClosed);
 	TestEqual(TEXT("갱도 닫힘 완료 통지 한 번"), DoorClosedNotifications, BeforeBottomClose + 1);
 	TestEqual(TEXT("갱도 닫힘 완료 통지 출처"), NotifiedDoorOrigin, EDigetherElevatorPhase::BottomWaiting);
-	// 조율자는 닫힌 순간의 목록으로 편을 고정한다. 게이지 완료 뒤 들어온 탑승자도 포함한다.
+	// 조율자는 닫힌 순간 목록으로 편 고정, 게이지 완료 뒤 탑승자도 포함
 	Snapshot = DigetherElevatorRules::CaptureAscent(Elevator->GetPublicState().CompletedAscents, Run.ElevatorTripLimit,
 		Context.LoadEntries, Run.ElevatorCapacityKg, Tuning);
 	TestEqual(TEXT("닫힌 순간의 탑승자 모두 포함"), Snapshot.PassengerIds.Num(), 2);
@@ -396,7 +396,7 @@ bool FDigetherElevatorComponentsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("새 런 거점 대기"), Elevator->GetPublicState().Phase, EDigetherElevatorPhase::HubWaiting);
 	TestFalse(TEXT("새 런은 이전 편 매니페스트 없음"), Elevator->TryGetLastAscent(Frozen));
 
-	// OnRep 호출은 표현 알림 검사다. 실제 클라이언트 권한·네트워크 전송은 M2에서 검사한다.
+	// OnRep 호출은 표현 알림 검사, 실제 클라이언트 권한·네트워크 전송은 M2
 	UFunction* OnRep = Elevator->FindFunction(TEXT("OnRep_PublicState"));
 	const int32 BeforeOnRep = StateNotifications;
 	if (TestNotNull(TEXT("복제 알림 함수 등록"), OnRep))
@@ -407,7 +407,7 @@ bool FDigetherElevatorComponentsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("복제 표현 알림은 상승 사건 재발행 없음"), AscentNotifications, 2);
 	TestEqual(TEXT("복제 표현 알림은 종료 사건 재발행 없음"), FinishNotifications, 1);
 
-	// 실제 원격 접속 없이 소유 Actor의 비권위 역할에서 같은 API 경계를 검사한다.
+	// 실제 원격 접속 없이 소유 Actor의 비권위 역할로 같은 API 경계 검사
 	const ENetRole OriginalRole = Owner->GetLocalRole();
 	Owner->SetRole(ROLE_SimulatedProxy);
 	TestFalse(TEXT("모의 프록시 소유자는 비권위"), Owner->HasAuthority());

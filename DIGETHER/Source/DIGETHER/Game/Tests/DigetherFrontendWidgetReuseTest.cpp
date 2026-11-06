@@ -10,8 +10,8 @@
 #include "Game/Online/DigetherSessionSubsystem.h"
 #include "Misc/AutomationTest.h"
 
-// CommonUI 스택은 닫힌 패널의 UObject를 풀에 남겨 다시 쓴다(Slate만 해제).
-// 같은 인스턴스를 다시 열어도 세션 알림을 받는지 확인한다.
+// CommonUI 스택은 닫힌 패널 UObject를 풀에 남겨 재사용(Slate만 해제)
+// 같은 인스턴스 재오픈 시 세션 알림 수신 확인
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrontendWidgetReuseTest,
 	"DIGETHER.Game.UI.WidgetReuse", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -24,7 +24,7 @@ bool FDigetherFrontendWidgetReuseTest::RunTest(const FString& Parameters)
 		TEXT("/Game/Frontend/UI/Lobby/WBP_LobbyScreen.WBP_LobbyScreen_C"),
 	};
 
-	// 게임 실행 때는 CommonUI가 입력 데이터를 미리 읽는다. 명령줄 시험에서는 여기서 읽는다.
+	// 게임 실행 땐 CommonUI가 입력 데이터 선로드, 명령줄 시험은 여기서 로드
 	ICommonInputModule::GetSettings().LoadData();
 
 	UGameInstance* GameInstance = NewObject<UGameInstance>(GEngine);

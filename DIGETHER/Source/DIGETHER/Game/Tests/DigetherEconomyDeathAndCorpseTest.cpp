@@ -9,7 +9,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherEconomyDeathAndCorpseTest,
 
 bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 {
-	// 기본값 없는 런 스냅샷에 기존 시험 입력을 명시한다.
+	// 기본값 없는 런 스냅샷이라 시험 입력 명시
 	FDigetherRunTuning RunTuning;
 	RunTuning.DeathLossPercent = 100;
 	RunTuning.CorpseRefundPercent = 50;
@@ -80,7 +80,7 @@ bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("전멸 시 일반 몫 0"), WipeoutRun.Players[0].GeneralCredits, 0);
 		TestEqual(TEXT("전멸 시 히든 0"), WipeoutRun.Players[0].HiddenCredits, 0);
 		TestEqual(TEXT("전멸 시 런 지급액 0"), WipeoutRun.Players[0].PayoutCredits, 0);
-		// D25 확정: 전멸이어도 유효 회수 시체의 복구금은 생존자가 있을 때와 같은 산식으로 지급한다.
+		// D25 확정: 전멸이어도 유효 회수 시체 복구금은 생존자 있을 때와 같은 산식
 		TestEqual(TEXT("전멸이어도 회수된 시체는 직전 잔고 기준 복구"), WipeoutRun.Players[0].CorpseRefundCredits,
 			FDigetherEconomyRules::CalculateCorpseRefund(Dead.PreDeathBalanceCredits, RunTuning.CorpseRefundPercent));
 		TestTrue(TEXT("전멸 복구금은 0보다 큼(픽스처 직전 잔고 양수)"), WipeoutRun.Players[0].CorpseRefundCredits > 0);

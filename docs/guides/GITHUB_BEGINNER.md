@@ -20,6 +20,7 @@ GitHub는 팀 파일과 변경 이력을 함께 보관하는 곳이다. **기획
 ## 웹에서 요청하고 결과 읽기
 
 1. 저장소의 **Issues**에서 비슷한 요청을 찾는다. 없으면 **New issue**를 누른다. 양식이 있으면 해당 양식을 쓰고, 없으면 제목과 본문을 작성한다.
+   - 작업·버그·밸런스 양식은 `.github/ISSUE_TEMPLATE/`, PR 양식은 `.github/PULL_REQUEST_TEMPLATE.md`에 있다. 이슈 선택 화면은 기본 브랜치 반영 후 확인하며, 양식 추가가 기획 승인·담당 배정·원격 보호 규칙 설정을 뜻하지 않는다.
 2. 목적·Notion 요구 URL/개정·기대 동작·완료 조건을 적는다. 버그는 실행 순서·실제 결과·발생 환경과 이미지를 붙인다. 비밀번호·토큰·개인 정보는 이미지에서도 가린다.
 3. 제출 후 생성된 Issue 링크를 Notion의 해당 요구에 연결한다. 버튼이 없거나 접근이 거절되면 담당에게 권한 확인을 요청한다. 요청 방법은 [GitHub 공식 Issue 안내](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-an-issue)를 참고한다.
 4. 담당이 보내 준 PR 링크에서 본문·댓글·검사 결과를 읽는다. 무엇이 달라졌는지, 완료 조건을 실제 확인했는지, 남은 문제가 있는지를 보고 댓글로 전달한다. 코드 차이를 모두 읽어야만 기획·아트 검토를 할 수 있는 것은 아니다.
@@ -27,7 +28,7 @@ GitHub는 팀 파일과 변경 이력을 함께 보관하는 곳이다. **기획
 
 ## 파일 전달: Desktop으로 첫 작업
 
-기술 담당에게 저장소 권한과 기준 브랜치를 확인한 뒤 진행한다. 아트 파일은 **LFS 추적·용량·경로와 단일 편집 예약이 준비된 뒤** 추가한다. GitHub Desktop 설치만으로 프로젝트의 LFS 정책이 만들어지는 것은 아니다. LFS 준비는 [공식 구성 문서](https://docs.github.com/en/repositories/working-with-files/managing-large-files/configuring-git-large-file-storage)를 기술 담당이 확인한다.
+기술 담당에게 저장소 권한과 기준 브랜치를 확인한 뒤 진행한다. 아트 파일·맵·제작 원본은 GitHub가 아니라 **SVN**에 올린다([ADR-004](../decisions/ADR-004-git-code-svn-assets.md)). GitHub에는 코드와 로직 폴더 에셋(`Content/Game/Blueprints` 등)만 올라간다.
 
 1. 처음 한 번은 GitHub Desktop에서 로그인하고 **File → Clone Repository → URL**에 저장소 주소를 입력한다. **Local Path**로 작업 폴더를 고른 뒤 **Clone**한다. 이미 작업 폴더가 있으면 중복 복제하기 전에 담당에게 확인한다. [공식 복제 안내](https://docs.github.com/en/desktop/adding-and-cloning-repositories/cloning-and-forking-repositories-from-github-desktop)
 2. 파일을 바꾸기 전, **Changes**에 보존해야 할 변경이 없는지 확인한다. 변경이 있으면 커밋·브랜치 전환·Discard 전에 현재 브랜치와 파일 목록을 담당에게 알려 보존 방법을 정한다. 작업 중인 에디터는 저장·종료한 뒤, **Current Branch**에서 팀 기준 브랜치를 선택한다.
@@ -46,7 +47,7 @@ GitHub는 팀 파일과 변경 이력을 함께 보관하는 곳이다. **기획
 |---|---|
 | 잘못된 파일을 포함했지만 아직 커밋 전 | 파일 체크를 해제한다. 파일 자체를 삭제할 필요는 없다. |
 | 잘못된 브랜치에서 작업·커밋함 | 현재 브랜치·파일 목록을 남기고 담당에게 보존과 이동을 요청한다. |
-| 충돌, LFS 오류, 권한 거절, 업로드 실패 | 추가 전송을 멈추고 오류 화면·작업 경로·브랜치·변경 목록을 전달한다. |
+| 충돌, SVN 잠금 거절, 권한 거절, 업로드 실패 | 추가 전송을 멈추고 오류 화면·작업 경로·브랜치·변경 목록을 전달한다. |
 | 파일이 Changes에 나오지 않음 | ignore 대상인지 기술 담당에게 확인한다. 원본을 삭제하거나 파일명을 임의로 바꾸지 않는다. |
 | 이미 전송한 파일이 잘못됨 | Issue/PR에 알리고 담당과 수정 커밋을 준비한다. 비밀값·개인정보가 포함됐다면 추가 전송을 멈추고 즉시 담당에게 알린다. 수정 커밋만으로 과거 이력의 노출이 제거되지는 않는다. |
 

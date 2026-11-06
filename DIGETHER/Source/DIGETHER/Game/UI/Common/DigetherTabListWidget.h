@@ -6,7 +6,7 @@
 
 class UHorizontalBox;
 
-// CommonUI 탭 목록. 등록된 탭 버튼을 가로 상자에 놓는다. 배치는 WBP_TabList.
+// CommonUI 탭 목록, 등록 탭 버튼은 Box_Tabs에 가로 배치, 배치는 WBP_TabList
 UCLASS(Abstract)
 class DIGETHER_API UDigetherTabListWidget : public UCommonTabListWidgetBase
 {
@@ -19,7 +19,7 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UHorizontalBox> Box_Tabs;
 
-	// 탭 버튼 사이 간격.
+	// 탭 버튼 사이 간격
 	UPROPERTY(EditAnywhere, Category = "Digether|Tabs")
 	FMargin TabPadding = FMargin(0.f, 0.f, 12.f, 0.f);
 };

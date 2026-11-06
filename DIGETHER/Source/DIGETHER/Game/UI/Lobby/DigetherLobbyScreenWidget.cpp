@@ -44,7 +44,7 @@ void UDigetherLobbyScreenWidget::NativeOnInitialized()
 	Btn_Leave->OnClicked().AddUObject(this, &ThisClass::HandleLeave);
 }
 
-// CommonUI 스택은 화면 인스턴스를 다시 쓸 수 있으므로 NativeOnInitialized가 아니라 Construct/Destruct 짝에서 구독한다.
+// CommonUI 스택의 화면 인스턴스 재사용 대비, NativeOnInitialized 대신 Construct/Destruct 짝에서 구독
 void UDigetherLobbyScreenWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -72,7 +72,7 @@ void UDigetherLobbyScreenWidget::NativeDestruct()
 	{
 		LobbyState->OnLobbyChanged.Remove(LobbyChangedHandle);
 	}
-	// 다시 열릴 때 NativeOnActivated의 BindGameState가 새로 구독하도록 비운다.
+	// 재활성화 시 NativeOnActivated의 BindGameState 재구독용 초기화
 	BoundGameState.Reset();
 	LobbyChangedHandle.Reset();
 	LocalNotice = FText::GetEmpty();
@@ -114,15 +114,15 @@ void UDigetherLobbyScreenWidget::BindGameState()
 	StopWaitingForGameState();
 	BoundGameState = LobbyState;
 	LobbyChangedHandle = LobbyState->OnLobbyChanged.AddUObject(this, &ThisClass::HandleLobbyChanged);
-	Refresh();
 }
 
 void UDigetherLobbyScreenWidget::HandleGameStateSet(AGameStateBase* GameState)
 {
-	// 대기실이 아닌 GameState가 설정되면 계속 기다린다. 연결되면 BindGameState가 구독을 푼다.
+	// 대기실 GameState가 아니면 대기 유지, 연결 시 BindGameState가 대기 구독 해제
 	if (Cast<ADigetherLobbyGameState>(GameState))
 	{
 		BindGameState();
+		Refresh();
 	}
 }
 
@@ -152,7 +152,7 @@ void UDigetherLobbyScreenWidget::Refresh()
 	const ADigetherLobbyPlayerState* LocalState = GetLocalLobbyState();
 	const UDigetherSessionSubsystem* Session = UDigetherSessionSubsystem::Get(this);
 
-	// 화면 값 계산은 DigetherLobbyView가 맡고, 여기서는 입력을 모아 결과를 적용만 한다.
+	// 표시값 계산은 DigetherLobbyView 담당, 여기서는 입력 수집·결과 적용만
 	TArray<const ADigetherLobbyPlayerState*> Players;
 	DigetherLobbyView::FDigetherLobbyViewInput Input;
 	if (LobbyState)

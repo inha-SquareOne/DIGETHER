@@ -23,14 +23,14 @@ DEFINE_LOG_CATEGORY_STATIC(LogDigetherSession, Log, All);
 namespace
 {
 	const TCHAR* SteamSocketsDriverPath = TEXT("/Script/SteamSockets.SteamSocketsNetDriver");
-	// 코드 참가 대기 중 방을 다시 찾는 간격.
+	// 코드 참가 대기 중 재검색 간격
 	constexpr float RetryIntervalSeconds = 3.f;
-	// 한 번 검색에서 받을 최대 세션 수. 480 시험 App ID는 다른 게임의 로비도 섞여 오므로 넉넉히 받는다.
+	// 한 번 검색의 최대 세션 수, 480 시험 App ID는 다른 게임 로비도 섞여 와서 넉넉히
 	constexpr int32 MaxSearchResults = 100;
-	// 온라인 ID가 없을 때 요청에 쓰는 로컬 플레이어 번호.
+	// 온라인 ID가 없을 때 요청에 쓰는 로컬 플레이어 번호
 	constexpr int32 LocalPlayerNum = 0;
 
-	// 온라인 ID가 있으면 그것으로, 없으면 로컬 플레이어 번호로 세션 요청을 보낸다.
+	// 온라인 ID가 있으면 ID로, 없으면 로컬 플레이어 번호로 요청
 	template <typename RequestFunc>
 	bool RequestAsLocalUser(const FUniqueNetIdPtr& UserId, RequestFunc&& Request)
 	{
@@ -86,7 +86,7 @@ void UDigetherSessionSubsystem::Deinitialize()
 		Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinHandle);
 		Sessions->ClearOnDestroySessionCompleteDelegate_Handle(DestroyHandle);
 	}
-	// AcquireSessions가 Sessions를 다시 받아도 초대 구독은 처음 등록한 인스턴스에 있으므로 그 인스턴스에서 해제한다.
+	// AcquireSessions가 Sessions를 다시 받아도 초대 구독은 처음 등록한 인스턴스에 있어 그 인스턴스에서 해제
 	if (const IOnlineSessionPtr InviteOwner = InviteSessions.Pin())
 	{
 		InviteOwner->ClearOnSessionUserInviteAcceptedDelegate_Handle(InviteHandle);
@@ -137,7 +137,7 @@ FString UDigetherSessionSubsystem::GetLocalPlayerName() const
 
 FString UDigetherSessionSubsystem::MakeDefaultRoomName() const
 {
-	// 이름이 길어도 "{PlayerName}" 밖의 글자(접미사 등)는 남기고 플레이어 이름 쪽을 줄인다.
+	// 이름이 길면 "{PlayerName}" 밖 글자(접미사 등)는 남기고 플레이어 이름 쪽을 줄임
 	const FText Pattern = DigetherSessionText::Get(EDigetherSessionText::DefaultRoomName);
 	const int32 FixedLength = FText::FormatNamed(Pattern, TEXT("PlayerName"), FText::GetEmpty()).ToString().Len();
 	const FString PlayerName = GetLocalPlayerName().Left(FMath::Max(0, DigetherRoomProtocol::MaxRoomNameLength - FixedLength));
@@ -241,7 +241,7 @@ bool UDigetherSessionSubsystem::CheckCanRequest(const FString& RoomCode, bool bR
 		SetStatus(EDigetherSessionText::AlreadyInRoom);
 		return false;
 	}
-	// 메뉴로 돌아온 이유는 사용자가 다음 요청을 보낼 때까지만 보여 준다.
+	// 메뉴 복귀 사유는 다음 요청 전까지만 표시
 	Notice = FText::GetEmpty();
 	return true;
 }
@@ -259,7 +259,7 @@ bool UDigetherSessionSubsystem::RevertRejectedRequest(bool bRequested, EDigether
 bool UDigetherSessionSubsystem::SendRequestOrRevert(EDigetherSessionOperation RequestOperation, const TOptional<FText>& PendingStatus,
 	TFunctionRef<void()> Subscribe, TFunctionRef<bool()> Request, TFunctionRef<void()> Unsubscribe)
 {
-	// 완료 알림이 요청 안에서 바로 올 수 있으므로 상태와 구독을 요청보다 먼저 둔다.
+	// 완료 알림이 요청 안에서 바로 올 수 있어 상태·구독을 요청보다 먼저 설정
 	Operation = RequestOperation;
 	Subscribe();
 	if (PendingStatus.IsSet())
@@ -303,15 +303,15 @@ void UDigetherSessionSubsystem::OpenMap(const FString& Map, const TCHAR* Options
 void UDigetherSessionSubsystem::HostRoom(const FString& RoomName, bool bPublic, const FString& RoomCode,
 	const FDigetherSaveSlotSelection& SaveSelection)
 {
-	// 화면·콘솔 입력은 여기서 한 번만 정식 형태로 바꾼다. 공백뿐인 입력은 코드 생략과 같게 새 코드를 만든다.
+	// 화면·콘솔 입력은 여기서 한 번만 정식 형태로 변환, 공백뿐인 입력은 코드 생략처럼 새 코드 생성
 	const FString RequestedCode = DigetherRoomProtocol::NormalizeRoomCode(RoomCode);
 	const FString Code = RequestedCode.IsEmpty() ? DigetherRoomProtocol::MakeRoomCode() : RequestedCode;
 	if (!CheckCanRequest(Code, true) || !CheckSteamSocketsAvailable())
 	{
 		return;
 	}
-	// 방을 만들기 전에 진행 슬롯 선택을 확정한다. 잘못된 선택으로 방을 열면 다른 슬롯에 저장될 수 있으므로 만들지 않는다.
-	// 전용 문구 키는 ST_Session 에셋 작업 뒤 추가한다(지금은 만들기 요청 실패 문구를 쓴다).
+	// 방 생성 전에 진행 슬롯 선택 확정, 잘못된 선택으로 방을 열면 다른 슬롯에 저장될 수 있어 중단
+	// 전용 문구 키는 ST_Session 에셋 작업 뒤 추가 예정(현재 만들기 요청 실패 문구 사용)
 	UDigetherSaveSubsystem* Save = GetGameInstance()->GetSubsystem<UDigetherSaveSubsystem>();
 	if (!IsValid(Save) || !Save->SetSlotSelection(SaveSelection))
 	{
@@ -336,7 +336,7 @@ void UDigetherSessionSubsystem::HostRoom(const FString& RoomName, bool bPublic, 
 	Settings.bAllowJoinInProgress = true;
 	Settings.bAllowInvites = true;
 	Settings.bAllowJoinViaPresence = true;
-	// Steam 친구 전용 로비는 공개 목록·코드 검색에 나오지 않고 초대·친구 참가로만 들어온다.
+	// Steam 친구 전용 로비는 공개 목록·코드 검색에 안 나오고 초대·친구 참가로만 입장
 	Settings.bAllowJoinViaPresenceFriendsOnly = !bPublic;
 	Settings.bIsLANMatch = !bSteam;
 	Settings.bUsesPresence = bSteam;
@@ -392,7 +392,7 @@ void UDigetherSessionSubsystem::EndCodeJoin()
 
 void UDigetherSessionSubsystem::FindRooms(const FString& RoomCode)
 {
-	// 코드 필터도 사용자 입력일 수 있으므로 JoinByCode와 같은 정식 형태로 바꾼다. 빈 값은 빈 값으로 남는다.
+	// 코드 필터도 사용자 입력일 수 있어 JoinByCode와 같은 정식 형태로 변환, 빈 값은 빈 값 유지
 	const FString Code = DigetherRoomProtocol::NormalizeRoomCode(RoomCode);
 	if (!CheckCanRequest(Code, false))
 	{
@@ -406,7 +406,7 @@ void UDigetherSessionSubsystem::FindRooms(const FString& RoomCode)
 
 void UDigetherSessionSubsystem::JoinByCode(const FString& RoomCode, float TimeoutSeconds)
 {
-	// 화면·콘솔 입력은 여기서 한 번만 정식 형태로 바꾼다. 호스트가 광고한 코드도 정식 형태다.
+	// 화면·콘솔 입력은 여기서 한 번만 정식 형태로 변환, 호스트 광고 코드도 정식 형태
 	const FString Code = DigetherRoomProtocol::NormalizeRoomCode(RoomCode);
 	if (!CheckCanRequest(Code, true))
 	{
@@ -647,7 +647,7 @@ void UDigetherSessionSubsystem::DestroyAfterFailure()
 		return;
 	}
 	bTravelAfterDestroy = false;
-	// 실패 문구는 호출자가 이어서 보여 주므로 진행 문구를 남기지 않는다.
+	// 실패 문구는 호출자가 이어서 표시하므로 진행 문구 생략
 	SendDestroyRequestOrRevert(TOptional<FText>());
 }
 
@@ -682,8 +682,8 @@ void UDigetherSessionSubsystem::HandleDestroyComplete(FName SessionName, bool bS
 	ActiveRoomName.Reset();
 	if (!bTravelAfterDestroy)
 	{
-		// 연결 실패 정리는 엔진이 기본 맵으로 돌려보내므로 여기서 이동하지 않는다.
-		// 실패 문구는 그대로 두고, 작업이 끝났음을 화면에 알려 버튼을 다시 켠다.
+		// 연결 실패 정리는 엔진이 기본 맵으로 돌려보내므로 이동 생략
+		// 실패 문구는 유지하고 작업 종료만 화면에 알려 버튼 재활성
 		Operation = EDigetherSessionOperation::Idle;
 		OnStatusChanged.Broadcast();
 		return;
@@ -718,7 +718,7 @@ bool UDigetherSessionSubsystem::StartGame()
 		if (FOnlineSessionSettings* Settings = Sessions->GetSessionSettings(NAME_GameSession))
 		{
 			DigetherRoomProtocol::WriteInGame(*Settings, true);
-			// 목록의 '탐사 중' 표시만 늦어질 뿐 게임 이동은 막지 않으므로 실패는 기록만 한다.
+			// 목록의 '탐사 중' 표시만 늦어지고 게임 이동은 막지 않아 실패는 기록만
 			if (!Sessions->UpdateSession(NAME_GameSession, *Settings, true))
 			{
 				UE_LOG(LogDigetherSession, Warning, TEXT("UpdateSession 요청이 거절되어 방 목록의 탐사 중 상태가 갱신되지 않습니다."));
@@ -728,7 +728,7 @@ bool UDigetherSessionSubsystem::StartGame()
 	Operation = EDigetherSessionOperation::Travelling;
 	TravelIntent = ETravelIntent::Start;
 	SetStatus(EDigetherSessionText::Starting);
-	// 대기실과 게임의 PlayerController·PlayerState 클래스가 달라 비심리스 이동으로 다시 접속시킨다.
+	// 대기실 GameMode의 Seamless 이동, 연결·대기 소켓 유지
 	if (!World->ServerTravel(GameMap + TEXT("?listen"), true))
 	{
 		Operation = EDigetherSessionOperation::Idle;
@@ -758,7 +758,7 @@ bool UDigetherSessionSubsystem::ShowInviteUI()
 
 void UDigetherSessionSubsystem::HandleInviteAccepted(bool bSuccess, int32 ControllerId, FUniqueNetIdPtr UserId, const FOnlineSessionSearchResult& Result)
 {
-	// 초대 수락은 일반 요청과 안내 문구가 달라 사전 조건을 따로 검사한다.
+	// 초대 수락은 일반 요청과 안내 문구가 달라 사전 조건 별도 검사
 	DigetherJoinRules::FDigetherInviteCheck Check;
 	Check.bBusy = IsBusy();
 	if (!Check.bBusy)
@@ -779,7 +779,7 @@ void UDigetherSessionSubsystem::HandleInviteAccepted(bool bSuccess, int32 Contro
 		SetStatus(EDigetherSessionText::InviteBusy);
 		return;
 	case DigetherJoinRules::EDigetherInviteDecision::RejectOnlineUnavailable:
-		// 로그인·온라인 실패의 구체 문구는 AcquireSessions가 설정했다.
+		// 로그인·온라인 실패 구체 문구는 AcquireSessions가 설정
 		return;
 	case DigetherJoinRules::EDigetherInviteDecision::RejectInvalidInvite:
 		SetStatus(EDigetherSessionText::InviteVersionMismatch);
@@ -788,7 +788,7 @@ void UDigetherSessionSubsystem::HandleInviteAccepted(bool bSuccess, int32 Contro
 		SetStatus(EDigetherSessionText::InviteLeaveFirst);
 		return;
 	case DigetherJoinRules::EDigetherInviteDecision::Accept:
-		// 일반 요청과 같이 지난 연결 실패 공지를 다음 참가에 남기지 않는다.
+		// 일반 요청과 같이 지난 연결 실패 공지를 다음 참가에 남기지 않음
 		Notice = FText::GetEmpty();
 		JoinResult(Result);
 		return;
@@ -862,15 +862,15 @@ bool UDigetherSessionSubsystem::IsOwnPendingJoinFailure(const UNetDriver* Driver
 	{
 		return false;
 	}
-	// 같은 프로세스의 여러 PIE 인스턴스를 구별한다. 엔진 기본 처리기가 먼저 불려 대기 중 연결이 이미 정리됐으면
-	// 문맥을 찾을 수 없으므로, 이 인스턴스가 참가 이동 중이라는 사실로 판단한다.
+	// 같은 프로세스의 여러 PIE 인스턴스 구별, 엔진 기본 처리기가 먼저 불려 대기 연결이 이미 정리됐으면
+	// 문맥을 못 찾으므로 이 인스턴스가 참가 이동 중이라는 사실로 판단
 	const FWorldContext* Context = GEngine ? GEngine->GetWorldContextFromPendingNetGameNetDriver(Driver) : nullptr;
 	return !Context || Context->OwningGameInstance == GetGameInstance();
 }
 
 void UDigetherSessionSubsystem::HandleNetworkFailure(UWorld* World, UNetDriver* Driver, ENetworkFailure::Type Failure, const FString& Error)
 {
-	// 호스트의 PreLogin 거절(NMT_Failure)은 대기 중 연결 실패로 오며, 엔진은 이때 World를 넘기지 않는다.
+	// 호스트의 PreLogin 거절(NMT_Failure)은 대기 중 연결 실패로 오며 엔진이 World를 넘기지 않음
 	const bool bPendingJoinFailure = !World && IsOwnPendingJoinFailure(Driver, Failure);
 	if (!bPendingJoinFailure && (!World || World->GetGameInstance() != GetGameInstance() || World->GetNetMode() != NM_Client))
 	{
@@ -884,22 +884,22 @@ void UDigetherSessionSubsystem::HandleNetworkFailure(UWorld* World, UNetDriver* 
 	EDigetherSessionText Rejection = EDigetherSessionText::JoinFailed;
 	if (Failure == ENetworkFailure::ConnectionLost)
 	{
-		// 기획: 호스트가 나가면 방이 종료된다(호스트 이전 없음). 호스트가 연결을 닫으면 클라이언트는 ConnectionLost를 받는다.
+		// 기획: 호스트가 나가면 방 종료(호스트 이전 없음), 호스트가 연결을 닫으면 클라이언트는 ConnectionLost 수신
 		ReportFailure(DigetherSessionText::Get(EDigetherSessionText::RoomClosed));
 	}
 	else if (Failure == ENetworkFailure::ConnectionTimeout)
 	{
-		// 응답 없이 끊긴 경우는 호스트 퇴장과 구별할 수 없으므로 기존 연결 끊김 문구를 유지한다.
+		// 응답 없는 끊김은 호스트 퇴장과 구별 불가라 기존 연결 끊김 문구 유지
 		ReportFailure(DigetherSessionText::Get(EDigetherSessionText::ConnectionLost));
 	}
 	else if (DigetherJoinRules::TryParseRejectionMessage(Error, Rejection))
 	{
-		// 호스트가 사유 키로 보낸 거절은 이 컴퓨터의 언어 문구로 보여 준다.
+		// 호스트가 사유 키로 보낸 거절은 이 컴퓨터 언어 문구로 표시
 		ReportFailure(DigetherSessionText::Get(Rejection));
 	}
 	else
 	{
-		// 엔진 기본 거절과 사유 키를 보내지 않는 호스트(이전 빌드)의 문구는 받은 그대로 끼워 보인다.
+		// 엔진 기본 거절·사유 키를 안 보내는 호스트(이전 빌드)의 문구는 받은 그대로 끼워 표시
 		ReportFailure(FText::FormatNamed(DigetherSessionText::Get(EDigetherSessionText::ConnectionFailed), TEXT("Error"), FText::FromString(Error)));
 	}
 }

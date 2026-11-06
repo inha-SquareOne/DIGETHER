@@ -1,0 +1,23 @@
+TortoiseSVN 설정 가이드 — 근거와 범위
+확인일: 2026-11-06
+제작 도구: 내장 image_gen
+이미지 화면은 설명용 재구성 예시이며 실제 PC 캡처가 아니다.
+
+프로젝트 기준
+- docs/decisions/ADR-004-git-code-svn-assets.md
+- docs/project/PROJECT_PROFILE.md
+- Git 코드·설정·문서 + SVN Content·제작 원본 방향 채택, 실제 도입은 보류.
+- 팀 PC 서버 개설은 사용자 보고. 실제 저장소 URL·계정·접속은 이번 작업에서 확인하지 않음.
+- 현재 Git LFS 운영 유지. 안내 이미지 제작은 서버 구성·에셋 이관 실행이 아님.
+- 실제 저장소 URL·작업 폴더·잠금 대상은 미등록 또는 미결이므로 자리표시자와 조건부 안내를 사용함.
+
+공식 자료
+- 설치 파일·한국어 언어팩: https://tortoisesvn.net/downloads.html
+- Checkout 화면·필드·깊이: https://tortoisesvn.net/docs/release/TortoiseSVN_en/tsvn-dug-checkout.html
+- 파일 잠금·svn:needs-lock·잠금 상태 확인·잠금 해제: https://tortoisesvn.net/docs/release/TortoiseSVN_en/tsvn-dug-locking.html
+- Commit·새 파일·Keep locks: https://tortoisesvn.net/docs/release/TortoiseSVN_en/tsvn-dug-commit.html
+
+검증 범위
+- 공식 문서와 프로젝트 상태 대조, 최종 이미지 시각 확인.
+- 설치·서버 접속·Checkout·잠금·Commit 실기는 수행하지 않음.
+- 관리자 계정/권한·백업·잠금 자동 적용·Git/SVN 리비전 짝 규칙은 이관 전 별도 결정 사항.

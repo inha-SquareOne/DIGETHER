@@ -9,7 +9,7 @@ bool DigetherMonsterHealthRules::TryCreateState(const bool bKillable, const floa
 	}
 	if (!bKillable)
 	{
-		// 불사는 미사용 체력을 복제하거나 피해 판정에 사용하지 않는다.
+		// 불사는 체력을 복제·피해 판정에 쓰지 않음
 		return true;
 	}
 	OutState.bKillable = true;

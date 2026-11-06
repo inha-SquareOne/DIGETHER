@@ -42,8 +42,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherLifeComponentsTest,
 
 bool FDigetherLifeComponentsTest::RunTest(const FString& Parameters)
 {
-	// 테스트 픽스처이며 최종 기획 값이 아니다.
-	// 월드 없는 검사 범위다. 권위 owner의 실제 복원 왕복·지연 통지는 후속 월드 검사로 남긴다.
+	// 테스트 픽스처, 기획 값 아님
+	// 월드 없는 검사 범위, 권위 owner의 실제 복원 왕복·지연 통지는 후속 월드 검사
 	UDigetherLifeStateComponent* Component = NewObject<UDigetherLifeStateComponent>();
 	if (!TestNotNull(TEXT("월드 없는 생존 컴포넌트"), Component))
 	{
@@ -103,7 +103,7 @@ bool FDigetherLifeComponentsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("거절된 요청의 공개 통지 없음"), PublicNotificationCount, 0);
 	TestEqual(TEXT("거절된 요청의 개인 통지 없음"), PrivateNotificationCount, 0);
 
-	// OnRep는 현재 스냅샷의 표현만 통지한다. 실제 네트워크 전송 검증은 별도 M2 범위다.
+	// OnRep는 현재 스냅샷 표현만 통지, 실제 네트워크 전송은 M2 범위
 	UFunction* PublicOnRep = Component->FindFunction(TEXT("OnRep_PublicState"));
 	UFunction* PrivateOnRep = Component->FindFunction(TEXT("OnRep_PrivateState"));
 	if (TestNotNull(TEXT("공개 복제 알림 등록"), PublicOnRep))

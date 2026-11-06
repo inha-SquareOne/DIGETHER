@@ -52,7 +52,7 @@ public:
 
 namespace
 {
-	// 물리 쿼리가 있는 독립 월드다. 파일·온라인 세션·실사용자 저장을 만들지 않는다.
+	// 물리 쿼리가 있는 독립 월드, 파일·온라인 세션·실사용자 저장 미생성
 	class FHubSpawnWorld
 	{
 	public:

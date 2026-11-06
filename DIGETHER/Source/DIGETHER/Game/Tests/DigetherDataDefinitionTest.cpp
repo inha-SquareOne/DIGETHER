@@ -4,6 +4,7 @@
 #include "Game/Core/DigetherGameplayTags.h"
 #include "Game/Data/DigetherItemDefinition.h"
 #include "Game/Data/DigetherTuningProfile.h"
+#include "Game/Tests/DigetherTestValues.h"
 #include "Misc/AutomationTest.h"
 #include "Prototype/DigetherPrototypeDataBridge.h"
 #include "Prototype/DigetherPrototypeGameMode.h"
@@ -94,7 +95,7 @@ bool FDigetherTuningProfileTest::RunTest(const FString& Parameters)
 	Problems.Reset();
 	TestFalse(TEXT("운행 3회는 실패(일반 상승 2회 확정)"), ThreeTrips.CollectProblems(Problems));
 
-	// ELV_ASCENT_LIMIT는 2회 확정이다. 1회 비교 프로필은 쓰지 않으므로 거절한다.
+	// ELV_ASCENT_LIMIT 2회 확정, 1회 비교 프로필은 거절
 	FDigetherRunTuning OneTrip = MakeValidTuning();
 	OneTrip.ElevatorTripLimit = 1;
 	Problems.Reset();
@@ -107,7 +108,7 @@ bool FDigetherTuningProfileTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("복구 101%는 실패"), OverRefund.CollectProblems(Problems));
 
 	FDigetherRunTuning NaNTime = MakeValidTuning();
-	NaNTime.RunSeconds = NAN;
+	NaNTime.RunSeconds = DigetherTestValues::NaN();
 	Problems.Reset();
 	TestFalse(TEXT("NaN 시간은 실패"), NaNTime.CollectProblems(Problems));
 
@@ -120,7 +121,7 @@ bool FDigetherTuningProfileTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// P1 이전의 BP·C++ 값이 DA로 그대로 옮겨졌고 BP가 그 DA를 가리키는지 확인한다.
+// P1 이전 BP·C++ 값의 DA 이관과 BP의 DA 참조 확인
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPrototypeDataAssetsTest,
 	"DIGETHER.Game.Data.PrototypeAssets", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -137,7 +138,7 @@ bool FDigetherPrototypeDataAssetsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("튜닝 DA 값 검사"), Profile->Values.CollectProblems(Problems));
 	TestTrue(TEXT("회수품 DA 값 검사"), Cargo->CollectProblems(Problems));
 
-	// 이전 값: BP_PrototypeGameMode 기본값(RunSeconds만 600으로 덮어씀), Rules.h의 100%/50%.
+	// 이전 값: BP_PrototypeGameMode 기본값(RunSeconds만 600으로 덮어씀), Rules.h의 100%/50%
 	const FDigetherRunTuning& Values = Profile->Values;
 	TestEqual(TEXT("첫 목표액"), Values.InitialQuotaCredits, 100);
 	TestEqual(TEXT("제한 시간(BP 덮어쓴 값)"), Values.RunSeconds, 600.f);
@@ -151,7 +152,7 @@ bool FDigetherPrototypeDataAssetsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("사망 손실"), Values.DeathLossPercent, 100);
 	TestEqual(TEXT("시체 복구"), Values.CorpseRefundPercent, 50);
 
-	// 이전 값: ADigetherPrototypePickup 기본값 40원·5kg·한 손.
+	// 이전 값: ADigetherPrototypePickup 기본값 40원·5kg·한 손
 	TestTrue(TEXT("회수품 종류"), Cargo->IsCargo());
 	TestEqual(TEXT("회수품 가치"), Cargo->ValueCredits, 40);
 	TestEqual(TEXT("회수품 무게"), Cargo->WeightKg, 5.f);
@@ -170,7 +171,7 @@ bool FDigetherPrototypeDataAssetsTest::RunTest(const FString& Parameters)
 			PickupClass->GetDefaultObject<ADigetherPrototypePickup>()->ItemDefinition.Get() == Cargo);
 	}
 
-	// Asset Manager 등록(DefaultGame.ini)으로 두 DA를 ID로 찾을 수 있어야 cook 규칙도 적용된다.
+	// Asset Manager 등록(DefaultGame.ini)으로 두 DA를 ID로 찾아야 cook 규칙 적용
 	UAssetManager& AssetManager = UAssetManager::Get();
 	FAssetData Found;
 	TestTrue(TEXT("Asset Manager에 튜닝 등록"), AssetManager.GetPrimaryAssetData(Profile->GetPrimaryAssetId(), Found));

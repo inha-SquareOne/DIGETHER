@@ -643,6 +643,11 @@ void ADigetherHubStateActor::EndAllRest()
 
 void ADigetherHubStateActor::CleanupRestingPlayers()
 {
+	// 0.5초 반복 타이머, 휴식자 없으면 아래 정리도 무동작이라 조회 생략
+	if (RestingPlayers.IsEmpty())
+	{
+		return;
+	}
 	const ADigetherGameplayGameState* State = GetWorld()->GetGameState<ADigetherGameplayGameState>();
 	if (!IsValid(State) || !IsValid(State->GetRunPublicStateComponent())
 		|| State->GetRunPublicStateComponent()->CaptureState().Phase == EDigetherRunPhase::InProgress)

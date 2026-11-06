@@ -192,10 +192,6 @@ def run():
         if rest:values['restLocationOffset']=rest
         setp(facility,values)
         facilities.append(facility)
-    elevator=ref('/Game/Game/Maps/L_Hub.L_Hub:PersistentLevel.DigetherElevatorActor_0')
-    setp(ref(elevator['refPath']+'.DoorThresholdVolume'),{
-        'relativeLocation':{'x':0,'y':-125,'z':100},'boxExtent':{'x':200,'y':50,'z':100}})
-    setp(elevator,{'doorOutwardDirection':{'x':0,'y':-1,'z':0}})
     paths=[catalog['refPath'],panel['refPath'],result['refPath'],hud['refPath'],context['refPath'],
         action['refPath'],controller['refPath'],mode['refPath'],'/Game/Game/Maps/L_Hub']
     assert call('editor_toolset.toolsets.asset.AssetTools.save_assets',{'asset_paths':paths})['returnValue']

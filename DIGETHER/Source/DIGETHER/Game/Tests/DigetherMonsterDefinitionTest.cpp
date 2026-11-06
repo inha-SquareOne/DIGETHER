@@ -1,10 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Game/Monster/DigetherMonsterDefinition.h"
+#include "Game/Tests/DigetherTestValues.h"
 #include "Misc/AutomationTest.h"
 #include "UObject/UObjectGlobals.h"
-
-#include <cmath>
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherMonsterDefinitionTest,
 	"DIGETHER.Game.Monster.Definition", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -26,7 +25,7 @@ bool FDigetherMonsterDefinitionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Primary Asset 타입 유지"), AssetId.PrimaryAssetType, UDigetherMonsterDefinition::PrimaryAssetType);
 	TestEqual(TEXT("Primary Asset 이름은 정의 이름"), AssetId.PrimaryAssetName, Definition->GetFName());
 
-	// 테스트 픽스처이며 몬스터의 최종 기획 체력이 아니다.
+	// 테스트 픽스처, 몬스터 기획 체력 아님
 	constexpr float FixtureMaxHealth = 100.f;
 	Definition->bKillable = true;
 	TestFalse(TEXT("처치 가능한 정의의 0 체력 거부"), Definition->CollectProblems(Problems));
@@ -41,7 +40,7 @@ bool FDigetherMonsterDefinitionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("기존 문제 개수 보존"), Problems.Num(), 1);
 	TestTrue(TEXT("기존 문제 본문 보존"), Problems[0].EqualTo(ExistingProblem));
 
-	const float InvalidMaxHealth[] = { -FixtureMaxHealth, NAN, INFINITY, -INFINITY };
+	const float InvalidMaxHealth[] = { -FixtureMaxHealth, DigetherTestValues::NaN(), DigetherTestValues::Infinity(), -DigetherTestValues::Infinity() };
 	const bool KillableValues[] = { false, true };
 	for (const bool bKillable : KillableValues)
 	{

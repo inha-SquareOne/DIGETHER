@@ -32,14 +32,20 @@ namespace
 		}
 
 		TSet<FString> PlayerKeys;
+		PlayerKeys.Reserve(Input.Players.Num());
 		for (const FDigetherRunPlayerInput& Player : Input.Players)
 		{
-			if (Player.PlayerKey.TrimStartAndEnd().IsEmpty() || PlayerKeys.Contains(Player.PlayerKey)
-				|| !IsValidLife(Player.Life) || !IsValidLocation(Player.Location))
+			if (Player.PlayerKey.TrimStartAndEnd().IsEmpty() || !IsValidLife(Player.Life)
+				|| !IsValidLocation(Player.Location))
 			{
 				return false;
 			}
-			PlayerKeys.Add(Player.PlayerKey);
+			bool bDuplicateKey = false;
+			PlayerKeys.Add(Player.PlayerKey, &bDuplicateKey);
+			if (bDuplicateKey)
+			{
+				return false;
+			}
 		}
 		return true;
 	}
@@ -71,7 +77,7 @@ FDigetherRunTimeResult FDigetherRunRules::CalculateRemainingTime(const double Ru
 
 	Result.Result = EDigetherRunResult::Success;
 	const double BeforePenaltySeconds = FMath::Max(0.0, RunSeconds - ElapsedSeconds);
-	// 확실히 초과할 때만 먼저 만료시켜 나눗셈 반올림이 양수 잔여 시간을 없애지 않게 한다.
+	// 확실히 초과할 때만 먼저 만료, 나눗셈 반올림으로 양수 잔여 시간이 사라지는 것 방지
 	if (ConfirmedAscentCount > 0 && AscentPenaltySeconds > 0.0
 		&& AscentPenaltySeconds > BeforePenaltySeconds / ConfirmedAscentCount)
 	{
@@ -97,7 +103,7 @@ FDigetherRunAftershockResult FDigetherRunRules::CalculateAftershock(const double
 
 	const double RemainingRatio = FMath::Clamp(RemainingSeconds / RunSeconds, 0.0, 1.0);
 	const double ProgressRatio = 1.0 - RemainingRatio;
-	// 만료 시 마지막 단계를 명시해 부동소수점 오차로 한 단계 부족해지지 않게 한다.
+	// 만료 시 마지막 단계 명시, 부동소수점 오차로 한 단계 부족해지는 것 방지
 	Result.Stage = RemainingRatio == 0.0 ? Tuning.AftershockStageCount
 		: FMath::FloorToInt32(ProgressRatio * Tuning.AftershockStageCount);
 	Result.IntervalSeconds = Tuning.AftershockMinIntervalSeconds
@@ -146,7 +152,7 @@ FDigetherRunTerminationResult FDigetherRunRules::CalculateTermination(const FDig
 			}
 			else if (Input.ElevatorState == EDigetherRunElevatorState::InTransit)
 			{
-				// 이미 이동 중인 탑승자의 생존이 과중량 판정보다 우선한다.
+				// 이미 이동 중인 탑승자의 생존이 과중량 판정보다 우선
 				Outcome.Outcome = EDigetherRunPlayerOutcome::SurvivedInTransit;
 			}
 			else if (bEjectFromMine)
@@ -156,7 +162,7 @@ FDigetherRunTerminationResult FDigetherRunRules::CalculateTermination(const FDig
 			}
 			else
 			{
-				// 거점 도착 후 과중량은 다시 사출하지 않는다. 광산 정지 상태만 사출 대상이다.
+				// 거점 도착 후 과중량은 재사출 안 함, 광산 정지 상태만 사출 대상
 				Outcome.Outcome = EDigetherRunPlayerOutcome::Returned;
 			}
 		}

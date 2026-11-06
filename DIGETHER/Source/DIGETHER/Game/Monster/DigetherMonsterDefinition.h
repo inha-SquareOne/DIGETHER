@@ -4,7 +4,7 @@
 #include "Engine/DataAsset.h"
 #include "DigetherMonsterDefinition.generated.h"
 
-// 종별 고정 정의만 보관한다. 현재 체력과 생명 상태는 런타임 상태가 가진다.
+// 종별 고정 정의만 보관, 현재 체력·생명 상태는 런타임 상태 소유
 UCLASS(BlueprintType, Const)
 class DIGETHER_API UDigetherMonsterDefinition : public UPrimaryDataAsset
 {
@@ -15,7 +15,7 @@ public:
 
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override;
 
-	// 호출자가 수집한 문제를 보존하고 이 정의의 문제만 뒤에 추가한다.
+	// 호출자가 모은 문제는 보존, 이 정의의 문제만 뒤에 추가
 	bool CollectProblems(TArray<FText>& OutProblems) const;
 
 #if WITH_EDITOR
@@ -25,12 +25,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Monster")
 	FText DisplayName;
 
-	// MON_KILLABLE. 종별 값이며 일반 피해로 사망할 수 있는지다.
+	// MON_KILLABLE, 일반 피해로 사망 가능한지(종별 값)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Monster")
 	bool bKillable = false;
 
-	// MON_HP. 종별 값이며 종 데이터 에셋에 둔다. 코드 기본값으로 처치 가능한 체력을 추정하지 않는다.
-	// 땅거미는 기본 공격 약 8회 처치(2026-11-04 기획 답변 초안)를 기본 공격 12.5 가정으로 100에 둔다(임시값).
+	// MON_HP, 종 데이터 에셋의 종별 값, 코드 기본값으로 처치 가능 체력을 추정하지 않음
+	// 임시값: 땅거미 100(기본 공격 12.5 가정 약 8회 처치, 2026-11-04 기획 답변 초안 기준)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Monster", meta=(ClampMin="0"))
 	float MaxHealth = 0.f;
 };

@@ -39,11 +39,11 @@ void UDigetherElevatorComponent::EndNotificationBatch()
 	}
 
 	const bool bShouldNotify = bStateNotificationPending;
-	const FDigetherElevatorPublicState StateSnapshot = PublicState;
-	// 콜백에서 새 묶음을 시작해도 이전 알림이 다시 남지 않도록 먼저 비운다.
+	// 콜백에서 새 묶음을 시작해도 이전 알림이 다시 남지 않도록 먼저 비움
 	bStateNotificationPending = false;
 	if (bShouldNotify)
 	{
+		const FDigetherElevatorPublicState StateSnapshot = PublicState;
 		OnStateChanged.Broadcast(StateSnapshot);
 	}
 }
@@ -146,7 +146,7 @@ EDigetherElevatorResult UDigetherElevatorComponent::ConfirmAscent(const FDigethe
 	State = Update.State;
 	LastAscent = CanonicalAscent;
 	bHasLastAscent = true;
-	// 상태 알림 콜백이 컴포넌트를 다시 바꿔도 이번 확정 매니페스트를 전달하도록 먼저 복사한다.
+	// 상태 알림 콜백이 컴포넌트를 다시 바꿔도 이번 확정 매니페스트를 전달하도록 먼저 복사
 	const FDigetherElevatorAscentConfirmed AscentSnapshot = LastAscent;
 	UE_LOG(LogDigetherElevator, Verbose, TEXT("Elevator ascent confirmed: trip %d, final %d."),
 		AscentSnapshot.TripNumber, AscentSnapshot.bFinalAscent);
@@ -172,8 +172,8 @@ EDigetherElevatorResult UDigetherElevatorComponent::UpdateLoad(const TArray<FDig
 
 	const FDigetherElevatorWeightSummary Weight = DigetherElevatorRules::EvaluateLoad(LoadEntries, CapacityKg,
 		ElevatorTuning);
-	// 기획 A3: 갱도 상승 문이 닫히는 중 무게 초과는 문을 다시 열고 이번 시도를 편으로 세지 않는다.
-	// 거점 출발 문은 게이지 완료로 취소 불가가 확정되었으므로 무게로 다시 열지 않는다.
+	// 기획 A3: 갱도 상승 문이 닫히는 중 무게 초과면 문 재개방, 이번 시도는 편으로 세지 않음
+	// 거점 출발 문은 게이지 완료로 취소 불가가 확정되어 무게로 재개방하지 않음
 	if (DigetherElevatorRules::ShouldReopenDoorForOverweight(State, Weight.TotalWeightKg, CapacityKg))
 	{
 		const EDigetherElevatorPhase OriginPhase = State.DoorOriginPhase;
@@ -215,7 +215,7 @@ EDigetherElevatorResult UDigetherElevatorComponent::AdvanceTravel(const float De
 		&& Update.State.Phase == EDigetherElevatorPhase::Finished;
 	const bool bDoorClosed = Update.Result == EDigetherElevatorResult::DoorClosed;
 	State = Update.State;
-	// 상태 알림 콜백이 컴포넌트를 다시 바꿔도 종료 신호에는 이번 마지막 매니페스트를 전달한다.
+	// 상태 알림 콜백이 컴포넌트를 다시 바꿔도 종료 신호에는 이번 마지막 매니페스트 전달
 	const FDigetherElevatorAscentConfirmed FinalAscentSnapshot = LastAscent;
 	const EDigetherElevatorPhase DoorOriginSnapshot = State.DoorOriginPhase;
 	CommitState(PublicState.WeightStage);
@@ -332,9 +332,10 @@ bool UDigetherElevatorComponent::RefreshPublicState(const EDigetherElevatorWeigh
 bool UDigetherElevatorComponent::CommitState(const EDigetherElevatorWeightStage WeightStage)
 {
 	const bool bPublicStateChanged = RefreshPublicState(WeightStage);
-	const FDigetherElevatorPublicState StateSnapshot = PublicState;
 	if (bPublicStateChanged)
 	{
+		// 수신 콜백이 PublicState를 바꿔도 이번 값 전달
+		const FDigetherElevatorPublicState StateSnapshot = PublicState;
 		DispatchStateNotification(StateSnapshot);
 	}
 	return bPublicStateChanged;

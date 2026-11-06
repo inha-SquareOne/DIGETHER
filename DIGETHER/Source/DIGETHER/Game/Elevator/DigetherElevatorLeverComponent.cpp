@@ -1,15 +1,9 @@
 #include "Game/Elevator/DigetherElevatorLeverComponent.h"
-#include "GameFramework/Actor.h"
-
-FGuid UDigetherElevatorLeverComponent::GetActivePullerId() const
-{
-	return GetOwner() && GetOwner()->HasAuthority() && GaugeState.Phase == EDigetherElevatorGaugePhase::Pulling
-		? GaugeState.PullerId : FGuid();
-}
 
 #include "Game/Core/DigetherAuthority.h"
 #include "Game/Elevator/DigetherElevatorLog.h"
 #include "Game/Elevator/DigetherElevatorRules.h"
+#include "GameFramework/Actor.h"
 #include "Net/UnrealNetwork.h"
 
 namespace
@@ -65,13 +59,14 @@ void UDigetherElevatorLeverComponent::EndNotificationBatch()
 	}
 
 	const bool bShouldNotifyPublicState = bPublicStateNotificationPending;
-	const FDigetherElevatorLeverPublicState StateSnapshot = PublicState;
 	TArray<FDigetherElevatorLeverFeedback> FeedbackSnapshots = MoveTemp(PendingFeedback);
-	// 콜백이 같은 컴포넌트를 다시 변경해도 새 묶음과 이전 피드백을 섞지 않는다.
+	// 콜백이 같은 컴포넌트를 다시 변경해도 새 묶음과 이전 피드백을 섞지 않음
 	bPublicStateNotificationPending = false;
 	PendingFeedback.Reset();
 	if (bShouldNotifyPublicState)
 	{
+		const FDigetherElevatorLeverPublicState StateSnapshot = PublicState;
+		OnLeverVisualStateChanged.Broadcast(StateSnapshot);
 		OnPublicStateChanged.Broadcast(StateSnapshot);
 	}
 	for (const FDigetherElevatorLeverFeedback& Feedback : FeedbackSnapshots)
@@ -96,10 +91,9 @@ EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::Configure(const ED
 	LeverTuning = Tuning;
 	GaugeState = FDigetherElevatorGaugeState();
 	bInitialized = true;
-	const bool bPublicStateChanged = RefreshPublicState();
-	const FDigetherElevatorLeverPublicState StateSnapshot = PublicState;
-	if (bPublicStateChanged)
+	if (RefreshPublicState())
 	{
+		const FDigetherElevatorLeverPublicState StateSnapshot = PublicState;
 		DispatchPublicStateNotification(StateSnapshot);
 	}
 	return EDigetherElevatorLeverResult::Released;
@@ -180,6 +174,12 @@ FText UDigetherElevatorLeverComponent::GetDepartureWarningText(const EDigetherDe
 	}
 }
 
+FGuid UDigetherElevatorLeverComponent::GetActivePullerId() const
+{
+	return GetOwner() && GetOwner()->HasAuthority() && GaugeState.Phase == EDigetherElevatorGaugePhase::Pulling
+		? GaugeState.PullerId : FGuid();
+}
+
 bool UDigetherElevatorLeverComponent::TryGetConfirmedAscent(FDigetherElevatorAscentConfirmed& OutAscent) const
 {
 	OutAscent = FDigetherElevatorAscentConfirmed();
@@ -215,6 +215,8 @@ void UDigetherElevatorLeverComponent::DispatchPublicStateNotification(
 		bPublicStateNotificationPending = true;
 		return;
 	}
+	// native 콜백의 재진입 변경보다 먼저 표현, 이전 스냅샷이 새 표현을 덮지 않게 순서 유지
+	OnLeverVisualStateChanged.Broadcast(StateSnapshot);
 	OnPublicStateChanged.Broadcast(StateSnapshot);
 }
 
@@ -244,13 +246,25 @@ EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::ApplyGaugeUpdate(c
 	const bool bPublicStateChanged = RefreshPublicState();
 	const bool bNewConfirmation = !bWasConfirmed && GaugeState.Phase == EDigetherElevatorGaugePhase::Confirmed
 		&& Update.Feedback.Result == EDigetherElevatorLeverResult::Confirmed;
-	const FDigetherElevatorLeverPublicState StateSnapshot = PublicState;
 	const FDigetherElevatorLeverFeedback FeedbackSnapshot = Update.Feedback;
-	const FDigetherElevatorAscentConfirmed AscentSnapshot = GaugeState.Ascent;
-	const FDigetherElevatorDepartureConfirmed DepartureSnapshot = GaugeState.Departure;
 	const EDigetherElevatorLeverKind KindSnapshot = LeverKind;
+	// 알림 콜백이 게이지를 다시 바꿔도 이번 확정 값을 보내도록 알림 전에 복사, 매니페스트 배열 복사는 확정 때만
+	FDigetherElevatorAscentConfirmed AscentSnapshot;
+	FDigetherElevatorDepartureConfirmed DepartureSnapshot;
+	if (bNewConfirmation)
+	{
+		if (KindSnapshot == EDigetherElevatorLeverKind::Ascent)
+		{
+			AscentSnapshot = GaugeState.Ascent;
+		}
+		else
+		{
+			DepartureSnapshot = GaugeState.Departure;
+		}
+	}
 	if (bPublicStateChanged)
 	{
+		const FDigetherElevatorLeverPublicState StateSnapshot = PublicState;
 		DispatchPublicStateNotification(StateSnapshot);
 	}
 	if (ShouldNotifyFeedback(FeedbackSnapshot.Result))
@@ -275,5 +289,6 @@ EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::ApplyGaugeUpdate(c
 void UDigetherElevatorLeverComponent::OnRep_PublicState()
 {
 	const FDigetherElevatorLeverPublicState StateSnapshot = PublicState;
+	OnLeverVisualStateChanged.Broadcast(StateSnapshot);
 	OnPublicStateChanged.Broadcast(StateSnapshot);
 }

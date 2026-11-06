@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "DigetherRunRuleTuning.generated.h"
 
-// 여진만의 임시값을 한곳에 둔다. 런 스냅샷의 제한 시간·상승 페널티와 중복 저장하지 않는다.
+// 여진 전용 임시값 모음, 런 스냅샷의 제한 시간·상승 페널티와 중복 저장 금지
 USTRUCT(BlueprintType)
 struct DIGETHER_API FDigetherRunRuleTuning
 {

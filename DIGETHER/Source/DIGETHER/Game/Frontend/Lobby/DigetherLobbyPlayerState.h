@@ -4,8 +4,8 @@
 #include "GameFramework/PlayerState.h"
 #include "DigetherLobbyPlayerState.generated.h"
 
-// 대기실 참가자의 준비·호스트 상태. 서버만 바꾸고 모두에게 복제한다.
-// 값이 바뀌면 대기실 GameState에 알려 화면이 갱신되게 한다.
+// 대기실 참가자의 준비·호스트 상태, 서버만 변경하고 모두에게 복제
+// 값 변경 시 대기실 GameState에 알려 화면 갱신
 UCLASS()
 class DIGETHER_API ADigetherLobbyPlayerState : public APlayerState
 {

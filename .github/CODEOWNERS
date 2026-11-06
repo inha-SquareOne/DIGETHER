@@ -1,0 +1,32 @@
+# Notion DIGETHER 작업 보드 담당 속성 기준, 2026-11-06 확인
+# https://www.notion.so/20161be04f6e44229b50f6b53768c41e
+# GitHub 계정 연결은 사용자 확인. 상세·미매핑 범위: docs/project/CODE_OWNERSHIP.md
+# 리뷰 책임이며 쓰기 독점·기획 승인·브랜치 보호를 부여하지 않는다.
+# 전역 기본 담당자를 추정하지 않는다. 마지막 일치 규칙이 적용된다.
+
+# 김민성: 게임 규칙·온라인·음성·거점·몬스터·저장·개발 지원
+/DIGETHER/Source/DIGETHER/Game/Economy/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/Elevator/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/Framework/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/Frontend/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/Hub/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/Life/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/Monster/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/Online/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/Run/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/Save/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/Settings/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/UI/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/Voice/ @AidenKim923
+/DIGETHER/Source/DIGETHER/Game/Dev/ @AidenKim923
+
+# 용다인: DEV-012 굴착. 갱도 전체에는 김민성 담당 보강도 있어 광역 지정하지 않는다.
+# 권한 확인 대기: /DIGETHER/Source/DIGETHER/Prototype/World/DigetherExcavation* @go5rae
+# 권한 확인 대기: /DIGETHER/Source/DIGETHER/Prototype/Tests/DigetherExcavationTerrainTest.cpp @go5rae
+
+# 김지훈: DEV-042 던전 진입. 현재 시험용 양방향 포탈 경로
+# 권한 확인 대기: /DIGETHER/Source/DIGETHER/Prototype/World/DigetherPrototypePortal.* @zhun0922
+
+# 강태웅(@pajupaju0907-byte): 인벤토리·장비·팀킬 등은 현재 독립 경로 미분리.
+# 미구현 경로·통합 Character 전체를 임의 지정하지 않고 CODE_OWNERSHIP.md에 보존한다.
+# 공유 문서·Config·Plugins·Git BP 폴더와 SVN 아트·맵의 리뷰 담당은 별도 확정 대상이다.

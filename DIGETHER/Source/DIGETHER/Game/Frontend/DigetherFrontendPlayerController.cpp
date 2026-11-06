@@ -3,6 +3,7 @@
 #include "CommonActivatableWidget.h"
 #include "Game/Frontend/DigetherFrontendSettings.h"
 #include "Game/UI/Common/DigetherFrontendLayoutWidget.h"
+#include "TimerManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDigetherFrontend, Log, All);
 
@@ -25,7 +26,44 @@ void ADigetherFrontendPlayerController::BeginPlay()
 	Layout->AddToPlayerScreen();
 	Layout->PushScreen(ScreenClass);
 	SetShowMouseCursor(true);
+#if !UE_BUILD_SHIPPING
+	ScheduleAutoCommands();
+#endif
 }
+
+#if !UE_BUILD_SHIPPING
+void ADigetherFrontendPlayerController::ScheduleAutoCommands()
+{
+	static TSet<FString> ScheduledParams;
+	const TCHAR* Param = GetAutoCommandsParam();
+	FString Spec;
+	if (Param == nullptr || ScheduledParams.Contains(Param)
+		|| !FParse::Value(FCommandLine::Get(), *(FString(Param) + TEXT("=")), Spec) || Spec.IsEmpty())
+	{
+		return;
+	}
+	ScheduledParams.Add(Param);
+	TArray<FString> Entries;
+	Spec.ParseIntoArray(Entries, TEXT("|"));
+	for (const FString& Entry : Entries)
+	{
+		FString DelayText;
+		FString CommandText;
+		if (!Entry.Split(TEXT(":"), &DelayText, &CommandText) || CommandText.TrimStartAndEnd().IsEmpty())
+		{
+			UE_LOG(LogDigetherFrontend, Warning, TEXT("%s 항목 형식 오류: %s"), Param, *Entry);
+			continue;
+		}
+		const FString Command = CommandText.TrimStartAndEnd();
+		FTimerHandle Handle;
+		GetWorldTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this, Command]()
+		{
+			UE_LOG(LogDigetherFrontend, Display, TEXT("AutoCmd 실행: %s"), *Command);
+			ConsoleCommand(Command);
+		}), FMath::Max(0.1f, FCString::Atof(*DelayText)), false);
+	}
+}
+#endif
 
 void ADigetherFrontendPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
@@ -33,7 +71,7 @@ void ADigetherFrontendPlayerController::EndPlay(const EEndPlayReason::Type EndPl
 	{
 		if (Layout) Layout->RemoveFromParent();
 		Layout = nullptr;
-		// 게임 맵에는 프런트엔드 화면이 없으므로 게임 입력으로 되돌린다.
+		// 게임 맵에는 프런트엔드 화면이 없어 게임 입력으로 복귀
 		SetInputMode(FInputModeGameOnly());
 		SetShowMouseCursor(false);
 	}

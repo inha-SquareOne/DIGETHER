@@ -1,0 +1,50 @@
+name: 버그
+description: 재현 가능한 결함 보고
+title: "[버그] "
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 심각도
+      options:
+        - 치명 — 진행 불가 / 크래시 / 데이터 손실
+        - 높음 — 핵심 기능 오동작
+        - 보통 — 우회 가능
+        - 낮음 — 시각적 문제
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 발생 환경
+      description: UE 버전(프로젝트 기준 5.8.4), Git 커밋·SVN 리비전, 맵, PIE/패키지, 인원·호스트/클라이언트, Steam/LAN 등을 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 재현 순서와 발생 빈도
+      placeholder: |
+        1. 호스트 1명과 클라이언트 1명으로 접속
+        2. 같은 회수품을 동시에 회수
+        3. 두 명 모두 지급됨 (시도 10회 중 2회)
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 동작과 기준
+      description: 승인 기획·요구 ID 또는 기존 정상 동작 근거를 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 동작
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 로그·화면·저장 데이터 영향
+      description: Output Log·크래시·영상 등 근거를 첨부하고 토큰·개인 정보는 제거해 주세요. 추측한 원인은 관찰 사실과 구분해 주세요.

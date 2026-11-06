@@ -5,7 +5,6 @@
 #include "Game/Economy/DigetherEconomyTypes.h"
 #include "DigetherDepositStationActor.generated.h"
 
-class APawn;
 class USceneComponent;
 class UStaticMeshComponent;
 class UDigetherQuotaStateComponent;
@@ -25,8 +24,6 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Digether|Deposit")
 	FName GetStationId() const { return StationId; }
-
-	bool IsPawnInRange(const APawn* Pawn, float InteractionDistanceCm) const;
 
 	// +X가 입구 바깥쪽인 붓기 기준 변환
 	FTransform GetPourInletTransform() const;

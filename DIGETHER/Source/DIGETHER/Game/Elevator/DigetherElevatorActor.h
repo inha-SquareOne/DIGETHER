@@ -10,7 +10,7 @@ class UDigetherElevatorComponent;
 class USceneComponent;
 class UStaticMeshComponent;
 
-// 운행 규칙과 서버 탑승 판정을 배치할 진입점이며, 형상의 이동은 맡지 않는다.
+// 운행 규칙·서버 탑승 판정 배치용 진입점, 형상 이동은 담당하지 않음
 UCLASS()
 class DIGETHER_API ADigetherElevatorActor : public AActor
 {
@@ -25,7 +25,7 @@ public:
 	UFUNCTION(BlueprintPure, Category="Digether|Elevator")
 	UBoxComponent* GetBoardingVolume() const;
 
-	// 탑승자 목록은 서버 조율자만 읽고 공개 복제 상태에는 포함하지 않는다.
+	// 탑승자 목록은 서버 조율자 전용, 공개 복제 상태에 미포함
 	void GetOverlappingPawns(TArray<APawn*>& OutPawns) const;
 
 private:

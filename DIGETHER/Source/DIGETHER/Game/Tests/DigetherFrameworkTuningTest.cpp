@@ -8,7 +8,7 @@
 
 namespace
 {
-	// 유효성 검사와 복사 경계를 확인하는 시험값이며 최종 기획 수치가 아니다.
+	// 유효성 검사·복사 경계 확인용 시험값, 기획 수치 아님
 	FDigetherRunTuning MakeFrameworkTuningFixture()
 	{
 		FDigetherRunTuning Tuning;

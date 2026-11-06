@@ -14,8 +14,9 @@ namespace DigetherSessionText
 
 	FText Get(EDigetherSessionText Key)
 	{
-		// 서브시스템 초기화(GameInstance Init) 때 처음 쓰이면 기본 정책(FindOrLoad)은 아직 로드 전이라 빈 항목을 돌려준다.
-		// 상태 문구는 게임 스레드에서만 쓰고 표도 작으므로 처음 한 번 동기로 불러온다.
-		return FText::FromStringTable(FName(TableId), GetKey(Key), EStringTableLoadingPolicy::FindOrFullyLoad);
+		// 서브시스템 초기화(GameInstance Init) 때 첫 사용이면 기본 정책(FindOrLoad)은 로드 전이라 빈 항목 반환
+		// 게임 스레드 전용·작은 표라 처음 한 번 동기 로드
+		static const FName TableName(TableId);
+		return FText::FromStringTable(TableName, GetKey(Key), EStringTableLoadingPolicy::FindOrFullyLoad);
 	}
 }

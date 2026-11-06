@@ -12,7 +12,7 @@ class USlider;
 class UDigetherButtonWidget;
 class UDigetherTabListWidget;
 
-// 그래픽·사운드·조작 설정 패널. 탭은 CommonUI 탭 목록, 값은 '적용'을 눌러야 GameUserSettings에 저장된다.
+// 그래픽·사운드·조작 설정 패널, 탭은 CommonUI 탭 목록, GameUserSettings 저장은 적용 버튼 시점만
 UCLASS(Abstract)
 class DIGETHER_API UDigetherSettingsPanelWidget : public UCommonActivatableWidget
 {
@@ -56,7 +56,7 @@ protected:
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UDigetherButtonWidget> Btn_Defaults;
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UDigetherButtonWidget> Btn_Close;
 
-	// 탭 버튼으로 만들 WBP(WBP_TabButton).
+	// 탭 버튼 생성용 WBP(WBP_TabButton)
 	UPROPERTY(EditDefaultsOnly, Category = "Digether|Tabs") TSubclassOf<UDigetherButtonWidget> TabButtonClass;
 
 private:

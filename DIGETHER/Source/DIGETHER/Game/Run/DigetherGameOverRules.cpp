@@ -101,7 +101,7 @@ float DigetherGameOverRules::CalculateCreditTotalSeconds(const int32 PlayerCount
 	{
 		return 0.f;
 	}
-	// 첫 블록이 화면 아래에서 나타나 마지막 블록이 화면 위로 사라질 때까지 화면 높이 1만큼 더 지나간다.
+	// 첫 블록이 화면 아래에서 나타나 마지막 블록이 화면 위로 사라질 때까지 화면 높이 1만큼 추가 이동
 	constexpr double ScreenHeight = 1.0;
 	const double ContentHeight = static_cast<double>(CountCreditLines(PlayerCount)) * Tuning.CreditLineHeight
 		+ static_cast<double>(CreditBlockCount - 1) * Tuning.CreditBlockGap;
@@ -157,7 +157,7 @@ bool DigetherGameOverRules::TrySetFastForward(const FDigetherCreditPlayback& Cur
 int32 DigetherGameOverRules::CalculateNetDeathLoss(const FDigetherWalletState& Wallet)
 {
 	const int64 Net = static_cast<int64>(Wallet.TotalDeathLossCredits) - Wallet.LifetimeCorpseRefundCredits;
-	// 복구금은 사망 직전 잔고의 일부라 같은 게임의 손실보다 클 수 없다. 넘으면 장부 오류이므로 0으로 막고 알린다.
+	// 복구금은 사망 직전 잔고 일부라 같은 게임 손실보다 클 수 없음, 넘으면 장부 오류로 0 처리 후 ensure
 	ensureMsgf(Net >= 0, TEXT("Corpse refunds exceed death losses: loss=%d refund=%d"),
 		Wallet.TotalDeathLossCredits, Wallet.LifetimeCorpseRefundCredits);
 	return static_cast<int32>(FMath::Clamp<int64>(Net, 0, MAX_int32));
@@ -176,9 +176,10 @@ bool DigetherGameOverRules::TryMakeGameResult(const FGuid& ResultId, const FGuid
 		int32 SortKey = 0;
 	};
 	TArray<FOrdered> Order;
+	Order.Reserve(Players.Num());
 	for (int32 Index = 0; Index < Players.Num(); ++Index)
 	{
-		// 참가 순서를 모르는 구 저장 기록(0)은 알려진 참가자 뒤에 입력 순서대로 둔다.
+		// 참가 순서를 모르는 구 저장 기록(0)은 알려진 참가자 뒤에 입력 순서대로 배치
 		Order.Add({ Index, Players[Index].JoinOrder > 0 ? Players[Index].JoinOrder : MAX_int32 });
 	}
 	Algo::StableSortBy(Order, &FOrdered::SortKey);
@@ -187,6 +188,7 @@ bool DigetherGameOverRules::TryMakeGameResult(const FGuid& ResultId, const FGuid
 	Result.GameId = GameId;
 	Result.FinalTotalDay = FinalTotalDay;
 	Result.CompletedPeriods = CompletedPeriods;
+	Result.Players.Reserve(Order.Num());
 	for (const FOrdered& Entry : Order)
 	{
 		const FDigetherGameResultInput& Input = Players[Entry.InputIndex];
@@ -194,7 +196,8 @@ bool DigetherGameOverRules::TryMakeGameResult(const FGuid& ResultId, const FGuid
 		Player.DisplayName = Input.DisplayName;
 		Player.JoinOrder = FMath::Max(0, Input.JoinOrder);
 		Player.HiddenCredits = FMath::Max(0, Input.Wallet.HiddenLifetimeCredits);
-		// 히든 수익은 지급 때 획득액에도 함께 쌓인다. 획득액 누적이 없던 구 저장(0으로 읽힘)은 확실한 하한인 히든 수익을 쓴다.
+		// 히든 수익은 지급 때 획득액에도 함께 누적
+		// 획득액 누적이 없던 구 저장(0으로 읽힘)은 확실한 하한인 히든 수익 사용
 		Player.EarnedCredits = FMath::Max(FMath::Max(0, Input.Wallet.LifetimeEarnedCredits), Player.HiddenCredits);
 		Player.DeathLossCredits = CalculateNetDeathLoss(Input.Wallet);
 		Result.TotalEarnedCredits = FDigetherEconomyRules::AddCredits(Result.TotalEarnedCredits, Player.EarnedCredits);

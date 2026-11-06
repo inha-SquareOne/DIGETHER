@@ -10,7 +10,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkRunPlayerLocationTest,
 bool FDigetherFrameworkRunPlayerLocationTest::RunTest(const FString& Parameters)
 {
 	using DigetherFrameworkRules::MakeRunPlayerLocation;
-	// 기획 A3: 문이 닫히는 동안에도 탈 수 있다.
+	// 기획 A3: 문 닫히는 중에도 탑승 가능
 	const EDigetherElevatorPhase BoardingPhases[] = {
 		EDigetherElevatorPhase::InitialDescent, EDigetherElevatorPhase::BottomWaiting, EDigetherElevatorPhase::DoorClosing };
 	const EDigetherElevatorPhase LeftPhases[] = {
@@ -25,7 +25,7 @@ bool FDigetherFrameworkRunPlayerLocationTest::RunTest(const FString& Parameters)
 		TestEqual(Name + TEXT(" active outside volume stays in mine"),
 			MakeRunPlayerLocation(EDigetherLifeState::Active, false, Phase), EDigetherRunPlayerLocation::MineOrDungeon);
 	}
-	// 상승 확정 뒤 고정 볼륨에 들어온 활동 참가자는 탑승자로 인정하지 않는다.
+	// 상승 확정 뒤 고정 볼륨에 들어온 활동 참가자는 탑승자 아님
 	for (const EDigetherElevatorPhase Phase : LeftPhases)
 	{
 		const FString Name = UEnum::GetValueAsString(Phase);
@@ -46,7 +46,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkHiddenRevealsTest,
 
 bool FDigetherFrameworkHiddenRevealsTest::RunTest(const FString& Parameters)
 {
-	// 숫자·식별자는 테스트 픽스처이며 최종 기획 값이 아니다.
+	// 숫자·식별자는 테스트 픽스처, 기획 값 아님
 	FDigetherWalletState First;
 	First.HiddenLifetimeCredits = 40;
 	First.BalanceCredits = 999;

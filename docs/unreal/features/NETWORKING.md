@@ -9,7 +9,7 @@
 - **Iris는 Beta(`.uplugin`)인데 공식 문서는 Experimental이라 부른다.** 켜는 방법은 있으나(플러그인+CVar+NetDriver 설정) 프로젝트의 `SteamSocketsNetDriver`와의 호환은 미확인이다. 채택 전 별도 검증 대상이다.
 - **Replication Graph는 Beta이며 현재 미채택이다.** 접속 인원만으로 필요성을 단정하지 않고 복제 액터 수·서버 CPU 측정으로 판단한다. 휴면·거리 컬링·`NetUpdateFrequency`도 비교 대상이다.
 - **재접속은 `AGameMode`에만 비활성 PlayerState 기능이 있다.** 프로젝트는 `AGameModeBase`라 이 기능이 없다. `FindInactivePlayer`는 데스크톱에서 UniqueId가 유효하면 그 값을 비교한다(소스). 이름·IP 대조는 UniqueId가 무효일 때의 폴백이다.
-- **프로젝트는 대기실→게임 이동을 비Seamless `ServerTravel`로 한다.** Seamless Travel은 전환 맵·PlayerState 복사 규칙이 필요하며, 채택은 대안 비교 후 사용자 선택 사항이다.
+- **프로젝트는 대기실→게임 이동을 Seamless `ServerTravel`로 한다(2026-11-06 사용자 결정).** 비Seamless는 Steam에서 실패했다: `USteamSocketsNetDriver::Shutdown`이 이전 대기 소켓을 `MarkForDeletion`으로 다음 Tick에 닫아, 같은 프레임의 새 맵 `InitListen`이 같은 P2P 포트(7777)를 열지 못한다(`NetDriverListenFailure`, 2026-11-06 두 PC 로그·엔진 소스). 전환 맵은 비워 엔진 빈 맵을 쓴다.
 - **`NetUpdateFrequency` 등의 public 멤버 직접 접근은 5.5부터 deprecated**다. `SetNetUpdateFrequency()`·`SetNetCullDistanceSquared()`를 써야 한다(프로젝트는 이미 Setter 사용).
 
 ## DIGETHER에서 쓰이는 곳
@@ -18,7 +18,7 @@
 | S01 세션·재접속 | 세션 생성·검색·참가는 `UDigetherSessionSubsystem`(Steam 로비, 최대 4인). 접속 거절 규칙은 `DigetherJoinRules`가 `PreLogin`에서 판정. 신규 참가는 정상 거점 준비 상태에서만 받고 출발 게이지 완료~결과 크레딧 동안 막으며, 게이지 전 수락·완료 뒤 확정은 빈자리가 있으면 관전 합류(시스템 작업리스트 1.1.0 S01. 문 닫힘 중 참가 잠금은 구현(실행 검증 일부). 게임 오버 중 잠금·관전 합류·로비 이탈자의 탐사 중 관전 복귀·참가 실패 6종(사유 키 전달)은 구현(자동 테스트 통과, M2 미검증)). 거점 퇴장·끊김은 캐릭터 제거·자리 반환(소지 장비 바닥 유지는 인벤토리 미구현), 탐사 출발 후 끊김은 캐릭터·자리 유지. 같은 ID 교체와 비활성 PlayerState 재접속은 구현(자동 테스트 통과, M2 미검증, [SYSTEM_DESIGN](../../SYSTEM_DESIGN.md) 재접속 기술 계약) |
 | 네트워크 권위 | 복제 프로퍼티·Server/Client Reliable RPC를 `Game/` 아래에서 사용 중(지갑, 엘리베이터, 레버, 할당량, 컨트롤러) |
 | 굴착 지형 복제 | `ADigetherExcavationTerrain`: `bAlwaysRelevant=true`, `SetNetUpdateFrequency(10)` ([굴착 구현](../../design/EXCAVATION_IMPLEMENTATION.md)) |
-| 맵 이동 | 로비 GameMode `bUseSeamlessTravel=false`. 호스트가 `World->ServerTravel(GameMap + "?listen", true)` |
+| 맵 이동 | 로비 GameMode `bUseSeamlessTravel=true`. 호스트가 `World->ServerTravel(GameMap + "?listen", true)`. 게임 GameMode `HandleSeamlessTravelPlayer`가 PC·PS를 게임 클래스로 교체하고 로그인 목록을 보충(PreLogin·Login·PostLogin 미경유), 시작 저장·캐릭터 생성은 `StartPlay`·`HandleStartingNewPlayer` |
 | NetDriver | `DefaultEngine.ini`가 `GameNetDriver`를 `SteamSocketsNetDriver`(폴백 IpNetDriver)로 교체. SteamAuth 패킷 핸들러 사용 |
 | 휴면 | 명시적 휴면 설정은 C++에서 발견하지 못했다. `UDigetherMonsterHealthComponent`가 체력 변경 전에 `FlushNetDormancy()`, 변경 뒤 `ForceNetUpdate()`를 호출한다 |
 | 미사용 | Push Model, FastArraySerializer, NetSerialize 커스텀 구조체, 등록형 서브오브젝트, Iris, Replication Graph, Network Prediction, 네트워크 에뮬레이션 설정 |
@@ -41,8 +41,8 @@
 | 등록형 서브오브젝트 (`bReplicateUsingRegisteredSubObjectList`, `AddReplicatedSubObject`) | Engine | UObject·컴포넌트를 등록 목록으로 복제 | UObject 복제가 필요할 때. Iris는 이 방식 전제 | 미사용(기본값 레거시) | 소스 `Actor.h`, `ActorComponent.h`, `ActorComponent.cpp` |
 | Iris 복제 시스템 | Iris 플러그인(`Plugins/Experimental/Iris`, Runtime, **Beta**) + IrisCore(엔진 모듈) | 새 복제 시스템(옵트인) | 대규모 대상. 4인 협동의 필요는 측정 후 판단 | 미사용 | 소스 `.uplugin`, `BaseEngine.ini`, `UnrealEngine.cpp`; 문서 |
 | Replication Graph | `Plugins/Runtime/ReplicationGraph`(Runtime, **Beta**) | 대량 액터·접속용 그래프 기반 복제 드라이버 | 복제 액터 수·서버 CPU 측정 후 필요성 판단 | 미사용 | 소스 `.uplugin`; 문서 |
-| 맵 이동 (`UWorld::ServerTravel`, `APlayerController::ClientTravel`, `UEngine::Browse`) | Engine | 서버 주도 맵 변경, 클라 따라 이동 | 대기실→탐사 | `ServerTravel` 비Seamless 사용 | 소스 `Engine/Source/Runtime/Engine/Private/World.cpp`, `PlayerController.cpp`, `UnrealEngine.cpp`; 문서 |
-| Seamless Travel (`bUseSeamlessTravel`, `TransitionMap`, `GetSeamlessTravelActorList`, `PlayerState::CopyProperties`) | Engine / EngineSettings | 연결을 끊지 않고 전환 맵 경유 이동 | 거점↔탐사 반복 이동 시 재접속 부담 감소 후보 | 미사용(로비는 명시적 false) | 소스 `GameModeBase.h`, `PlayerState.h`, `GameMapsSettings.h`; 문서 |
+| 맵 이동 (`UWorld::ServerTravel`, `APlayerController::ClientTravel`, `UEngine::Browse`) | Engine | 서버 주도 맵 변경, 클라 따라 이동 | 대기실→탐사 | `ServerTravel` Seamless 사용 | 소스 `Engine/Source/Runtime/Engine/Private/World.cpp`, `PlayerController.cpp`, `UnrealEngine.cpp`; 문서 |
+| Seamless Travel (`bUseSeamlessTravel`, `TransitionMap`, `GetSeamlessTravelActorList`, `PlayerState::CopyProperties`) | Engine / EngineSettings | 연결을 끊지 않고 전환 맵 경유 이동 | 거점↔탐사 반복 이동 시 재접속 부담 감소 후보 | 대기실→게임 사용(2026-11-06) | 소스 `GameModeBase.h`, `PlayerState.h`, `GameMapsSettings.h`; 문서 |
 | 비활성 PlayerState (`AddInactivePlayer`/`FindInactivePlayer`/`OverridePlayerState`) | Engine (`AGameMode` 전용) | 이탈 PlayerState를 복제본으로 보관, 재입장 시 재연결 | 같은 ID 재접속 복원 후보 | `AGameModeBase`라 **없음** | 소스 `Classes/GameFramework/GameMode.h`, `Private/GameMode.cpp` |
 | 접속 승인 (`PreLogin`, `PreLoginAsync`, `AGameSession::ApproveLogin`, `KickPlayer`, `BanPlayer`) | Engine | 접속 전 거절·강제 퇴장 | 신규 참가 차단 구간 거절. 같은 ID는 이전 접속 종료 후 새 접속 수락(사용자 결정 2026-11-05, 기획 답변 C2. `PreLoginAsync`로 구현, 자동 테스트 통과, M2 미검증). `KickPlayer`는 Pawn을 먼저 파괴하므로 교체에 그대로 쓰지 않음(아래 재접속 절) | `PreLogin`·`PreLoginAsync` 사용 | 소스 `GameModeBase.h`, `GameSession.h`, `GameSession.cpp` |
 | 캐릭터 이동 예측 (CharacterMovement, `ServerMovePacked`) | Engine | 클라 예측·서버 보정이 기본 내장 | 1인칭 이동은 별도 복제부터 만들지 않는다 | `ACharacter` 기반 | 소스 `Classes/GameFramework/CharacterMovementComponent.h` |
@@ -112,7 +112,7 @@
 - PlayerState: `CopyProperties(NewPS)`, `SeamlessTravelTo(NewPS)`, `bFromPreviousLevel`/`IsFromPreviousLevel()`. 새 맵의 PlayerState 클래스가 달라도 `CopyProperties`로 값을 넘긴다. (소스 `PlayerState.h`) 
 - 훅: `AGameModeBase::HandleSeamlessTravelPlayer`, `PostSeamlessTravel`. (소스) 로그아웃 이벤트는 비Seamless `ServerTravel` 중에도 발생한다(`GameModeBase.h` 주석).
 - `UNetDriver::ServerTravelPause`(SteamSockets 기본 4.0초): 서버 이동 전 클라가 따라올 시간. (소스 `BaseEngine.ini`)
-- **프로젝트 사정**: 로비 GameMode는 컨트롤러·상태 클래스가 다르다는 이유로 `bUseSeamlessTravel=false`를 명시했다. Seamless로 바꾸려면 클래스 불일치 처리와 PlayerState 복사가 필요하다. 실질적 대안(비Seamless 유지 vs Seamless)이 있으므로 선택은 사용자 결정이다.
+- **프로젝트 사정**: 2026-11-06 사용자 결정으로 로비 GameMode를 Seamless로 바꿨다. 클래스 교체는 엔진 `AGameMode::HandleSeamlessTravelPlayer`가 하고 PlayerState 값은 기본 `CopyProperties`(이름·UniqueId 등)로 넘어간다. 게임 맵의 접속 승인·같은 계정 교체 검사는 이후 새 참가자(Login 경로)에만 적용된다. LAN 2프로세스 이동·캐릭터 생성 확인, Steam 두 PC 재시험 대기. PIE에서는 엔진 설정 `net.AllowPIESeamlessTravel` 없이는 Seamless가 동작하지 않을 수 있다.
 
 ### 재접속 (비활성 PlayerState)
 - `AGameMode`(MatchState 계열)만 `InactivePlayerArray`, `InactivePlayerStateLifeSpan`, `MaxInactivePlayers`, `AddInactivePlayer`, `FindInactivePlayer`, `OverridePlayerState`를 가진다. `Logout`에서 `AddInactivePlayer`, `PostLogin` 경로에서 `FindInactivePlayer`가 호출된다. (소스 `GameMode.h`, `GameMode.cpp`)

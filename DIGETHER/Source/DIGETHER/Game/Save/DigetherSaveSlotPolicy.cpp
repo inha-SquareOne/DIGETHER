@@ -1,4 +1,4 @@
-// DigetherSaveRules의 주·백업 슬롯 선택과 쓰기 순서 정책, 진행 슬롯(번호·목록 요약·시작 선택) 규칙을 구현한다.
+// DigetherSaveRules의 주·백업 슬롯 선택·쓰기 순서 정책과 진행 슬롯(번호·목록 요약·시작 선택) 규칙
 #include "Game/Save/DigetherSaveRules.h"
 
 #include "Game/Save/DigetherSaveTuning.h"
@@ -53,7 +53,7 @@ EDigetherSaveResult DigetherSaveRules::CanWriteSlots(const EDigetherSaveResult P
 	{
 		return EDigetherSaveResult::Success;
 	}
-	// 읽을 수 있는 primary가 있어도 검사하지 못한 backup을 일반 저장으로 덮지 않는다.
+	// 읽을 수 있는 primary가 있어도 검사하지 못한 backup을 일반 저장으로 덮지 않음
 	if (PrimaryResult != EDigetherSaveResult::Success && !IsRecoverableReadFailure(PrimaryResult))
 	{
 		return PrimaryResult;
@@ -129,7 +129,7 @@ FDigetherSaveSlotSummary DigetherSaveRules::MakeSlotSummary(const int32 SlotInde
 		Summary.Status = EDigetherSaveSlotStatus::Unreadable;
 		return Summary;
 	}
-	// 정확한 공동 인정액·개인 잔고·인증 ID는 목록에 넣지 않는다. 게임 안에서 모두에게 보이는 값만 쓴다.
+	// 정확한 공동 인정액·개인 잔고·인증 ID 제외, 게임 안에서 모두에게 보이는 값만
 	const FDigetherSaveSnapshot& Progress = Slot.Progress;
 	Summary.TotalDay = Progress.Quota.Quota.TotalDay;
 	Summary.PeriodDay = Progress.Quota.Quota.Day;
@@ -172,7 +172,7 @@ bool DigetherSaveRules::TryParseSlotOption(const FString& Option, FDigetherSaveS
 		int32 SlotIndex = 0;
 		if (!Digits.IsEmpty())
 		{
-			// 숫자 한 자리 이상만 받는다. "+1"·"1a" 같은 입력은 거절한다.
+			// 숫자만 허용, "+1"·"1a" 같은 입력 거절
 			for (const TCHAR Character : Digits)
 			{
 				if (!FChar::IsDigit(Character))

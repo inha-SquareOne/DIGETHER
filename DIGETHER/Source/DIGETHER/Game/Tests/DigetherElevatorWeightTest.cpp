@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Game/Elevator/DigetherElevatorRules.h"
+#include "Game/Tests/DigetherTestValues.h"
 #include "Misc/AutomationTest.h"
 
 #include <cmath>
@@ -11,7 +12,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherElevatorWeightTest,
 bool FDigetherElevatorWeightTest::RunTest(const FString& Parameters)
 {
 	using namespace DigetherElevatorRules;
-	// 테스트 픽스처이며 최종 기획 무게·용량·단계 비율이 아니다.
+	// 테스트 픽스처, 기획 무게·용량·단계 비율 아님
 	FDigetherElevatorTuning Tuning;
 	Tuning.LightMaxCapacityRatio = 0.25f;
 	Tuning.MediumMaxCapacityRatio = 0.75f;
@@ -38,7 +39,7 @@ bool FDigetherElevatorWeightTest::RunTest(const FString& Parameters)
 	Entries.Add(Entry);
 	Entry.Kind = EDigetherElevatorLoadKind::Corpse;
 	Entries.Add(Entry);
-	const float InvalidWeights[] = { -1.f, NAN, INFINITY, -INFINITY };
+	const float InvalidWeights[] = { -1.f, DigetherTestValues::NaN(), DigetherTestValues::Infinity(), -DigetherTestValues::Infinity() };
 	for (const EDigetherElevatorLoadKind Kind : { EDigetherElevatorLoadKind::CarriedItem, EDigetherElevatorLoadKind::Cargo })
 	{
 		Entry.Kind = Kind;
@@ -61,24 +62,24 @@ bool FDigetherElevatorWeightTest::RunTest(const FString& Parameters)
 	const double LightBoundary = 25.0;
 	TestEqual(TEXT("가벼움 경계 바로 아래"), CalculateWeightStage(std::nextafter(LightBoundary, 0.0), CapacityKg, Tuning), EDigetherElevatorWeightStage::Light);
 	TestEqual(TEXT("가벼움 경계 정확히 같음"), CalculateWeightStage(LightBoundary, CapacityKg, Tuning), EDigetherElevatorWeightStage::Light);
-	TestEqual(TEXT("가벼움 경계 바로 위"), CalculateWeightStage(std::nextafter(LightBoundary, INFINITY), CapacityKg, Tuning), EDigetherElevatorWeightStage::Medium);
+	TestEqual(TEXT("가벼움 경계 바로 위"), CalculateWeightStage(std::nextafter(LightBoundary, DigetherTestValues::Infinity<double>()), CapacityKg, Tuning), EDigetherElevatorWeightStage::Medium);
 	const double MediumBoundary = 75.0;
 	TestEqual(TEXT("보통 경계 바로 아래"), CalculateWeightStage(std::nextafter(MediumBoundary, 0.0), CapacityKg, Tuning), EDigetherElevatorWeightStage::Medium);
 	TestEqual(TEXT("보통 경계 정확히 같음"), CalculateWeightStage(MediumBoundary, CapacityKg, Tuning), EDigetherElevatorWeightStage::Medium);
-	TestEqual(TEXT("보통 경계 바로 위"), CalculateWeightStage(std::nextafter(MediumBoundary, INFINITY), CapacityKg, Tuning), EDigetherElevatorWeightStage::Heavy);
+	TestEqual(TEXT("보통 경계 바로 위"), CalculateWeightStage(std::nextafter(MediumBoundary, DigetherTestValues::Infinity<double>()), CapacityKg, Tuning), EDigetherElevatorWeightStage::Heavy);
 	TestEqual(TEXT("용량 바로 아래는 무거움"), CalculateWeightStage(std::nextafter(100.0, 0.0), CapacityKg, Tuning), EDigetherElevatorWeightStage::Heavy);
 	TestFalse(TEXT("용량과 같으면 출발 허용"), IsOverCapacity(100.0, CapacityKg));
 	TestEqual(TEXT("용량과 같으면 무거움"), CalculateWeightStage(100.0, CapacityKg, Tuning), EDigetherElevatorWeightStage::Heavy);
-	TestTrue(TEXT("용량 바로 위면 초과"), IsOverCapacity(std::nextafter(100.0, INFINITY), CapacityKg));
-	TestEqual(TEXT("용량 바로 위는 초과 단계"), CalculateWeightStage(std::nextafter(100.0, INFINITY), CapacityKg, Tuning), EDigetherElevatorWeightStage::Over);
+	TestTrue(TEXT("용량 바로 위면 초과"), IsOverCapacity(std::nextafter(100.0, DigetherTestValues::Infinity<double>()), CapacityKg));
+	TestEqual(TEXT("용량 바로 위는 초과 단계"), CalculateWeightStage(std::nextafter(100.0, DigetherTestValues::Infinity<double>()), CapacityKg, Tuning), EDigetherElevatorWeightStage::Over);
 
-	for (const float InvalidValue : { 0.f, -1.f, NAN, INFINITY, -INFINITY })
+	for (const float InvalidValue : { 0.f, -1.f, DigetherTestValues::NaN(), DigetherTestValues::Infinity(), -DigetherTestValues::Infinity() })
 	{
 		TestFalse(TEXT("유효하지 않은 용량 거절"), IsValidRunParameters(InvalidValue, 2, 4.f));
 		TestFalse(TEXT("유효하지 않은 운행 시간 거절"), IsValidRunParameters(CapacityKg, 2, InvalidValue));
 	}
 	TestFalse(TEXT("0회 운행 거절"), IsValidRunParameters(CapacityKg, 0, 4.f));
-	// ELV_ASCENT_LIMIT는 2회 확정이다. 1회·3회 비교 설정은 받지 않는다.
+	// ELV_ASCENT_LIMIT 2회 확정, 1회·3회 비교 설정 거절
 	TestFalse(TEXT("1회 운행 거절"), IsValidRunParameters(CapacityKg, 1, 4.f));
 	TestFalse(TEXT("3회 운행 거절"), IsValidRunParameters(CapacityKg, 3, 4.f));
 	TestFalse(TEXT("음수 운행 횟수 거절"), IsValidRunParameters(CapacityKg, -1, 4.f));
@@ -92,7 +93,7 @@ bool FDigetherElevatorWeightTest::RunTest(const FString& Parameters)
 	InvalidTuning.MediumMaxCapacityRatio = 1.f;
 	TestFalse(TEXT("보통 비율은 1 미만"), IsValidTuning(InvalidTuning));
 	InvalidTuning = Tuning;
-	InvalidTuning.AscentHoldSeconds = NAN;
+	InvalidTuning.AscentHoldSeconds = DigetherTestValues::NaN();
 	TestFalse(TEXT("NaN 홀드 시간 거절"), IsValidTuning(InvalidTuning));
 	InvalidTuning = Tuning;
 	InvalidTuning.DepartureHoldSeconds = 0.f;

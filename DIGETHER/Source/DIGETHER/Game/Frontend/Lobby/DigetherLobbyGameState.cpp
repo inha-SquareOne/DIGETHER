@@ -9,7 +9,7 @@ void ADigetherLobbyGameState::SetRoomInfo(const FString& InRoomName, const FStri
 	RoomName = InRoomName;
 	RoomCode = InRoomCode;
 	ForceNetUpdate();
-	// 서버에서는 OnRep가 호출되지 않으므로 직접 알린다.
+	// 서버는 OnRep 미호출이라 직접 통지
 	NotifyLobbyChanged();
 }
 

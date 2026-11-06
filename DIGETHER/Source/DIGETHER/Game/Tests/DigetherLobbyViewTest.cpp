@@ -5,7 +5,7 @@
 
 namespace
 {
-	// 입력으로 주입하는 정원 시험값이다. 실제 정원은 DigetherRoomProtocol::MaxPlayers가 정한다.
+	// 입력으로 주입하는 정원 시험값, 실제 정원은 DigetherRoomProtocol::MaxPlayers
 	constexpr int32 LobbyViewFixtureMaxPlayers = 4;
 
 	DigetherLobbyView::FDigetherLobbyViewInput MakeLobbyViewInput(const TArray<bool>& HostFlags)
@@ -32,7 +32,7 @@ bool FDigetherLobbyViewTest::RunTest(const FString& Parameters)
 {
 	using namespace DigetherLobbyView;
 
-	// 참가자 정렬: 호스트가 맨 앞, 나머지는 입장 순서. 빈 칸은 INDEX_NONE.
+	// 참가자 정렬: 호스트가 맨 앞, 나머지는 입장 순서, 빈 칸은 INDEX_NONE
 	{
 		const FDigetherLobbyView View = BuildLobbyView(MakeLobbyViewInput({ false, true, false }));
 		TestEqual(TEXT("칸 수 = 정원"), View.SlotPlayerIndices.Num(), LobbyViewFixtureMaxPlayers);
@@ -105,7 +105,7 @@ bool FDigetherLobbyViewTest::RunTest(const FString& Parameters)
 		View = BuildLobbyView(Input);
 		TestEqual(TEXT("준비 상태 버튼"), View.PrimaryText.ToString(), NSLOCTEXT("DigetherLobby", "Unready", "준비 취소").ToString());
 
-		// 호스트 표시가 있어도 로컬 PlayerState가 없으면 참가자 화면이며 버튼은 꺼진다.
+		// 호스트 표시가 있어도 로컬 PlayerState가 없으면 참가자 화면, 버튼 비활성
 		Input.bHasLocalState = false;
 		Input.bLocalHost = true;
 		View = BuildLobbyView(Input);

@@ -7,7 +7,7 @@
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnDigetherRunPublicStateChanged, const FDigetherRunPublicState&);
 
-// GameState에 부착한다. 숫자 시간은 노출하지 않고 조율자가 확정한 값만 전달한다.
+// GameState에 부착, 숫자 시간 비노출, 조율자가 확정한 값만 전달
 UCLASS(ClassGroup=(Digether), meta=(BlueprintSpawnableComponent))
 class DIGETHER_API UDigetherRunPublicStateComponent : public UActorComponent
 {
@@ -20,7 +20,7 @@ public:
 	UFUNCTION(BlueprintPure, Category="Digether|Run")
 	FDigetherRunPublicState CaptureState() const;
 
-	// 전체 후보를 검사한 뒤 알림을 미뤄 여러 도메인의 중간 상태가 관찰되지 않게 한다.
+	// 전체 후보 검사 후 알림을 미뤄 여러 도메인의 중간 상태 관찰 방지
 	EDigetherRunResult RestoreState(const FDigetherRunPublicState& State, bool bNotify = true);
 	EDigetherRunResult NotifyStateChanged();
 	FOnDigetherRunPublicStateChanged OnRunPublicStateChanged;

@@ -6,7 +6,6 @@
 #include "Engine/World.h"
 #include "Game/Economy/DigetherQuotaStateComponent.h"
 #include "Game/Framework/DigetherGameplayGameState.h"
-#include "GameFramework/Pawn.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -69,13 +68,6 @@ void ADigetherDepositStationActor::EndPlay(const EEndPlayReason::Type EndPlayRea
 	}
 	BoundQuota.Reset();
 	Super::EndPlay(EndPlayReason);
-}
-
-bool ADigetherDepositStationActor::IsPawnInRange(const APawn* Pawn, const float InteractionDistanceCm) const
-{
-	return IsValid(Pawn) && Pawn->GetWorld() == GetWorld() && InteractionDistanceCm > 0.f
-		&& FVector::DistSquared(Pawn->GetActorLocation(), GetActorLocation())
-			<= FMath::Square(InteractionDistanceCm);
 }
 
 FTransform ADigetherDepositStationActor::GetPourInletTransform() const
