@@ -19,9 +19,9 @@
 | Source·Config·Plugins·Build | `DIGETHER/Source`·`Config` 및 `Plugins/DevelopmentWorkbench`·`Plugins/DigetherWorkbench` 존재. Build는 생성물 여부를 작업 시 확인 | 미정 | 실제 모듈·공유 계약·빌드 책임 |
 | Content 및 맵·외부 액터 | `DIGETHER/Content` 템플릿 에셋·맵 존재 | 미정 | 에셋별 작업자·잠금·통합 맵 책임 |
 | 초보 지원·파일 전달 | 역할 지정 전 | 기술 지원·기획 전달 담당 미정 | 권한 요청, 첫 파일 전달, 오류 보존과 전달 지원 |
-| .github 설정·CODEOWNERS | PR·작업/버그/밸런스 이슈 양식 추가, CODEOWNERS 미생성 | 미정 | 실제 계정·리뷰·보호 규칙 |
+| .github 설정·CODEOWNERS | PR·이슈 양식과 Notion 담당 기반 CODEOWNERS 추가 | 기능별 [리뷰 담당](CODE_OWNERSHIP.md), 공통 설정 담당 미정 | 미매핑 경로·공통 영역·보호 규칙 |
 
-CODEOWNERS는 공통 예시만 있으며 활성 파일을 만들지 않았다. 리뷰 소유권은 파일 쓰기 권한이나 잠금이 아니다.
+활성 `.github/CODEOWNERS`는 Notion 작업 담당과 사용자 확인 GitHub 계정을 현재 구현 경로에 연결한다([근거와 미매핑 범위](CODE_OWNERSHIP.md)). 리뷰 소유권은 파일 쓰기 권한이나 잠금이 아니다.
 
 ## 작업 배정과 인계 운영안
 
