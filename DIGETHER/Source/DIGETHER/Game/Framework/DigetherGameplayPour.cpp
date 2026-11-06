@@ -218,6 +218,14 @@ FDigetherDepositResponse ADigetherGameplayGameMode::BeginPour(ADigetherGameplayP
 	Response.Result = PourSessions.BeginPour(PlayerKey, Station->GetStationId(), QuotaState.PeriodGeneration,
 		PourClockSeconds, RunTuning.DepositIntervalSeconds, &Session);
 	Response.PeriodGeneration = Session.PeriodGeneration;
+#if !UE_BUILD_SHIPPING
+	// 원격 수신 지연과 분리한 서버 붓기 경합 검증용 시각·활성 수
+	if (Response.Result == EDigetherEconomyResult::Success)
+	{
+		UE_LOG(LogDigetherFramework, Display, TEXT("Pour session: Event=Begin Player=%d Active=%d"),
+			Requester->GetPlayerState<ADigetherGameplayPlayerState>()->GetPlayerId(), PourSessions.CaptureSessions().Num());
+	}
+#endif
 	return Response;
 }
 
@@ -233,8 +241,15 @@ FDigetherDepositResponse ADigetherGameplayGameMode::EndPour(ADigetherGameplayPla
 	}
 	FDigetherPourSession Stopped;
 	// 이미 확정한 주기는 유지한다. 손을 뗀 응답은 호출한 RPC가 직접 돌려준다.
-	Response.Result = PourSessions.StopPour(PlayerKey, &Stopped)
-		? EDigetherEconomyResult::Success : EDigetherEconomyResult::SessionNotFound;
+	const bool bStopped = PourSessions.StopPour(PlayerKey, &Stopped);
+	Response.Result = bStopped ? EDigetherEconomyResult::Success : EDigetherEconomyResult::SessionNotFound;
+#if !UE_BUILD_SHIPPING
+	if (bStopped)
+	{
+		UE_LOG(LogDigetherFramework, Display, TEXT("Pour session: Event=End Player=%d Active=%d"),
+			Requester->GetPlayerState<ADigetherGameplayPlayerState>()->GetPlayerId(), PourSessions.CaptureSessions().Num());
+	}
+#endif
 	Response.StationId = Stopped.StationId;
 	Response.PeriodGeneration = Stopped.PeriodGeneration;
 	return Response;

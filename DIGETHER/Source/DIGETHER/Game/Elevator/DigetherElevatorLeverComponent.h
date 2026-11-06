@@ -7,6 +7,8 @@
 #include "DigetherElevatorLeverComponent.generated.h"
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnDigetherElevatorLeverPublicStateChanged, const FDigetherElevatorLeverPublicState&);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDigetherElevatorLeverVisualStateChanged,
+	const FDigetherElevatorLeverPublicState&, State);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnDigetherElevatorLeverFeedback, const FDigetherElevatorLeverFeedback&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnDigetherElevatorLeverAscentConfirmed, const FDigetherElevatorAscentConfirmed&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnDigetherElevatorLeverDepartureConfirmed, const FDigetherElevatorDepartureConfirmed&);
@@ -48,6 +50,10 @@ public:
 	bool TryGetConfirmedAscent(FDigetherElevatorAscentConfirmed& OutAscent) const;
 
 	FOnDigetherElevatorLeverPublicStateChanged OnPublicStateChanged;
+	// 확정 공개 스냅샷의 BP 연출 전용 알림, 게임 상태 변경 금지·초기 표시는 GetPublicState 조회
+	UPROPERTY(BlueprintAssignable, Category="Digether|Elevator")
+	FOnDigetherElevatorLeverVisualStateChanged OnLeverVisualStateChanged;
+
 	// 일회성 경고·덜컹임의 원격 클라이언트 전달은 조율자 통합 단계에서 연결 예정
 	FOnDigetherElevatorLeverFeedback OnFeedback;
 	FOnDigetherElevatorLeverAscentConfirmed OnAscentConfirmed;

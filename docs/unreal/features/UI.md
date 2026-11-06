@@ -1,6 +1,6 @@
 # UI 기능 카탈로그
 
-기준일 2026-11-04 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 채택 결정 아님**. 색인은 [기능 카탈로그](README.md).
+기준일 2026-11-04 · 프로젝트 사용처 갱신 2026-11-06 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 채택 결정 아님**. 색인은 [기능 카탈로그](README.md).
 
 사용 규칙(CommonUI 스택, `BindWidget`, 배치는 `WBP_`, 코드로 위젯 트리를 그리지 않음)은 [표준 엔진 기능](../STANDARD_FEATURES.md#uiai디버깅-도구)이 원본이다. 여기서는 엔진이 무엇을 제공하는지만 적는다. 사용자 메모에 따라 **디자인 시안 전까지 기능과 동작이 우선**이며, 이 문서도 모양이 아니라 구조·동작 후보를 다룬다. 근거 표시는 `소스`(로컬 5.8.4 헤더·uplugin 직접 확인) · `문서`(Epic 문서 열람) · `미확인`이다.
 
@@ -22,7 +22,7 @@
 | 설정 화면(S31) | GameUserSettings | **사용**: `UDigetherSettingsPanelWidget`(그래픽·사운드·조작 탭) |
 | CommonUI 입력 데이터 | 게임패드·키 아이콘 | `BP_UIInputData` + `DT_UIActions`(`CommonInputSettings.InputData`). 컨트롤러 아이콘 데이터 에셋은 없음 |
 | CommonUI 뷰포트 | 입력 라우팅 | `GameViewportClientClassName=/Script/CommonUI.CommonGameViewportClient` 설정됨 |
-| 인게임 HUD(S25~S29 중 HUD·결과) | 정보 표시 | 프로토타입 `ADigetherPrototypeHUD::DrawHUD`(Canvas), 납부 입력창 `UDigetherDepositWidget`(UUserWidget). 정식 HUD 없음 |
+| 인게임 HUD(S25~S29 중 HUD·결과) | 정보 표시 | **사용**: `Game/`의 `UDigetherRunHudWidget`·`UDigetherRunResultWidget`·`UDigetherGameOverCreditsWidget`. 로컬 Controller의 `UDigetherPlayerScreenComponent`가 `AddToPlayerScreen`으로 표시. 프로토타입 Canvas HUD는 별도 유지 |
 | 월드 공간 위젯 | 이름표·상호작용 표시 | `Variant_Combat` 템플릿의 `ACombatCharacter`·`ACombatEnemy`가 `UWidgetComponent` LifeBar를 생성. 정식 게임 사용은 미검증 |
 | MVVM·Slate 직접 작성 | — | 미사용(`Slate` 모듈은 의존에 있음) |
 | 로딩 화면·자막·색약 | 접근성/전환 | 미사용 |
@@ -36,7 +36,7 @@
 |---|---|---|---|---|---|
 | UUserWidget / WidgetTree / `BindWidget` | UMG (Runtime) | 위젯 블루프린트의 C++ 부모, 자식 위젯 필수 바인딩(`BindWidget`·`BindWidgetOptional`·`BindWidgetAnim`) | 모든 화면의 기본 | 사용 | 소스 `Engine/Source/Runtime/UMG/Public/Blueprint/UserWidget.h` |
 | 위젯 애니메이션 | UMG | `UWidgetAnimation`, `PlayAnimation*`(핸들 `FWidgetAnimationHandle` 반환), 큐 재생 `QueuePlayAnimation*` | 화면 전환·강조 연출 | 미사용 | 소스 `.../UMG/Public/Animation/WidgetAnimation.h`, `UserWidget.h` |
-| UInvalidationBox / URetainerBox | UMG | 정적 위젯 묶음의 레이아웃·페인트 캐시 / 렌더 타깃으로 갱신 주기 제한 | 변화가 적은 HUD 덩어리 비용 절감 | 미사용 | 소스 `.../UMG/Public/Components/InvalidationBox.h`, `RetainerBox.h` |
+| UInvalidationBox / URetainerBox | UMG | 정적 위젯 묶음의 레이아웃·페인트 캐시 / 렌더 타깃 갱신·효과 머티리얼 합성 | HUD 비용 절감 후보·크레딧 원근 표현 | InvalidationBox 사용처 미발견. RetainerBox는 `WBP_HubGameOverCredits`에 적용, shader·WBP 저장과 1인 PIE 원근 스크롤 표시 확인. 성능·cook 미검증 | 소스 `.../UMG/Public/Components/InvalidationBox.h`, `RetainerBox.h`; 프로젝트 [크레딧 원근 연결 스크립트](../../../scripts/editor/create_credits_perspective.py) |
 | UListView / UDynamicEntryBox / `FUserWidgetPool` | UMG | 가상화 목록, 동적 항목, 위젯 풀 | 방 목록·로비 슬롯 | 사용(방 목록, 풀 재사용 테스트) | 소스 `.../Components/ListView.h`, `DynamicEntryBox.h`, `Blueprint/UserWidgetPool.h` |
 | UCommonActivatableWidget + Stack/Queue | CommonUI 플러그인 (Runtime, Beta 표시 없음) | 활성/비활성 수명, 입력 구성(`GetDesiredInputConfig`)·포커스 대상, 뒤로 가기, 스택/큐 컨테이너 | 화면 전환·팝업 | 사용 | 소스 `Engine/Plugins/Runtime/CommonUI/Source/CommonUI/Public/CommonActivatableWidget.h`, `Widgets/CommonActivatableWidgetContainer.h` |
 | CommonUI 위젯 모음 | CommonUI | `CommonButtonBase`·`CommonTextBlock`·`CommonTabListWidgetBase`·`CommonListView`/`TileView`/`TreeView`·`CommonAnimatedSwitcher`·`CommonLazyImage`·`CommonRichTextBlock`·`CommonNumericTextBlock`·`CommonLoadGuard`·`CommonWidgetCarousel` | 스타일 에셋 기반 버튼·탭·리스트 | 일부 사용 | 소스 `.../CommonUI/Public/` |
@@ -55,7 +55,7 @@
 | 접근성 속성 | UMG / SlateCore | 위젯별 `AccessibleBehavior`·`AccessibleText`, 접근성 메시지 핸들러 | 화면 낭독 연동 후보 | 미사용 | 소스 `.../UMG/Public/Components/Widget.h`, `SlateCore/Public/Widgets/Accessibility/` |
 | MoviePlayer 로딩 화면 | Runtime 모듈 MoviePlayer | `GetMoviePlayer()->SetupLoadingScreen(FLoadingScreenAttributes)`, `PlayMovie`/`StopMovie`, Slate 위젯/영상 | 맵 이동 로딩 화면 | 미사용 | 소스 `Engine/Source/Runtime/MoviePlayer/Public/MoviePlayer.h` |
 | PreLoadScreenMoviePlayer / WindowsMoviePlayer | 플러그인 (RuntimeNoCommandlet, Beta 표시 없음; WindowsMoviePlayer는 기본 켜짐) | 시작 영상/프리로드 화면 구현 | 시작 로고 영상 | 미사용 | 소스 `Engine/Plugins/Runtime/PreLoadScreenMoviePlayer/*.uplugin`, `WindowsMoviePlayer/*.uplugin` |
-| `UGameViewportSubsystem` | UMG | 뷰포트에 위젯 Z-order·슬롯 관리 | 레이어 순서 | 미사용 | 소스 `.../UMG/Public/Blueprint/GameViewportSubsystem.h` |
+| `UGameViewportSubsystem` | UMG | 뷰포트에 위젯 Z-order·슬롯 관리 | 레이어 순서 | 프로젝트 직접 호출 없음. Game HUD·결과·크레딧은 `AddToPlayerScreen` 경유 | 소스 `.../UMG/Public/Blueprint/GameViewportSubsystem.h`; 프로젝트 `Game/UI/DigetherPlayerScreenComponent.cpp` |
 
 ## 기능별 상세
 
@@ -69,6 +69,7 @@
 - `Slate.EnableGlobalInvalidation`의 코드 기본값은 `false`이고 엔진 기본 ini에 재정의가 없다(소스 `SlateCoreClasses.cpp`, `Engine/Config/*.ini` 검색). 즉 이 빌드에서는 전체 무효화 방식이 아니라 위젯 단위 `UInvalidationBox`(`bCanCache`)로 캐시한다. 프로젝트 ini에도 설정이 없다.
 - `UWidget::ForceVolatile`·`InvalidateLayoutAndVolatility`로 매 프레임 바뀌는 자식을 표시한다(소스). 캐시 대상 안에서 값이 자주 바뀌면 이득이 사라진다.
 - `URetainerBox`는 자식을 렌더 타깃에 그려 갱신 주기를 낮춘다. 렌더 타깃 메모리·해상도 비용이 있어 실측 후 쓴다.
+- 프로젝트는 [연결 스크립트](../../../scripts/editor/create_credits_perspective.py)로 `WBP_HubGameOverCredits`에 RetainerBox·AlphaComposite 효과 머티리얼을 적용했다. 2026-11-06 shader 재컴파일·WBP 저장, `GetTiltDegrees`→MID 파라미터 연결과 1인 PIE의 실제 원근 스크롤 표시를 확인했다. 갱신 주기 최적화·성능 개선·cook·다인 화면은 미검증이다.
 - 공식 Invalidation Box 문서는 본문 추출에 실패해 소스 근거만 있다. 도구는 Widget Reflector(Ctrl+Shift+W)와 Slate 통계(문서 best-practices).
 - 측정 방법과 예산은 [성능·빌드](PERF_BUILD.md).
 
@@ -93,6 +94,7 @@
 
 ### HUD와 위젯
 - `AHUD::DrawHUD`(Canvas)는 즉시 모드 그리기라 개발 확인용으로 간단하지만 입력·레이아웃·현지화·게임패드 포커스가 없다. 정식 정보 표시는 UMG 위젯으로 만들고, `PlayerController`(로컬)에서 생성한다. 프로젝트의 프론트엔드 컨트롤러는 `IsLocalController()`일 때만 레이아웃을 만든다.
+- `Game/`의 [화면 컴포넌트](../../../DIGETHER/Source/DIGETHER/Game/UI/DigetherPlayerScreenComponent.cpp)는 로컬 Controller에 HUD·탐사 결과·게임 오버 크레딧을 `AddToPlayerScreen`으로 추가한다. HUD 기본 레이어 위에 결과(ZOrder 110)·크레딧(120)을 둔다. [HUD](../../../DIGETHER/Source/DIGETHER/Game/UI/Hud/DigetherRunHudWidget.cpp)는 공개 런·목표와 본인 지갑의 변경 알림을 구독하며, 늦은 GameState·PlayerState 복제나 교체 시 재연결한다. 다인 화면 검증과 성능 측정은 이 코드 확인과 별도다.
 - 위젯이 보여 줄 값은 복제된 상태에서 읽는다. 다른 플레이어에게 숨겨야 할 값은 애초에 복제하지 않는다([네트워크 권위](../NETWORK_AUTHORITY.md), [네트워크](NETWORKING.md)).
 
 ### 월드 공간 위젯
@@ -146,7 +148,7 @@
 
 ## 확인 한계
 
-- 에디터·빌드·패키지 실행으로 확인한 것이 없다. 헤더·uplugin 열람과 문서 열람만이다.
+- 2026-11-04 엔진 기능 조사는 헤더·uplugin·문서 열람 기준이다. 2026-11-06 프로젝트 사용처는 코드·스크립트 대조와 위에 명시한 1인 PIE 표시 범위로 확인했다. 별도 근거를 적지 않은 기능의 실행·성능·패키지·다인 검증을 대신하지 않는다.
 - 기존 조사 기록에는 UMG Viewmodel·UMG Best Practices 열람과 CommonUI·Invalidation Box 본문 추출 실패가 적혀 있다. 이번 UI 재대조는 로컬 소스·플러그인·프로젝트 코드·설정으로 수행했으며 이 문서 페이지들을 다시 열지 않았다. Slate/Retainer/WidgetComponent/MoviePlayer/접근성 공식 페이지도 이번에 열지 않았다.
 - CommonUI 콘솔 변수 3개의 효과, 한국어 포함 CJK 폰트 커버리지, UI 텍스트 크기 옵션, 런타임 UI 배율 변경, 화면 낭독 플랫폼 지원, 로딩 화면의 맵 전환 호출 시점은 확인하지 못했다.
 - 기존 [UNREAL_FEATURE_COVERAGE](../../design/UNREAL_FEATURE_COVERAGE.md)는 5.8.2(CL 56702186) 시점이고 이번 로컬 설치는 5.8.4다. DG-019(UMG) 행과 모순되는 사실은 발견하지 못했다.

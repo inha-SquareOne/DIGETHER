@@ -1,13 +1,13 @@
 # 온라인 서브시스템·세션·음성 기능 카탈로그
 
-기준일 2026-11-04 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 목록 자체는 채택 결정 아님**. 색인은 [기능 카탈로그](README.md). 복제·레벨 전환·재접속은 [NETWORKING.md](NETWORKING.md)에 둔다. 세션 제공자, 정식 App ID, Steam Cloud 사용은 [결정 목록](../../planning/DECISIONS.md)에서 미결이다. 음성은 이후 **2026-11-04 사용자 결정으로 엔진 기본 VoIP를 선택**했으며 아직 미구현이다. 이 문서는 누가 무엇을 듣는가 같은 게임 규칙을 새로 정하지 않는다.
+기준일 2026-11-04 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 목록 자체는 채택 결정 아님**. 색인은 [기능 카탈로그](README.md). 복제·레벨 전환·재접속은 [NETWORKING.md](NETWORKING.md)에 둔다. 세션 제공자, 정식 App ID, Steam Cloud 사용은 [결정 목록](../../planning/DECISIONS.md)에서 미결이다. 음성은 이후 **2026-11-04 사용자 결정으로 엔진 기본 VoIP를 선택**했으며 아직 미구현이다. 수신 제한·관전자 음성 방식은 2026-11-06 사용자 결정([아래](#수신-제한관전자-음성-방식-2026-11-06-사용자-결정))을 따른다. 이 문서는 누가 무엇을 듣는가 같은 게임 규칙을 새로 정하지 않는다.
 
 근거 표시: `소스` = 로컬 5.8.4 헤더·`.uplugin`·`.Build.cs`·`BaseEngine.ini`를 이번에 직접 열어 확인(경로 `Engine/...`). `문서` = Epic 공식 문서를 이번에 열어 확인. `미확인` = 이번에 확인하지 못함.
 
 ## 요약
 - **현재 경로는 OSSv1(Online Subsystem) Steam + SteamSockets**다. 세션은 Steam 로비(`bUseLobbiesIfAvailable`), 전송은 `SteamSocketsNetDriver`이며 프로토타입에서 호스트 listen 시작까지 기록이 있다. 다른 PC 참가는 프로젝트가 아직 검증하지 않았다([PROTOTYPE_STEAM](../../prototype/PROTOTYPE_STEAM.md)).
 - **Online Services(OSSv2)는 공식 문서가 Beta라 부른다.** Steam용 직접 구현 플러그인은 로컬 엔진 검색에서 찾지 못했고 OSSv1을 감싸는 `OnlineServicesOSSAdapter`는 확인했다. Steam 판매 전제에서는 OSSv1 유지와 비교 대상이다.
-- **음성은 엔진 기본 VoIP를 선택했고 구현은 아직 비활성이다.** 엔진에는 ① `IOnlineVoice` + 게임 NetDriver의 Voice 채널 + `UVOIPTalker` ② `IVoiceChat` 인터페이스 + 제공자(EOS RTC)가 있다. 프로젝트는 `EOSVoiceChat` 플러그인이 켜져 있으나 EOS 설정은 없고, 선택한 엔진 VoIP도 ini로 꺼져 있다.
+- **음성은 엔진 기본 VoIP를 선택했고 2026-11-06 1차 구현했다(실제 음성 실행 검증 전).** 엔진에는 ① `IOnlineVoice` + 게임 NetDriver의 Voice 채널 + `UVOIPTalker` ② `IVoiceChat` 인터페이스 + 제공자(EOS RTC)가 있다. 프로젝트는 ①을 ini로 켰다. `EOSVoiceChat` 플러그인은 설정 없이 켜진 채 남아 있다.
 - **호스트가 음성 패킷을 받는 쪽은 엔진 VoIP 경로다.** 서버는 Voice 채널로 받은 패킷을 `UNetDriver::ReplicateVoicePacket`(가상)로 다른 접속에 중계한다. 그래서 "누가 누구 음성을 받는가"를 호스트에서 훅으로 걸 수 있다. EOS RTC는 별도 서비스라 호스트가 음성 활동을 얻는지는 미확인이다(PQ-13).
 - **CommonUser 세션 샘플 플러그인의 로컬 포함 여부는 미확인이다.** 로컬 `Engine/Plugins`에서 해당 플러그인 설명자를 찾지 못했으며, 다른 배포물이나 Lyra 포함 여부는 확인하지 않았다.
 - **엔진 VoIP는 `FVoiceSettings`(`ComponentToAttachTo`, `AttenuationSettings`)로 공간 감쇠를 제공한다.** `IVoiceChat`에도 위치 채널 API가 있지만 **5.8.4 EOSVoiceChat의 `Set3DPosition`은 미구현**이다. 인터페이스 존재와 제공자의 구현을 구분한다.
@@ -17,7 +17,7 @@
 |---|---|
 | S01 세션 | `UDigetherSessionSubsystem`(`Game/Online`): `IOnlineSession` 사용. Steam 모드는 로비, `-nosteam`은 LAN/Null. 최대 4인(`DigetherRoomProtocol::MaxPlayers`). 방 코드·이름을 세션 설정에 기록. 초대는 `IOnlineExternalUI`. Steam 초대와 방 코드를 모두 쓰는 방향은 2026-11-04 기획 답변(초안, 확정)이며 게임 안 친구 목록은 UI 시안 뒤 검토 |
 | 접속 거절 | `DigetherJoinRules` + `PreLogin`: Steam 모드에서 Steam ID 요구, 만석·신규 참가 차단 구간 거절. 문 닫힘 중 참가 잠금과 참가 실패 문구 6종은 구현(실행 검증 일부). 같은 ID는 이전 접속 종료 후 새 접속 수락(사용자 결정 2026-11-05)이며 기획 기준(구현 진행 중)([NETWORKING.md](NETWORKING.md) 재접속 절) |
-| S28 음성 | **엔진 기본 VoIP 선택(2026-11-04 사용자 결정), 미구현.** `DefaultEngine.ini [OnlineSubsystem] bHasVoiceEnabled=false`, 세션 설정 `bUseLobbiesVoiceChatIfAvailable=false`. `uproject`에 `EOSVoiceChat` 활성(설정 없음). D-009의 제공자 미결 표시는 이전 상태이며 PQ-13의 호스트 음성 활동 검증은 남아 있다. 거리 시험값은 아래 [기획 시험값](#기획-시험값-2026-11-04-답변-초안) |
+| S28 음성 | **엔진 기본 VoIP 선택(2026-11-04 사용자 결정), 1차 구현(2026-11-06, 실제 음성 미검증).** `DefaultEngine.ini [OnlineSubsystem] bHasVoiceEnabled=true`·`[Voice] bEnabled=true`, `DefaultGame.ini bRequiresPushToTalk=false`. 코드는 `Game/Voice/`(아래 [구현 현황](#구현-현황-2026-11-06)), 세션 설정 `bUseLobbiesVoiceChatIfAvailable=false`. `uproject`에 `EOSVoiceChat` 활성(설정 없음). D-009의 제공자 미결 표시는 이전 상태이며 PQ-13의 호스트 음성 활동 검증은 남아 있다. 거리 시험값은 아래 [기획 시험값](#기획-시험값-2026-11-04-답변-초안) |
 | S30 저장 | Steam Cloud 사용 여부 미결. `UserCloud`는 OSS Steam에 구현돼 있다 |
 | 플러그인 | 이 영역에서 `uproject`가 직접 활성화한 플러그인은 `SteamSockets`, `EOSVoiceChat`이다. `OnlineSubsystemSteam`·`SteamShared`·`OnlineSubsystem`·`OnlineSubsystemUtils`·`OnlineServices`·`EOSShared`·`VoiceChat`는 이 플러그인들의 의존성에 포함된다(소스 각 `.uplugin`의 `Plugins`). 실제 모듈 로드는 타깃·플랫폼 조건에 따른다 |
 | 모듈 | `DIGETHER.Build.cs`: `CoreOnline`, `OnlineSubsystem`, `OnlineSubsystemUtils`. `OnlineSubsystemSteam`을 `DynamicallyLoadedModuleNames`로 넣지는 않았다(문서는 추가를 안내). 현재 동작 영향은 미확인 |
@@ -125,6 +125,35 @@
 | 매몰된 사람 | 먹먹하게(고음 감소), 최대 거리 절반(약 12m) | `VOICE_BURIED_RANGE_RATIO`(예시) |
 
 예시 ID 이름은 개발 규칙에 맞춰 바꿀 수 있다. 엔진 VoIP 경로에서는 거리·방향감은 수신자 `UVOIPTalker`의 감쇠 설정, 구역 차단은 서버 중계 필터 후보와 연결된다(아래 고려점). 실제 동작은 M3로 확인한다.
+
+### 수신 제한·관전자 음성 방식 (2026-11-06 사용자 결정)
+
+Notion 승인본이 아닌 사용자 결정이며 1차 구현했다([구현 현황](#구현-현황-2026-11-06)).
+
+- **수신 제한**: 서버가 수신자 PC마다 `GameplayMutePlayer`/`GameplayUnmutePlayer`로 들을 수 없는 발화자를 음소거한다. 구역 이동·사망·탈출·관전 대상 변경·정산 화면·거점 복귀·크레딧 시작 같은 상태 변화 때 다시 계산한다. `ReplicateVoicePacket` 재정의(NetDriver 상속)는 거리 밖 패킷 차단이 필요해질 때만 추가 검토한다. 호스트 자신의 청취에도 음소거가 적용되는지는 실행 확인이 필요하다.
+- **관전자 → 관전자**: 위치·구역과 무관하게 전원 들림, 거리 감쇠·방향감 없음(수신 측 `UVOIPTalker`에 `ComponentToAttachTo` 미지정).
+- **생존자 → 관전자**: 관전 대상이 들을 수 있는 생존자만 들림(대상과 같은 구역, 갱도↔던전 차단 유지). 서버가 `SpectateTargetPlayerKey` 기준으로 계산한다. 감쇠·방향감은 관전 대상 위치 기준(근거리 시험값과 같음)이며, 관전자 PC의 청취 위치를 `SetAudioListenerOverride`로 관전 대상에 붙이고 대상이 바뀔 때 다시 붙인다.
+- **관전자 → 생존자**: 들리지 않음(기존 규칙).
+- **마이크 입력**: 기본은 항상 열린 마이크, 설정에서 개인별로 누르고 말하기를 켤 수 있다(2026-11-06 사용자 결정). 단축키는 미배정이다. 기존 설정 값 `UDigetherGameUserSettings::MicrophoneMode`(기본 `AlwaysOn`, 설정 화면 콤보 있음)를 음성에 연결한다. 엔진 `bRequiresPushToTalk`는 호스트가 접속 시 모든 참가자에게 `ClientEnableNetworkVoice`로 보내는 게임 전체 값이라 개인 설정으로 쓰지 않는다. `false`로 두고 클라이언트가 자기 설정에 따라 `ClientEnableNetworkVoice` 뒤에 다시 적용하며, 누르고 말하기일 때 `StartTalking`/`StopTalking`을 호출한다(소스 `GameModeBase.cpp`, `PlayerController.cpp`).
+
+### 구현 현황 (2026-11-06)
+
+| 부분 | 위치 | 상태 |
+|---|---|---|
+| 판정 규칙 | `Game/Voice/DigetherVoiceRules` | 관전자끼리 전원, 관전자→생존자 차단, 같은 구역 생존자, 관전 대상 구역 기준, 크레딧 전원. 자동 테스트 `DIGETHER.Game.Voice.Hearing`·`MuteDiff` 통과 |
+| 서버 수신 제한 | `UDigetherVoiceRoutingComponent`(GameplayGameMode), 명단 `DigetherGameplayVoice.cpp` | 0.25초마다 듣는 PC별 원하는 음소거와 비교해 `GameplayMutePlayer`/`GameplayUnmutePlayer` 적용 |
+| 클라 재생·마이크 | `UDigetherVoiceComponent`(Gameplay·Lobby PC) | 생존자 목소리는 몸에 붙인 감쇠(3m/25m, 자연 감쇠, 방향감), 관전자·몸 없는 참가자(대기실 포함)는 감쇠 없음. 관전 중 거리 기준 위치는 `SetAudioListenerAttenuationOverride`로 관전 대상. 마이크 모드는 `ClientEnableNetworkVoice` 대체로 적용하고 0.25초마다 설정 변경 반영 |
+| 누르고 말하기 입력 | 같은 컴포넌트의 `PushToTalkAction`·`VoiceMappingContext` | 단축키 미배정이라 에셋 비어 있음. 시험은 콘솔 `Digether.VoicePushToTalk 1|0` |
+| 호스트 발화 감지 시험(PQ-13) | 콘솔 `Digether.VoiceProbe 1`(Shipping 제외) | 호스트 로그 `LogDigetherVoice`에 참가자별 `talking`·`amplitude`·`hostMuted` 기록. 미실행 |
+
+한계와 확인할 것:
+- **갱도·던전 구역 구분이 코드에 없다.** `ResolveVoiceZone`은 모두 같은 구역(0)을 돌려준다. 구역 판정이 생기면 그 값을 연결한다.
+- **매몰자 먹먹함 미구현.** 게임 코드에 매몰 상태가 없다. 상태가 생기면 `UVOIPTalker::Settings.SourceEffectChain`(고음 감소)과 감쇠 반경 0.5배로 연결한다.
+- **호스트가 음소거한 발화자는 호스트에서 발화 감지가 안 될 수 있다.** 엔진 `FOnlineVoiceImpl::SerializeRemotePacket`이 로컬 음소거 대상 패킷을 재생 목록에 넣지 않고 `IsRemotePlayerTalking`도 거짓이 된다(소스). 몬스터 음성 감지가 모든 발화자를 봐야 하면 별도 경로(NetDriver `ReplicateVoicePacket`의 패킷 진폭 등)가 필요하다. 시험 로그의 `hostMuted=1` 행으로 확인한다.
+- **호스트 로컬 음소거는 온라인 세션이 있어야 적용된다.** `FOnlineVoiceImpl::MuteRemoteTalker`는 세션이 없으면 건너뛴다(소스). 세션 없이 여는 PIE에서는 호스트 청취 제한이 동작하지 않을 수 있다.
+- `UVOIPTalker` 설정은 다음 발화 시작부터 적용된다(엔진 규칙). 말하는 도중 관전 전환·몸 교체는 그 발화가 끝난 뒤 반영된다.
+- **음성은 온라인 세션이 있어야 동작한다.** 엔진 Null·Steam 세션이 생성·참가 때 로컬·원격 발화자를 등록한다(소스 `OnlineSessionInterfaceNull.cpp`, `OnlineSessionInterfaceSteam.cpp`). `?listen` + IP 직접 접속 시험에서는 `StartLocalProcessing` 실패를 확인했고, `RoomHost`/`RoomJoin` 세션 경로에서는 등록·처리 시작 성공을 확인했다(2026-11-06 같은 PC 2프로세스, 실제 발화 없음).
+- 실제 마이크 음성 송수신·두 PC 이상 Steam 연결(M3) 미검증.
 
 ### 근거리 음성 구현 시 고려점 (정책은 확정하지 않음)
 - 엔진 VoIP 경로: 서버 중계 필터(`ReplicateVoicePacket`)와 수신자 재생 감쇠(`UVOIPTalker`)를 분리해 생각한다. 서버 필터는 네트워크 비용·정보 노출을, 클라 감쇠는 들리는 방식을 정한다.

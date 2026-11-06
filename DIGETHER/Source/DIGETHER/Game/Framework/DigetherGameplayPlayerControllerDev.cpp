@@ -31,6 +31,9 @@ namespace
 	const FName DepositTestStationId(TEXT("GameTestDeposit"));
 	// 개발 명령 금액 입력, 앞뒤 공백 제외 ASCII 숫자만 허용·int32 초과 거절
 	constexpr int32 MaxDevCreditDigits = 10;
+	// 반경 35cm 시험 Pawn 4명의 붓기 준비용 원호, 정식 캐릭터 배치·게임 규칙과 별개
+	constexpr float DevPourStandingRadiusCm = 120.f;
+	constexpr float DevPourStandingAnglesDegrees[] = { -60.f, -20.f, 20.f, 60.f };
 
 	bool TryParseDevCredits(const FString& Input, int32& OutCredits)
 	{
@@ -147,10 +150,37 @@ void ADigetherGameplayPlayerController::Server_DevTeleportToDeposit_Implementati
 		UE_LOG(LogDigetherFramework, Warning, TEXT("DigetherTeleportToDeposit: 납부대를 찾지 못했습니다: %s"), *StationId.ToString());
 		return;
 	}
-	const FVector Target = MatchedStation->GetActorLocation() + FVector(0.f, 0.f, 100.f);
-	const bool bMoved = ControlledPawn->TeleportTo(Target, ControlledPawn->GetActorRotation());
-	UE_LOG(LogDigetherFramework, Display, TEXT("DigetherTeleportToDeposit 서버 결과: Station=%s Moved=%d Target=%s"),
-		*StationId.ToString(), bMoved, *Target.ToString());
+	const FTransform Inlet = MatchedStation->GetPourInletTransform();
+	const ADigetherGameplayPlayerState* State = GetPlayerState<ADigetherGameplayPlayerState>();
+	FVector Target = ControlledPawn->GetActorLocation();
+	bool bMoved = false;
+	for (const float AngleDegrees : DevPourStandingAnglesDegrees)
+	{
+		const float AngleRadians = FMath::DegreesToRadians(AngleDegrees);
+		const FVector Direction = Inlet.GetUnitAxis(EAxis::X) * FMath::Cos(AngleRadians)
+			+ Inlet.GetUnitAxis(EAxis::Y) * FMath::Sin(AngleRadians);
+		Target = Inlet.GetLocation() + Direction * DevPourStandingRadiusCm;
+		const FRotator FacingInlet = (Inlet.GetLocation() - Target).Rotation();
+		// TeleportTo의 주변 보정으로 점유된 자리를 쓰지 않도록 빈 후보만 시도
+		if (World->EncroachingBlockingGeometry(ControlledPawn, Target, FacingInlet)
+			|| !ControlledPawn->TeleportTo(Target, FacingInlet))
+		{
+			continue;
+		}
+		const FVector ActualLocation = ControlledPawn->GetActorLocation();
+		const FRotator ActualFacingInlet = (Inlet.GetLocation() - ActualLocation).Rotation();
+		ControlledPawn->SetActorRotation(ActualFacingInlet);
+		SetControlRotation(ActualFacingInlet);
+		// 소유 클라이언트의 위치·회전과 카메라 전송도 엔진 기본 이동 경로로 갱신
+		ClientSetLocation(ActualLocation, ActualFacingInlet);
+		ControlledPawn->ForceNetUpdate();
+		bMoved = true;
+		break;
+	}
+	UE_LOG(LogDigetherFramework, Display,
+		TEXT("DigetherTeleportToDeposit 서버 결과: Station=%s Player=%d Moved=%d Target=%s Actual=%s Rotation=%s"),
+		*StationId.ToString(), State != nullptr ? State->GetPlayerId() : -1, bMoved, *Target.ToString(),
+		*ControlledPawn->GetActorLocation().ToString(), *GetControlRotation().ToString());
 #endif
 }
 
@@ -506,6 +536,41 @@ void ADigetherGameplayPlayerController::DigetherDumpState()
 		SelfState != nullptr ? SelfState->GetPlayerId() : -1, HasAuthority(),
 		*ExportStruct(FDigetherRunPublicState::StaticStruct(), &RunState),
 		*ExportStruct(FDigetherQuotaPublicState::StaticStruct(), &QuotaState));
+
+	// 서버의 원격 카메라 캐시와 소유 클라이언트의 실제 시선 비교용, 판정·복제 변경 없음
+	for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+	{
+		const APlayerController* Controller = Iterator->Get();
+		const APawn* ViewedPawn = IsValid(Controller) ? Controller->GetPawn() : nullptr;
+		if (!IsValid(ViewedPawn))
+		{
+			continue;
+		}
+		const APlayerState* ViewPlayer = Controller->GetPlayerState<APlayerState>();
+		FVector Eye;
+		FRotator ViewRotation;
+		Controller->GetPlayerViewPoint(Eye, ViewRotation);
+		for (TActorIterator<ADigetherDepositStationActor> StationIterator(World); StationIterator; ++StationIterator)
+		{
+			const ADigetherDepositStationActor* Station = *StationIterator;
+			if (!IsValid(Station))
+			{
+				continue;
+			}
+			const FTransform Inlet = Station->GetPourInletTransform();
+			FHitResult Hit;
+			const FCollisionQueryParams Params(SCENE_QUERY_STAT(DevPourView), false, ViewedPawn);
+			const bool bHit = World->LineTraceSingleByChannel(Hit, Eye, Inlet.GetLocation(), ECC_Visibility, Params);
+			UE_LOG(LogDigetherFramework, Display,
+				TEXT("Dump PourView Player=%d IsSelf=%d Pawn=%s Eye=%s Rotation=%s Control=%s Station=%s StationActor=%s StationLocation=%s Inlet=%s Forward=%s Hit=%s HitDistance=%.3f"),
+				ViewPlayer != nullptr ? ViewPlayer->GetPlayerId() : -1, Controller == this,
+				*ViewedPawn->GetActorLocation().ToString(), *Eye.ToString(), *ViewRotation.ToString(),
+				*Controller->GetControlRotation().ToString(), *Station->GetStationId().ToString(), *Station->GetName(),
+				*Station->GetActorLocation().ToString(),
+				*Inlet.GetLocation().ToString(), *Inlet.GetUnitAxis(EAxis::X).ToString(),
+				bHit ? *GetNameSafe(Hit.GetActor()) : TEXT("None"), bHit ? Hit.Distance : -1.f);
+		}
+	}
 
 	for (TActorIterator<ADigetherElevatorActor> It(World); It; ++It)
 	{

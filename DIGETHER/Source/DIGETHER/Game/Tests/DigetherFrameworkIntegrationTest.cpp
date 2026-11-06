@@ -616,6 +616,65 @@ bool FDigetherFrameworkChainSummonPlanTest::RunTest(const FString& Parameters)
 	DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, Boarded, 2, Again);
 	TestTrue(TEXT("같은 입력의 같은 배치"), Again == Planned);
 
+	// 직사각 볼륨의 짝수 행·열도 반 칸 여유를 유지하며 모두 사용
+	const FVector RectExtent(200.0, 125.0, 100.0);
+	TestTrue(TEXT("직사각 빈 엘리베이터 4명 소집"),
+		DigetherFrameworkRules::TryPlanChainSummon(RectExtent, Spacing, {}, 4, Planned));
+	TestEqual(TEXT("직사각 4명 위치 수"), Planned.Num(), 4);
+	TestTrue(TEXT("직사각 소집 위치 간격"), IsSpaced(Planned));
+	const TArray<FVector> RectFour = Planned;
+	TestTrue(TEXT("직사각 4명 중앙 정렬·거리와 X/Y 정렬"), Planned == TArray<FVector>({
+		FVector(-50.0, -50.0, 0.0), FVector(-50.0, 50.0, 0.0),
+		FVector(50.0, -50.0, 0.0), FVector(50.0, 50.0, 0.0) }));
+	TestTrue(TEXT("직사각 최대 8명 소집"),
+		DigetherFrameworkRules::TryPlanChainSummon(RectExtent, Spacing, {}, 8, Planned));
+	TestEqual(TEXT("직사각 4열·2행 위치 수"), Planned.Num(), 8);
+	TestTrue(TEXT("직사각 최대 인원 간격"), IsSpaced(Planned));
+	for (const FVector& Point : Planned)
+	{
+		TestTrue(TEXT("직사각 소집 위치는 경계에서 반 칸 안쪽"),
+			FMath::Abs(Point.X) <= RectExtent.X - Spacing / 2.0
+			&& FMath::Abs(Point.Y) <= RectExtent.Y - Spacing / 2.0);
+		TestEqual(TEXT("직사각 위치 높이는 볼륨 중심"), Point.Z, 0.0);
+	}
+	TArray<FVector> RectPreserved = { FVector(9.0, 8.0, 7.0) };
+	TestFalse(TEXT("직사각 9명은 자리 부족"),
+		DigetherFrameworkRules::TryPlanChainSummon(RectExtent, Spacing, {}, 9, RectPreserved));
+	TestTrue(TEXT("직사각 자리 부족은 출력 보존"),
+		RectPreserved == TArray<FVector>({ FVector(9.0, 8.0, 7.0) }));
+	TestTrue(TEXT("직사각 기존 탑승자 2명과 함께 2명 소집"),
+		DigetherFrameworkRules::TryPlanChainSummon(RectExtent, Spacing, Boarded, 2, Planned));
+	All = Boarded;
+	All.Append(Planned);
+	TestTrue(TEXT("직사각 기존 탑승자·소집자 간격"), IsSpaced(All));
+	TestTrue(TEXT("직사각 탑승자가 있으면 먼 쪽 두 자리 사용"), Planned == TArray<FVector>({
+		FVector(-150.0, -50.0, 0.0), FVector(-150.0, 50.0, 0.0) }));
+	TestTrue(TEXT("직사각 반복 소집 성공"),
+		DigetherFrameworkRules::TryPlanChainSummon(RectExtent, Spacing, {}, 4, Again));
+	TestTrue(TEXT("직사각 소집 결정성"), Again == RectFour);
+	TestTrue(TEXT("기본 정사각은 5열·5행 25명 유지"),
+		DigetherFrameworkRules::TryPlanChainSummon(Extent, Spacing, {}, 25, Planned));
+	TestEqual(TEXT("기본 격자 25개 유지"), Planned.Num(), 25);
+	TestTrue(TEXT("기본 최대 격자도 중심 우선·간격 유지"),
+		Planned.Num() > 0 && Planned[0].Equals(FVector::ZeroVector) && IsSpaced(Planned));
+
+	// 반 칸 경계는 포함하고 바로 아래는 공간 부족, 실패 시 출력 보존
+	const FVector HalfCellExtent(Spacing / 2.0, Spacing / 2.0, 100.0);
+	TestTrue(TEXT("반 칸 경계 1명 소집"),
+		DigetherFrameworkRules::TryPlanChainSummon(HalfCellExtent, Spacing, {}, 1, Planned));
+	TestTrue(TEXT("반 칸 경계는 중심 한 자리"), Planned == TArray<FVector>({ FVector::ZeroVector }));
+	TestFalse(TEXT("반 칸보다 작은 축은 1명도 부족"), DigetherFrameworkRules::TryPlanChainSummon(
+		FVector(HalfCellExtent.X - 0.001, HalfCellExtent.Y, HalfCellExtent.Z), Spacing, {}, 1, Planned));
+	TestTrue(TEXT("반 칸 아래 실패는 출력 보존"), Planned == TArray<FVector>({ FVector::ZeroVector }));
+	TestTrue(TEXT("짝수 축 경계 2명 소집"), DigetherFrameworkRules::TryPlanChainSummon(
+		FVector(Spacing, HalfCellExtent.Y, HalfCellExtent.Z), Spacing, {}, 2, Planned));
+	TestTrue(TEXT("짝수 축 경계는 반 간격 중심 정렬"), Planned == TArray<FVector>({
+		FVector(-50.0, 0.0, 0.0), FVector(50.0, 0.0, 0.0) }));
+	const TArray<FVector> EvenBoundary = Planned;
+	TestFalse(TEXT("짝수 축 경계 바로 아래는 2명 부족"), DigetherFrameworkRules::TryPlanChainSummon(
+		FVector(Spacing - 0.001, HalfCellExtent.Y, HalfCellExtent.Z), Spacing, {}, 2, Planned));
+	TestTrue(TEXT("짝수 경계 아래 실패는 출력 보존"), Planned == EvenBoundary);
+
 	// 자리 부족 시 실패, 출력 보존(임시: 기획의 겹침 허용 대신 출발 거절)
 	const FVector Narrow(60.0, 60.0, 100.0);
 	TArray<FVector> Preserved = { FVector(1.0, 2.0, 3.0) };

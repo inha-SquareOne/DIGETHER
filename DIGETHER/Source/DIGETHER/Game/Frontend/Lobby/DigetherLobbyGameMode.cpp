@@ -29,8 +29,9 @@ ADigetherLobbyGameMode::ADigetherLobbyGameMode()
 	PlayerStateClass = ADigetherLobbyPlayerState::StaticClass();
 	PlayerControllerClass = ADigetherLobbyPlayerController::StaticClass();
 	DefaultPawnClass = nullptr;
-	// 대기실과 게임의 컨트롤러·상태 클래스가 달라 재접속 이동 사용
-	bUseSeamlessTravel = false;
+	// Seamless 이동(2026-11-06 사용자 결정): Steam 소켓은 이전 대기 소켓을 다음 프레임에 닫아 재접속 이동의 같은 포트 재대기가 실패
+	// 연결 유지, 게임 맵 GameMode가 컨트롤러·상태를 게임 클래스로 교체(HandleSeamlessTravelPlayer)
+	bUseSeamlessTravel = true;
 }
 
 void ADigetherLobbyGameMode::BeginPlay()

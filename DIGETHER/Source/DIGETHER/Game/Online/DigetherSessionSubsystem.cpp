@@ -728,7 +728,7 @@ bool UDigetherSessionSubsystem::StartGame()
 	Operation = EDigetherSessionOperation::Travelling;
 	TravelIntent = ETravelIntent::Start;
 	SetStatus(EDigetherSessionText::Starting);
-	// 대기실과 게임의 PlayerController·PlayerState 클래스가 달라 비심리스 이동으로 재접속
+	// 대기실 GameMode의 Seamless 이동, 연결·대기 소켓 유지
 	if (!World->ServerTravel(GameMap + TEXT("?listen"), true))
 	{
 		Operation = EDigetherSessionOperation::Idle;

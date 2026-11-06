@@ -14,6 +14,7 @@
 #include "Game/Run/DigetherGameOverFlowComponent.h"
 #include "Game/Run/DigetherRunCoordinatorComponent.h"
 #include "Game/Life/DigetherLifeStateComponent.h"
+#include "Game/Voice/DigetherVoiceRoutingComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
 
@@ -24,6 +25,8 @@ ADigetherGameplayGameMode::ADigetherGameplayGameMode()
 	// 시간 갱신은 이 연결층 Tick에서 운행·레버와 함께 한 번만
 	RunCoordinatorComponent->PrimaryComponentTick.bStartWithTickEnabled = false;
 	GameOverFlowComponent = CreateDefaultSubobject<UDigetherGameOverFlowComponent>(TEXT("GameOverFlowComponent"));
+	VoiceRoutingComponent = CreateDefaultSubobject<UDigetherVoiceRoutingComponent>(TEXT("VoiceRoutingComponent"));
+	VoiceRoutingComponent->CollectParticipants.BindUObject(this, &ThisClass::CollectVoiceParticipants);
 	GameStateClass = ADigetherGameplayGameState::StaticClass();
 	PlayerStateClass = ADigetherGameplayPlayerState::StaticClass();
 	PlayerControllerClass = ADigetherGameplayPlayerController::StaticClass();

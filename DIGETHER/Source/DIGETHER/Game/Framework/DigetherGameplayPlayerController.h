@@ -22,6 +22,7 @@ class ADigetherHubFacilityActor;
 class UDigetherHubFacilityWidget;
 class UDigetherHubInteractionComponent;
 class UDigetherPlayerScreenComponent;
+class UDigetherVoiceComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDigetherDepositResult,
 	EDigetherDepositOperation, Operation, FDigetherDepositResponse, Response);
@@ -44,6 +45,8 @@ public:
 	virtual void SetupInputComponent() override;
 	virtual void OnRep_PlayerState() override;
 	virtual void OnPossess(APawn* InPawn) override;
+	// 서버 기본 음성 허용 뒤 개인 마이크 모드(항상 켜짐·누르고 말하기) 적용
+	virtual void ClientEnableNetworkVoice_Implementation(bool bEnable) override;
 
 	void RequestManualSave();
 	void RequestLoadGame();
@@ -92,6 +95,7 @@ public:
 	UDigetherHubInteractionComponent* GetHubInteractionComponent() const { return HubInteractionComponent; }
 	TSubclassOf<UDigetherHubFacilityWidget> GetHubFacilityWidgetClass() const { return HubFacilityWidgetClass; }
 	UDigetherPlayerScreenComponent* GetPlayerScreenComponent() const { return PlayerScreenComponent; }
+	UDigetherVoiceComponent* GetVoiceComponent() const { return VoiceComponent; }
 	TSubclassOf<UDigetherRunHudWidget> GetHudWidgetClass() const { return HudWidgetClass; }
 	TSubclassOf<UDigetherRunResultWidget> GetRunResultWidgetClass() const { return RunResultWidgetClass; }
 	TSubclassOf<UDigetherGameOverCreditsWidget> GetGameOverCreditsWidgetClass() const { return GameOverCreditsWidgetClass; }
@@ -258,6 +262,10 @@ private:
 	// --- 화면: HUD·런 결과·크레딧 (위젯 수명·입력 모드는 컴포넌트) ---
 	UPROPERTY(VisibleAnywhere, Category="Digether|UI")
 	TObjectPtr<UDigetherPlayerScreenComponent> PlayerScreenComponent;
+
+	// --- 음성: 마이크 모드·재생 설정·관전 청취 위치 (로컬 전용) ---
+	UPROPERTY(VisibleAnywhere, Category="Digether|Voice")
+	TObjectPtr<UDigetherVoiceComponent> VoiceComponent;
 
 	UPROPERTY(EditDefaultsOnly, Category="Digether|UI")
 	TSubclassOf<UDigetherRunHudWidget> HudWidgetClass;

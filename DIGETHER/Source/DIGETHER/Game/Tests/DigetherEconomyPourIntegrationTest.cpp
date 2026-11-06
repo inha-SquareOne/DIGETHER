@@ -7,6 +7,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Components/BoxComponent.h"
 #include "Game/Economy/DigetherDepositStationActor.h"
 #include "Game/Economy/DigetherEconomyRules.h"
 #include "Game/Economy/DigetherFloorCoinActor.h"
@@ -316,6 +317,119 @@ namespace
 		return Fixture.GetMode()->BeginPour(Player.Controller, Fixture.GetStation()).Result == EDigetherEconomyResult::Success;
 	}
 }
+
+#if !UE_BUILD_SHIPPING
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPourDevTeleportPreparesFourTest,
+	"DIGETHER.Game.Economy.PourIntegration.DevTeleportPreparesFourPourers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherPourDevTeleportPreparesFourTest::RunTest(const FString& Parameters)
+{
+	// 실제 개발 이동 뒤 제품 붓기 판정 검증, 원격 카메라 전송은 별도 M2 대상
+	for (const float StationYaw : { 0.f, 90.f })
+	{
+		FPourWorld Fixture(*this);
+		if (!TestTrue(TEXT("개발 이동 시험 월드 준비"), Fixture.IsReady()))
+		{
+			return false;
+		}
+		Fixture.GetStation()->SetActorRotation(FRotator(0.f, StationYaw, 0.f));
+		Fixture.SetQuota(1, 10000, 0);
+		TArray<FPourPlayer> Players;
+		for (int32 Index = 0; Index < 4; ++Index)
+		{
+			const FVector StartLocation = PourStationLocation + FVector(600.f + Index * 100.f, 0.f, 100.f);
+			FPourPlayer Player = Fixture.AddPlayer(StartLocation, FRotator(0.f, 45.f, 0.f), 100);
+			if (!TestTrue(TEXT("개발 이동 플레이어 준비"), Player.IsReady()))
+			{
+				return false;
+			}
+			// 개발 RPC 권한을 각 시험 컨트롤러에 명시, 원격 권한은 실제 M2에서 검증
+			Player.Controller->SetAsLocalPlayerController();
+			Player.Controller->Server_DevTeleportToDeposit_Implementation(PourStationId);
+			TestFalse(TEXT("기존 먼 자리에서 이동"), Player.Pawn->GetActorLocation().Equals(StartLocation));
+			Players.Add(Player);
+		}
+		const FTransform Inlet = Fixture.GetStation()->GetPourInletTransform();
+		for (int32 Index = 0; Index < Players.Num(); ++Index)
+		{
+			const FPourPlayer& Player = Players[Index];
+			const FVector Location = Player.Pawn->GetActorLocation();
+			TestTrue(TEXT("회전된 투입구 앞면에 위치"),
+				FVector::DotProduct(Inlet.GetUnitAxis(EAxis::X), Location - Inlet.GetLocation()) > 0.0);
+			TestTrue(TEXT("기존 200cm 상호작용 거리 안"), FVector::Distance(Location, Inlet.GetLocation()) <= 200.0);
+			TestTrue(TEXT("실제 입력 대상의 원점 거리 200cm 안"),
+				FVector::Distance(Location, Fixture.GetStation()->GetActorLocation()) <= 200.0);
+			FVector Eye;
+			FRotator ViewRotation;
+			Player.Controller->GetPlayerViewPoint(Eye, ViewRotation);
+			TestTrue(TEXT("개발 이동이 투입구 시선도 정렬"),
+				FVector::DotProduct(ViewRotation.Vector(), (Inlet.GetLocation() - Eye).GetSafeNormal()) > 0.99);
+			for (int32 OtherIndex = 0; OtherIndex < Index; ++OtherIndex)
+			{
+				const APawn* OtherPawn = Players[OtherIndex].Pawn;
+				TestTrue(TEXT("4명 시험 Pawn의 충돌 구체 비겹침"),
+					FVector::Distance(Location, OtherPawn->GetActorLocation())
+						> Player.Pawn->GetSimpleCollisionRadius() + OtherPawn->GetSimpleCollisionRadius());
+			}
+			TestEqual(TEXT("4명이 배치된 뒤에도 기존 붓기 시작 성공"),
+				Fixture.GetMode()->BeginPour(Player.Controller, Fixture.GetStation()).Result,
+				EDigetherEconomyResult::Success);
+		}
+		Fixture.Tick();
+		for (const FPourPlayer& Player : Players)
+		{
+			TestEqual(TEXT("각자 붓기 한 주기만 차감"), Player.Balance(), 90);
+			Fixture.GetMode()->EndPour(Player.Controller);
+		}
+		TestEqual(TEXT("4명 인정액을 한 번씩 반영"), Fixture.QuotaState().DepositedCredits, 12);
+		TestEqual(TEXT("중지 뒤 붓기 세션 정리"), FDigetherPourIntegrationAccess::PourSessionCount(*Fixture.GetMode()), 0);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPourDevTeleportFailureTest,
+	"DIGETHER.Game.Economy.PourIntegration.DevTeleportFailurePreservesPose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherPourDevTeleportFailureTest::RunTest(const FString& Parameters)
+{
+	FPourWorld Fixture(*this);
+	if (!TestTrue(TEXT("개발 이동 실패 시험 월드 준비"), Fixture.IsReady()))
+	{
+		return false;
+	}
+	const FVector StartLocation = PourStationLocation + FVector(1000.f, 0.f, 100.f);
+	const FRotator StartRotation(0.f, 45.f, 0.f);
+	FPourPlayer Player = Fixture.AddPlayer(StartLocation, StartRotation, 100);
+	if (!TestTrue(TEXT("개발 이동 실패 플레이어 준비"), Player.IsReady()))
+	{
+		return false;
+	}
+	Player.Controller->SetControlRotation(StartRotation);
+	Player.Controller->Server_DevTeleportToDeposit_Implementation(TEXT("MissingStation"));
+	TestTrue(TEXT("미발견 납부대는 위치 보존"), Player.Pawn->GetActorLocation().Equals(StartLocation));
+	TestTrue(TEXT("미발견 납부대는 시선 보존"), Player.Controller->GetControlRotation().Equals(StartRotation));
+
+	AActor* Blocker = Fixture.GetWorld()->SpawnActor<AActor>();
+	if (!TestNotNull(TEXT("모든 앞자리를 막는 시험 장애물"), Blocker))
+	{
+		return false;
+	}
+	UBoxComponent* Box = NewObject<UBoxComponent>(Blocker);
+	Blocker->SetRootComponent(Box);
+	Box->SetBoxExtent(FVector(400.f));
+	Box->SetCollisionProfileName(TEXT("BlockAll"));
+	Box->RegisterComponent();
+	Blocker->SetActorLocation(Fixture.GetStation()->GetPourInletTransform().GetLocation());
+	Player.Controller->Server_DevTeleportToDeposit_Implementation(PourStationId);
+	TestTrue(TEXT("빈자리 없으면 기존 위치 보존"), Player.Pawn->GetActorLocation().Equals(StartLocation));
+	TestTrue(TEXT("빈자리 없으면 기존 시선 보존"), Player.Controller->GetControlRotation().Equals(StartRotation));
+	TestTrue(TEXT("빈자리 없으면 기존 Pawn 회전 보존"), Player.Pawn->GetActorRotation().Equals(StartRotation));
+	TestEqual(TEXT("실패한 개발 이동은 잔고 보존"), Player.Balance(), 100);
+	return true;
+}
+#endif
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPourConcurrentTest,
 	"DIGETHER.Game.Economy.PourIntegration.ConcurrentAndDisconnect",

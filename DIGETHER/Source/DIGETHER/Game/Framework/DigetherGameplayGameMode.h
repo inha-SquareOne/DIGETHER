@@ -12,6 +12,7 @@
 #include "Game/Run/DigetherGameOverTypes.h"
 #include "Game/Run/DigetherRunTypes.h"
 #include "Game/Save/DigetherSaveTypes.h"
+#include "Game/Voice/DigetherVoiceTypes.h"
 #include "DigetherGameplayGameMode.generated.h"
 
 class ADigetherGameplayPlayerController;
@@ -25,11 +26,12 @@ class UDigetherElevatorComponent;
 class UDigetherGameOverFlowComponent;
 class UDigetherRunCoordinatorComponent;
 class UDigetherQuotaStateComponent;
+class UDigetherVoiceRoutingComponent;
 class UDigetherWalletComponent;
 
 // 서버 연결층, 경제 판정은 P1 값 함수·레지스트리에 위임
 // 구현 파일: 시작·참가자 생성(GameMode), 접속 승인(Login), 재접속·퇴장(Reconnect), 런 흐름·Tick(RunFlow),
-// 관전(Spectate), 붓기·바닥 금화(Pour), 저장(Save), 거점 스폰(Spawn), 게임 오버(GameOver), 개발(Dev)
+// 관전(Spectate), 음성 수신 제한(Voice), 붓기·바닥 금화(Pour), 저장(Save), 거점 스폰(Spawn), 게임 오버(GameOver), 개발(Dev)
 UCLASS()
 class DIGETHER_API ADigetherGameplayGameMode : public AGameMode
 {
@@ -51,6 +53,8 @@ public:
 	virtual APlayerController* Login(UPlayer* NewPlayer, ENetRole InRemoteRole, const FString& Portal,
 		const FString& Options, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) override;
 	virtual void Logout(AController* Exiting) override;
+	// 대기실 Seamless 이동 참가자, Login·PostLogin을 거치지 않아 로그인 목록 등록만 보충(시작 처리는 HandleStartingNewPlayer·StartPlay)
+	virtual void HandleSeamlessTravelPlayer(AController*& C) override;
 	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
 	virtual bool PlayerCanRestart_Implementation(APlayerController* Player) override;
 	virtual bool ReadyToStartMatch_Implementation() override;
@@ -153,6 +157,10 @@ private:
 	void EnterJoinSpectate(APlayerController* Controller);
 	void CycleJoinSpectateTarget(ADigetherGameplayPlayerController* Requester, bool bNext);
 	void ReleaseJoinSpectators();
+
+	// --- 음성 수신 제한 (Voice.cpp) ---
+	// 연결된 참가자의 생존자·관전자 구분·구역·관전 대상, 결과 크레딧 단계는 전원 음성
+	void CollectVoiceParticipants(TArray<FDigetherVoiceRouteEntry>& OutEntries, EDigetherVoiceStage& OutStage) const;
 
 	// --- 저장·불러오기 (Save.cpp, Spawn.cpp) ---
 	bool CaptureProgress(FDigetherSaveSnapshot& OutSnapshot) const;
@@ -289,6 +297,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category="Digether|Game Over")
 	TObjectPtr<UDigetherGameOverFlowComponent> GameOverFlowComponent;
+
+	UPROPERTY(VisibleAnywhere, Category="Digether|Voice")
+	TObjectPtr<UDigetherVoiceRoutingComponent> VoiceRoutingComponent;
 
 	// 기획 15 GO_* 연출 튜닝(임시값), 저장 형식 미포함, 단계 시작 때 공개 상태에 복사
 	FDigetherGameOverTuning GameOverTuning;

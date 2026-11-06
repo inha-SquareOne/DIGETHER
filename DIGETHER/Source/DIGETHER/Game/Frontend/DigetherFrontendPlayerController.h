@@ -21,7 +21,15 @@ protected:
 	// 이 맵에서 처음 올릴 화면, 프로젝트 설정(DIGETHER Frontend) 값
 	virtual TSoftClassPtr<UCommonActivatableWidget> GetScreenClass() const PURE_VIRTUAL(ADigetherFrontendPlayerController::GetScreenClass, return nullptr;);
 
+	// 다인 시험용 예약 명령의 명령줄 키(예: TEXT("DigetherLobbyAutoCmds")), 비면 미사용, Shipping 미동작
+	virtual const TCHAR* GetAutoCommandsParam() const { return nullptr; }
+
 private:
+#if !UE_BUILD_SHIPPING
+	// -<키>="초:명령|초:명령"을 이 맵 입장 기준으로 예약, 키별 프로세스당 한 번
+	void ScheduleAutoCommands();
+#endif
+
 	UPROPERTY(Transient)
 	TObjectPtr<UDigetherFrontendLayoutWidget> Layout;
 };

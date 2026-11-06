@@ -9,6 +9,7 @@ class UButton;
 class UTextBlock;
 class UWidget;
 class UDigetherGameOverPublicStateComponent;
+class AGameStateBase;
 
 // 기획 S33 함께 보는 결과 크레딧 화면 C++ 기반, 공개 상태 Credits 단계에서만 자체 표시
 // 진행은 모두 같은 서버 시각 기준점, 원근(뒤로 기울어진 평면)·배경·글꼴·음악은 BP 담당
@@ -70,6 +71,7 @@ public:
 protected:
 	virtual void NativeOnInitialized() override;
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 	// 화면별 생략 가능한 선택 바인딩
@@ -99,6 +101,12 @@ protected:
 	TObjectPtr<UTextBlock> Text_FastForward;
 
 private:
+	void HandleGameStateSet(AGameStateBase* GameState);
+	void BindPublicState(AGameStateBase* GameState);
+	void UnbindPublicState();
+	UFUNCTION()
+	void HandlePhaseChanged(EDigetherGameOverPhase Phase);
+
 	UDigetherGameOverPublicStateComponent* ResolvePublicState() const;
 	void Show(const FDigetherGameResult& Result);
 	void Hide();
@@ -110,5 +118,8 @@ private:
 	UPROPERTY(Transient)
 	FDigetherGameResult ShownResult;
 
+	TWeakObjectPtr<UWorld> BoundWorld;
+	FDelegateHandle GameStateSetHandle;
+	TWeakObjectPtr<UDigetherGameOverPublicStateComponent> BoundPublicState;
 	bool bShown = false;
 };

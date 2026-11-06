@@ -7,6 +7,22 @@
 #include "Game/Frontend/Lobby/DigetherLobbyGameState.h"
 #include "Game/Frontend/Lobby/DigetherLobbyPlayerState.h"
 #include "Game/Online/DigetherSessionSubsystem.h"
+#include "Game/Voice/DigetherVoiceComponent.h"
+
+ADigetherLobbyPlayerController::ADigetherLobbyPlayerController()
+{
+	VoiceComponent = CreateDefaultSubobject<UDigetherVoiceComponent>(TEXT("VoiceComponent"));
+}
+
+void ADigetherLobbyPlayerController::ClientEnableNetworkVoice_Implementation(const bool bEnable)
+{
+	if (VoiceComponent)
+	{
+		VoiceComponent->HandleServerVoiceEnabled(bEnable);
+		return;
+	}
+	Super::ClientEnableNetworkVoice_Implementation(bEnable);
+}
 
 TSoftClassPtr<UCommonActivatableWidget> ADigetherLobbyPlayerController::GetScreenClass() const
 {

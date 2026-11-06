@@ -35,9 +35,10 @@ void UDigetherPlayerScreenComponent::CreatePersistentWidgets()
 	if (const TSubclassOf<UDigetherRunHudWidget> HudClass = Controller->GetHudWidgetClass())
 	{
 		HudWidget = CreateWidget<UDigetherRunHudWidget>(Controller, HudClass);
-		if (IsValid(HudWidget))
+		// 결과·크레딧과 같은 플레이어 레이어에서 ZOrder 적용
+		if (IsValid(HudWidget) && !HudWidget->AddToPlayerScreen())
 		{
-			HudWidget->AddToViewport();
+			HudWidget = nullptr;
 		}
 	}
 	if (const TSubclassOf<UDigetherGameOverCreditsWidget> CreditsClass = Controller->GetGameOverCreditsWidgetClass())

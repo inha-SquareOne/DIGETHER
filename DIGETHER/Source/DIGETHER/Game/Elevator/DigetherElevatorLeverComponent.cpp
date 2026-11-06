@@ -66,6 +66,7 @@ void UDigetherElevatorLeverComponent::EndNotificationBatch()
 	if (bShouldNotifyPublicState)
 	{
 		const FDigetherElevatorLeverPublicState StateSnapshot = PublicState;
+		OnLeverVisualStateChanged.Broadcast(StateSnapshot);
 		OnPublicStateChanged.Broadcast(StateSnapshot);
 	}
 	for (const FDigetherElevatorLeverFeedback& Feedback : FeedbackSnapshots)
@@ -214,6 +215,8 @@ void UDigetherElevatorLeverComponent::DispatchPublicStateNotification(
 		bPublicStateNotificationPending = true;
 		return;
 	}
+	// native 콜백의 재진입 변경보다 먼저 표현, 이전 스냅샷이 새 표현을 덮지 않게 순서 유지
+	OnLeverVisualStateChanged.Broadcast(StateSnapshot);
 	OnPublicStateChanged.Broadcast(StateSnapshot);
 }
 
@@ -286,5 +289,6 @@ EDigetherElevatorLeverResult UDigetherElevatorLeverComponent::ApplyGaugeUpdate(c
 void UDigetherElevatorLeverComponent::OnRep_PublicState()
 {
 	const FDigetherElevatorLeverPublicState StateSnapshot = PublicState;
+	OnLeverVisualStateChanged.Broadcast(StateSnapshot);
 	OnPublicStateChanged.Broadcast(StateSnapshot);
 }

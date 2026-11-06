@@ -12,6 +12,7 @@
 #include "Game/Hub/DigetherHubInteractionComponent.h"
 #include "Game/UI/Deposit/DigetherDepositPanelWidget.h"
 #include "Game/UI/DigetherPlayerScreenComponent.h"
+#include "Game/Voice/DigetherVoiceComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
 
@@ -20,6 +21,17 @@ ADigetherGameplayPlayerController::ADigetherGameplayPlayerController()
 	CheatClass = UDigetherCheatManager::StaticClass();
 	HubInteractionComponent = CreateDefaultSubobject<UDigetherHubInteractionComponent>(TEXT("HubInteractionComponent"));
 	PlayerScreenComponent = CreateDefaultSubobject<UDigetherPlayerScreenComponent>(TEXT("PlayerScreenComponent"));
+	VoiceComponent = CreateDefaultSubobject<UDigetherVoiceComponent>(TEXT("VoiceComponent"));
+}
+
+void ADigetherGameplayPlayerController::ClientEnableNetworkVoice_Implementation(const bool bEnable)
+{
+	if (VoiceComponent)
+	{
+		VoiceComponent->HandleServerVoiceEnabled(bEnable);
+		return;
+	}
+	Super::ClientEnableNetworkVoice_Implementation(bEnable);
 }
 
 void ADigetherGameplayPlayerController::BeginPlay()

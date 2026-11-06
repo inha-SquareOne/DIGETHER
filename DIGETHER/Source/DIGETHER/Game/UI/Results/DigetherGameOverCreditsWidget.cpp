@@ -71,9 +71,71 @@ void UDigetherGameOverCreditsWidget::NativeOnInitialized()
 void UDigetherGameOverCreditsWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
-	// 크레딧 단계 전까지 접힘, 단계는 매 프레임 공개 상태 재조회라 늦은 복제도 반영
+	// 접힌 위젯은 Tick하지 않으므로 단계 알림으로 표시, 늦은 GameState도 재연결
 	bShown = false;
 	SetVisibility(ESlateVisibility::Collapsed);
+	if (UWorld* World = GetWorld())
+	{
+		BoundWorld = World;
+		GameStateSetHandle = World->GameStateSetEvent.AddUObject(this, &ThisClass::HandleGameStateSet);
+		BindPublicState(World->GetGameState());
+	}
+}
+
+void UDigetherGameOverCreditsWidget::NativeDestruct()
+{
+	if (UWorld* World = BoundWorld.Get())
+	{
+		World->GameStateSetEvent.Remove(GameStateSetHandle);
+	}
+	BoundWorld.Reset();
+	GameStateSetHandle.Reset();
+	UnbindPublicState();
+	Super::NativeDestruct();
+}
+
+void UDigetherGameOverCreditsWidget::HandleGameStateSet(AGameStateBase* GameState)
+{
+	BindPublicState(GameState);
+}
+
+void UDigetherGameOverCreditsWidget::BindPublicState(AGameStateBase* GameState)
+{
+	const ADigetherGameplayGameState* State = Cast<ADigetherGameplayGameState>(GameState);
+	UDigetherGameOverPublicStateComponent* Public = IsValid(State) ? State->GetGameOverPublicStateComponent() : nullptr;
+	if (BoundPublicState.Get() != Public)
+	{
+		UnbindPublicState();
+		BoundPublicState = Public;
+		if (Public)
+		{
+			Public->OnGameOverPhaseChanged.AddUniqueDynamic(this, &ThisClass::HandlePhaseChanged);
+		}
+	}
+	// 위젯 재사용·크레딧 중 도착에도 현재 공개 스냅샷부터 반영
+	HandlePhaseChanged(Public ? Public->GetPhase() : EDigetherGameOverPhase::None);
+}
+
+void UDigetherGameOverCreditsWidget::UnbindPublicState()
+{
+	if (UDigetherGameOverPublicStateComponent* Public = BoundPublicState.Get())
+	{
+		Public->OnGameOverPhaseChanged.RemoveDynamic(this, &ThisClass::HandlePhaseChanged);
+	}
+	BoundPublicState.Reset();
+}
+
+void UDigetherGameOverCreditsWidget::HandlePhaseChanged(const EDigetherGameOverPhase Phase)
+{
+	const UDigetherGameOverPublicStateComponent* Public = BoundPublicState.Get();
+	if (Phase == EDigetherGameOverPhase::Credits && IsValid(Public))
+	{
+		Show(Public->GetPublishedResult());
+	}
+	else if (bShown)
+	{
+		Hide();
+	}
 }
 
 void UDigetherGameOverCreditsWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)

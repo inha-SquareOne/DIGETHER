@@ -127,16 +127,17 @@ bool DigetherFrameworkRules::TryPlanChainSummon(const FVector& BoxExtent, const 
 			return false;
 		}
 	}
-	// 볼륨 경계에서 반 칸 안쪽까지만 쓴다. 중심 칸을 포함하는 대칭 격자이며 Z는 볼륨 중심 높이(0)다.
-	const double HalfSpacing = SpacingCm / 2.0;
-	const int32 HalfX = FMath::FloorToInt32((BoxExtent.X - HalfSpacing) / SpacingCm);
-	const int32 HalfY = FMath::FloorToInt32((BoxExtent.Y - HalfSpacing) / SpacingCm);
+	// 경계에서 반 칸 여유를 둔 중앙 정렬 격자, 짝수 행·열도 수용하고 Z는 볼륨 중심 높이(0)
+	const int32 CountX = FMath::FloorToInt32(2.0 * BoxExtent.X / SpacingCm);
+	const int32 CountY = FMath::FloorToInt32(2.0 * BoxExtent.Y / SpacingCm);
+	const double StartX = -(CountX - 1) * SpacingCm / 2.0;
+	const double StartY = -(CountY - 1) * SpacingCm / 2.0;
 	TArray<FVector> Candidates;
-	for (int32 X = -HalfX; X <= HalfX; ++X)
+	for (int32 X = 0; X < CountX; ++X)
 	{
-		for (int32 Y = -HalfY; Y <= HalfY; ++Y)
+		for (int32 Y = 0; Y < CountY; ++Y)
 		{
-			Candidates.Emplace(X * SpacingCm, Y * SpacingCm, 0.0);
+			Candidates.Emplace(StartX + X * SpacingCm, StartY + Y * SpacingCm, 0.0);
 		}
 	}
 	// 같은 입력이면 같은 배치가 나오도록 거리·X·Y 순으로 정렬한다.

@@ -207,6 +207,21 @@ void ADigetherGameplayGameMode::DisconnectPreviousConnection(APlayerController* 
 	UE_LOG(LogDigetherFramework, Log, TEXT("Duplicate login %s: previous connection closing"), *UniqueId.ToDebugString());
 }
 
+void ADigetherGameplayGameMode::HandleSeamlessTravelPlayer(AController*& C)
+{
+	// 엔진이 대기실 PC·PS를 게임 클래스로 교체하면 C가 새 PC로 바뀜
+	Super::HandleSeamlessTravelPlayer(C);
+	// 교체 실패 시 엔진이 이전 PC를 파괴하고 그대로 반환
+	APlayerController* Controller = Cast<APlayerController>(C);
+	if (IsValid(Controller))
+	{
+		// Logout의 레버·붓기 정리와 매치 인원 감소 대상(AGameMode::InitSeamlessTravelPlayer가 인원 증가)
+		LoggedInControllers.AddUnique(Controller);
+		UE_LOG(LogDigetherFramework, Log, TEXT("Seamless travel player joined: %s"),
+			IsValid(Controller->PlayerState) ? *Controller->PlayerState->GetPlayerName() : TEXT("(no PlayerState)"));
+	}
+}
+
 int32 ADigetherGameplayGameMode::AllocateJoinOrder()
 {
 	// 저장 명단(떠난 사람 포함)·현재 참가자 중 최대 순서의 다음 번호, 같은 게임 안 재사용 없음

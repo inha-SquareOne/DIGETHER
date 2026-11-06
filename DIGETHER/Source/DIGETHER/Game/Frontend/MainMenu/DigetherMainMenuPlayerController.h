@@ -20,4 +20,5 @@ public:
 
 protected:
 	virtual TSoftClassPtr<UCommonActivatableWidget> GetScreenClass() const override;
+	virtual const TCHAR* GetAutoCommandsParam() const override { return TEXT("DigetherMenuAutoCmds"); }
 };
