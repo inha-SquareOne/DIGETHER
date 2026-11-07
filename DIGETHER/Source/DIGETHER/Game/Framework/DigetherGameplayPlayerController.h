@@ -102,6 +102,9 @@ public:
 	FText GetInteractionHint() const;
 
 	UDigetherHubInteractionComponent* GetHubInteractionComponent() const { return HubInteractionComponent; }
+	// 안내 문구의 키 이름 조회용
+	const UInputAction* GetInteractAction() const { return InteractAction; }
+	const UInputAction* GetPourAction() const { return PourAction; }
 	TSubclassOf<UDigetherHubFacilityWidget> GetHubFacilityWidgetClass() const { return HubFacilityWidgetClass; }
 	UDigetherPlayerScreenComponent* GetPlayerScreenComponent() const { return PlayerScreenComponent; }
 	UDigetherVoiceComponent* GetVoiceComponent() const { return VoiceComponent; }

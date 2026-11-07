@@ -1,6 +1,7 @@
 #include "Game/UI/Settings/DigetherKeyBindingRowWidget.h"
 
 #include "CommonTextBlock.h"
+#include "Game/Input/DigetherInputPrompt.h"
 #include "Game/UI/Common/DigetherButtonWidget.h"
 
 #define LOCTEXT_NAMESPACE "DigetherSettings"
@@ -21,7 +22,8 @@ void UDigetherKeyBindingRowWidget::Setup(const FName InMappingName, const FText&
 void UDigetherKeyBindingRowWidget::SetKey(const FKey& InKey)
 {
 	Key = InKey;
-	Btn_Key->SetButtonText(InKey.IsValid() ? InKey.GetDisplayName(false) : LOCTEXT("KeyNone", "없음"));
+	// 안내 문구와 같은 키 이름 표기
+	Btn_Key->SetButtonText(InKey.IsValid() ? DigetherInputPrompt::MakeKeyText(InKey) : LOCTEXT("KeyNone", "없음"));
 }
 
 void UDigetherKeyBindingRowWidget::SetListening(const bool bListening)

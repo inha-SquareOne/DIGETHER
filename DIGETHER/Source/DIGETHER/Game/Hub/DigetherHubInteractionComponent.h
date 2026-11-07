@@ -10,7 +10,7 @@ class ADigetherGameplayPlayerController;
 class ADigetherHubFacilityActor;
 class UDigetherHubFacilityWidget;
 
-// 소유 PlayerController의 로컬 상호작용 상태: 시선 대상·E 입력 레버 유지·거점 시설 패널
+// 소유 PlayerController의 로컬 상호작용 상태: 시선 대상·상호작용 입력 레버 유지·거점 시설 패널
 // 서버 판정·RPC·입력 에셋·위젯 클래스는 PlayerController 담당, 복제 없음
 UCLASS(ClassGroup=(Digether))
 class DIGETHER_API UDigetherHubInteractionComponent : public UActorComponent
