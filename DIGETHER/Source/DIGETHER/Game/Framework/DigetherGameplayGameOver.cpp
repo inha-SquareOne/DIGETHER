@@ -35,11 +35,6 @@ namespace
 		return Input;
 	}
 
-	// 기획 S33 231행: 떠난 사람은 이 게임에서 번 돈이나 잃은 돈이 있을 때만 결과에 남긴다. 현재 참가자는 0원도 남긴다.
-	bool HasResultActivity(const FDigetherWalletState& Wallet)
-	{
-		return Wallet.LifetimeEarnedCredits > 0 || Wallet.HiddenLifetimeCredits > 0 || Wallet.TotalDeathLossCredits > 0;
-	}
 }
 
 bool ADigetherGameplayGameMode::IsGameOverActive() const
@@ -103,12 +98,10 @@ bool ADigetherGameplayGameMode::BuildGameResult(const FGuid& ResultId, FDigether
 	// 저장 명단(떠난 사람 포함)을 먼저 넣고, 지금 월드에 있는 참가자의 최신 장부로 덮는다. 키는 서버 전용 인증 키다.
 	TArray<FDigetherGameResultInput> Inputs;
 	TArray<FString> Keys;
-	TArray<bool> CurrentFlags;
 	for (const FDigetherSavePlayerRecord& Record : SavedPlayerRecords)
 	{
 		Inputs.Add(MakeResultInput(Record));
 		Keys.Add(Record.AuthenticatedPlayerKey);
-		CurrentFlags.Add(false);
 	}
 	TArray<ADigetherGameplayPlayerState*> Players;
 	CollectPlayers(Players);
@@ -129,7 +122,6 @@ bool ADigetherGameplayGameMode::BuildGameResult(const FGuid& ResultId, FDigether
 		{
 			Inputs.Add(Input);
 			Keys.Add(Key);
-			CurrentFlags.Add(!Player->IsInactive());
 			continue;
 		}
 		if (Input.JoinOrder <= 0)
@@ -137,18 +129,10 @@ bool ADigetherGameplayGameMode::BuildGameResult(const FGuid& ResultId, FDigether
 			Input.JoinOrder = Inputs[Existing].JoinOrder;
 		}
 		Inputs[Existing] = Input;
-		CurrentFlags[Existing] = !Player->IsInactive();
 	}
-	TArray<FDigetherGameResultInput> Included;
-	for (int32 Index = 0; Index < Inputs.Num(); ++Index)
-	{
-		if (CurrentFlags[Index] || HasResultActivity(Inputs[Index].Wallet))
-		{
-			Included.Add(Inputs[Index]);
-		}
-	}
+	// 11/6 기획 답변 08: 같은 게임의 명단은 0원·중도 이탈 여부와 무관하게 결과에 남김
 	const FDigetherQuotaState Quota = State->GetQuotaComponent()->CaptureState().Quota;
-	return DigetherGameOverRules::TryMakeGameResult(ResultId, GameId, Quota.TotalDay, Quota.PeriodGeneration, Included,
+	return DigetherGameOverRules::TryMakeGameResult(ResultId, GameId, Quota.TotalDay, Quota.PeriodGeneration, Inputs,
 		OutResult);
 }
 

@@ -134,7 +134,7 @@ Notion 승인본이 아닌 사용자 결정이며 1차 구현했다([구현 현�
 - **관전자 → 관전자**: 위치·구역과 무관하게 전원 들림, 거리 감쇠·방향감 없음(수신 측 `UVOIPTalker`에 `ComponentToAttachTo` 미지정).
 - **생존자 → 관전자**: 관전 대상이 들을 수 있는 생존자만 들림(대상과 같은 구역, 갱도↔던전 차단 유지). 서버가 `SpectateTargetPlayerKey` 기준으로 계산한다. 감쇠·방향감은 관전 대상 위치 기준(근거리 시험값과 같음)이며, 관전자 PC의 청취 위치를 `SetAudioListenerOverride`로 관전 대상에 붙이고 대상이 바뀔 때 다시 붙인다.
 - **관전자 → 생존자**: 들리지 않음(기존 규칙).
-- **마이크 입력**: 기본은 항상 열린 마이크, 설정에서 개인별로 누르고 말하기를 켤 수 있다(2026-11-06 사용자 결정). 단축키는 미배정이다. 기존 설정 값 `UDigetherGameUserSettings::MicrophoneMode`(기본 `AlwaysOn`, 설정 화면 콤보 있음)를 음성에 연결한다. 엔진 `bRequiresPushToTalk`는 호스트가 접속 시 모든 참가자에게 `ClientEnableNetworkVoice`로 보내는 게임 전체 값이라 개인 설정으로 쓰지 않는다. `false`로 두고 클라이언트가 자기 설정에 따라 `ClientEnableNetworkVoice` 뒤에 다시 적용하며, 누르고 말하기일 때 `StartTalking`/`StopTalking`을 호출한다(소스 `GameModeBase.cpp`, `PlayerController.cpp`).
+- **마이크 입력**: 기본은 항상 열린 마이크, 설정에서 개인별로 누르고 말하기 또는 토글(같은 키를 한 번 누르면 켜짐, 다시 누르면 꺼짐, 11-06 답변 14 마이크 온오프 요청에 대한 2026-11-06 사용자 선택)을 고를 수 있다(2026-11-06 사용자 결정). 누르고 말하기 임시 기본 키는 V(2026-11-06 사용자 결정, 기획 확정 아님). 기존 설정 값 `UDigetherGameUserSettings::MicrophoneMode`(기본 `AlwaysOn`, 설정 화면 콤보 있음)를 음성에 연결한다. 엔진 `bRequiresPushToTalk`는 호스트가 접속 시 모든 참가자에게 `ClientEnableNetworkVoice`로 보내는 게임 전체 값이라 개인 설정으로 쓰지 않는다. `false`로 두고 클라이언트가 자기 설정에 따라 `ClientEnableNetworkVoice` 뒤에 다시 적용하며, 누르고 말하기일 때 `StartTalking`/`StopTalking`을 호출한다(소스 `GameModeBase.cpp`, `PlayerController.cpp`).
 
 ### 구현 현황 (2026-11-06)
 
@@ -143,7 +143,9 @@ Notion 승인본이 아닌 사용자 결정이며 1차 구현했다([구현 현�
 | 판정 규칙 | `Game/Voice/DigetherVoiceRules` | 관전자끼리 전원, 관전자→생존자 차단, 같은 구역 생존자, 관전 대상 구역 기준, 크레딧 전원. 자동 테스트 `DIGETHER.Game.Voice.Hearing`·`MuteDiff` 통과 |
 | 서버 수신 제한 | `UDigetherVoiceRoutingComponent`(GameplayGameMode), 명단 `DigetherGameplayVoice.cpp` | 0.25초마다 듣는 PC별 원하는 음소거와 비교해 `GameplayMutePlayer`/`GameplayUnmutePlayer` 적용 |
 | 클라 재생·마이크 | `UDigetherVoiceComponent`(Gameplay·Lobby PC) | 생존자 목소리는 몸에 붙인 감쇠(3m/25m, 자연 감쇠, 방향감), 관전자·몸 없는 참가자(대기실 포함)는 감쇠 없음. 관전 중 거리 기준 위치는 `SetAudioListenerAttenuationOverride`로 관전 대상. 마이크 모드는 `ClientEnableNetworkVoice` 대체로 적용하고 0.25초마다 설정 변경 반영 |
-| 누르고 말하기 입력 | 같은 컴포넌트의 `PushToTalkAction`·`VoiceMappingContext` | 단축키 미배정이라 에셋 비어 있음. 시험은 콘솔 `Digether.VoicePushToTalk 1|0` |
+| 누르고 말하기 입력 | 같은 컴포넌트의 `PushToTalkAction`·`VoiceMappingContext` | 에셋 비어 있으면 DIGETHER Options `FallbackPushToTalkKey`(V)로 실행 중 액션 생성, 이 경우 키 재설정 목록에는 없음(저장이 에셋 경로 기준). 에셋 지정·Player Mappable 설정 후 키 재설정 가능. 콘솔 `Digether.VoicePushToTalk 1|0` 유지 |
+| 동료별 음량·나만 음소거 | `UDigetherVoiceComponent::SetPlayerVoiceVolume`·`SetPlayerVoiceMuted`, `UDigetherVoiceTalker::OnTalkingBegin`의 오디오 컴포넌트 `SetVolumeMultiplier` | 이 PC만·접속 중만 유지(저장 안 함), 재생 음량 = 설정 목소리 볼륨 × 플레이어별(0~2, 시험값). 실제 음성으로 미검증 |
+| 마이크 장치 선택 | 미지원 | 엔진 VoIP가 캡처를 기본 장치(`CreateVoiceCapture("")`)로 만들고 바꾸는 공개 API가 없음(소스 `VoiceEngineImpl.cpp:363`). 윈도우 기본 입력 장치를 따름 |
 | 호스트 발화 감지 시험(PQ-13) | 콘솔 `Digether.VoiceProbe 1`(Shipping 제외) | 호스트 로그 `LogDigetherVoice`에 참가자별 `talking`·`amplitude`·`hostMuted` 기록. 미실행 |
 
 한계와 확인할 것:

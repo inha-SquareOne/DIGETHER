@@ -558,6 +558,13 @@ bool ADigetherGameplayGameMode::BeginLeverPull(ADigetherGameplayPlayerController
 	{
 		return false;
 	}
+	// 기획 답변 06·추가(2026-11-06): 마지막 상승은 안쪽 레버로만 시작한다.
+	if (Lever->GetLeverKind() == EDigetherElevatorLeverKind::Ascent
+		&& Lever->GetPlacement() == EDigetherElevatorLeverPlacement::Outside
+		&& Context.CompletedAscents + 1 >= Context.TripLimit)
+	{
+		return false;
+	}
 	Context.bOtherLeverOccupied = DigetherGameplayRunFlowInternal::FindOccupiedSiblingLever(LeverActors, Lever) != nullptr;
 	const EDigetherElevatorLeverResult Result = Lever->GetLeverComponent()->TryBeginPull(Player->GetGameplayPlayerId(), Context);
 	if (Result == EDigetherElevatorLeverResult::Started)

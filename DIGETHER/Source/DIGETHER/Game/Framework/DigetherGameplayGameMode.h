@@ -63,7 +63,6 @@ public:
 
 	void NotifyPlayerDisconnecting(ADigetherGameplayPlayerController* Controller);
 	bool SaveProgress(ADigetherGameplayPlayerController* Requester);
-	bool SaveHubFacilityProgress();
 	bool LoadProgress(ADigetherGameplayPlayerController* Requester, bool bStartup = false);
 	bool StartNewGame(ADigetherGameplayPlayerController* Requester);
 	// 기획 S02·S30 공통(호스트·공통 맵) 출발 로딩 실패 확정 시 호출

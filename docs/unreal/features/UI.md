@@ -19,7 +19,7 @@
 |---|---|---|
 | 메인 메뉴·방 만들기/참가·대기실 | S01, 세션 UI | **사용**: `UDigetherFrontendLayoutWidget`(스택 포함), `UDigetherMainMenuScreenWidget`·`UDigetherLobbyScreenWidget`(Activatable), 패널 위젯, `UDigetherButtonWidget`(CommonButtonBase), `UDigetherTabListWidget` |
 | 화면 클래스 경로 | 설정 | **사용**: `UDigetherFrontendSettings`(소프트 클래스 경로, `DefaultGame.ini`). `/Game/Frontend`는 항상 쿠크 |
-| 설정 화면(S31) | GameUserSettings | **사용**: `UDigetherSettingsPanelWidget`(그래픽·사운드·조작 탭) |
+| 설정 화면(S31) | GameUserSettings | **사용**: `UDigetherSettingsPanelWidget`(그래픽·사운드·조작 탭, 키 탭은 `Page_Keys` 배치 시), 동료 음량 `UDigetherPlayerVoiceListWidget`·`RowWidget` |
 | CommonUI 입력 데이터 | 게임패드·키 아이콘 | `BP_UIInputData` + `DT_UIActions`(`CommonInputSettings.InputData`). 컨트롤러 아이콘 데이터 에셋은 없음 |
 | CommonUI 뷰포트 | 입력 라우팅 | `GameViewportClientClassName=/Script/CommonUI.CommonGameViewportClient` 설정됨 |
 | 인게임 HUD(S25~S29 중 HUD·결과) | 정보 표시 | **사용**: `Game/`의 `UDigetherRunHudWidget`·`UDigetherRunResultWidget`·`UDigetherGameOverCreditsWidget`. 로컬 Controller의 `UDigetherPlayerScreenComponent`가 `AddToPlayerScreen`으로 표시. 프로토타입 Canvas HUD는 별도 유지 |
@@ -123,6 +123,9 @@
 
 ### 설정 화면
 - 프로젝트 패턴: 위젯 값 → "적용" 시 `UDigetherGameUserSettings`의 setter 호출 → `ApplySettings`/`SaveSettings`(`DigetherSettingsPanelWidget`). 엔진 `UGameUserSettings`가 해상도·창 모드·VSync·프레임 제한·품질을 이미 제공한다([데이터·저장](DATA_SAVE.md)). 해상도 변경은 `ConfirmVideoMode`/`RevertVideoMode`로 되돌리기 확인 흐름을 만든다(소스).
+- 2026-11-06 추가 항목(C++만, WBP 배치 전): 밝기(`DisplayGamma`)·시야각(`ADigetherPlayerCameraManager`)·렌더 해상도 비율(엔진 `SetResolutionScaleNormalized`)·모션 블러(`r.MotionBlur.Amount`), 목소리 볼륨·마이크 증폭(`voice.MicInputGain`)·음성 감지 문턱(`voice.SilenceDetectionThreshold`·노이즈 게이트)·마이크 시험 미터(별도 `IVoiceCapture`), 키 탭. 새 위젯은 모두 `BindWidgetOptional`이라 기존 WBP는 그대로 열리고 같은 이름 위젯을 두면 동작한다. 위젯 이름 목록은 `.claude/docs/2026-11-06/handover/설정-WBP-연결.md`.
+- 2026-11-07 마이크 시험 개선: 막대는 증폭 반영 말하는 크기(제곱근 눈금, 송신 초록·대기 회색·0.9 이상 빨강), 증폭·문턱 슬라이더는 저장 전 즉시 반영하고 저장 없이 닫으면 저장값 복원, `Btn_MicMonitor`(내 목소리 듣기)는 시험 캡처 결과를 `USoundWaveProcedural`로 재생(엔진 Windows 캡처가 같은 voice cvar로 증폭·게이트·문턱을 적용하므로 송신되는 소리와 같음, 코덱 제외). 갱신은 위젯 Tick이라 일시정지 중에도 동작. 실제 마이크 청취는 미검증.
+- 2026-11-07 WBP 후속: 사운드 탭에 `Btn_MicMonitor` 연결, PIE 시작/정지·닫고 재개 시 정지·스크롤 접근, 새 프로세스 로드와 컴파일 확인. CommonUI `UCommonTabListWidgetBase::NativeDestruct()`는 탭을 제거한다(5.8.4 소스 `CommonUI/Private/CommonTabListWidgetBase.cpp`). 재사용되는 설정 패널의 별도 등록 bool은 실제 탭 상태와 달라질 수 있어 `GetTabCount()`로 등록 여부를 확인한다. 실제 발화·청감·Steam M3·cook는 별도다.
 - 키 재설정은 Enhanced Input 사용자 설정 영역이다([입력](INPUT.md)). 언어 선택은 `SetCurrentCulture(Culture, SaveToConfig)`를 쓴다(소스).
 - 마우스 감도·볼륨은 엔진 항목이 아니라 프로젝트 서브클래스 필드다. 사운드 값 → SoundClass/Submix 연결은 아직 저장만 한다(`EffectsVolume`·`MusicVolume` 주석).
 

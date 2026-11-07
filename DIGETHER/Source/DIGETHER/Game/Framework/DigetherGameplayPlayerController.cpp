@@ -9,6 +9,7 @@
 #include "Game/Framework/DigetherFrameworkLog.h"
 #include "Game/Framework/DigetherGameplayGameMode.h"
 #include "Game/Framework/DigetherGameplayPlayerState.h"
+#include "Game/Framework/DigetherPlayerCameraManager.h"
 #include "Game/Hub/DigetherHubInteractionComponent.h"
 #include "Game/UI/Deposit/DigetherDepositPanelWidget.h"
 #include "Game/UI/DigetherPlayerScreenComponent.h"
@@ -19,6 +20,7 @@
 ADigetherGameplayPlayerController::ADigetherGameplayPlayerController()
 {
 	CheatClass = UDigetherCheatManager::StaticClass();
+	PlayerCameraManagerClass = ADigetherPlayerCameraManager::StaticClass();
 	HubInteractionComponent = CreateDefaultSubobject<UDigetherHubInteractionComponent>(TEXT("HubInteractionComponent"));
 	PlayerScreenComponent = CreateDefaultSubobject<UDigetherPlayerScreenComponent>(TEXT("PlayerScreenComponent"));
 	VoiceComponent = CreateDefaultSubobject<UDigetherVoiceComponent>(TEXT("VoiceComponent"));

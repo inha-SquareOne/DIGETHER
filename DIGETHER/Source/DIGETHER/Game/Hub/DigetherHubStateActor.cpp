@@ -320,6 +320,12 @@ FDigetherHubView ADigetherHubStateActor::BuildView(const ADigetherGameplayPlayer
 		View.FacilityId = Facility->FacilityId;
 		View.Kind = Facility->Kind;
 		View.Title = FacilityTitle(Facility->Kind);
+		// 기획 답변 15(2026-11-06): 기존 제단 배치·저장 값은 보존하되 헌납 기능은 제공하지 않는다.
+		if (Facility->Kind == EDigetherHubFacilityKind::Altar)
+		{
+			View.Message = NSLOCTEXT("DigetherHub", "AltarUnavailable", "제단은 이용할 수 없습니다.");
+			return View;
+		}
 	}
 	View.bInteractionAllowed = IsRequesterAllowed(Requester, Facility);
 	if (!View.bInteractionAllowed)
@@ -399,15 +405,6 @@ FDigetherHubView ADigetherHubStateActor::BuildView(const ADigetherGameplayPlayer
 		Option.Label = View.bResting ? NSLOCTEXT("DigetherHub", "Stand", "일어나기") : NSLOCTEXT("DigetherHub", "Rest", "휴식 시작");
 		Option.Action = View.bResting ? EDigetherHubAction::Stand : EDigetherHubAction::Rest;
 		Option.bEnabled = !bOccupied;
-	}
-	else if (Facility->Kind == EDigetherHubFacilityKind::Altar)
-	{
-		View.Detail = FText::Format(NSLOCTEXT("DigetherHub", "AltarDetails", "팀 누적 헌납: {0} 크레딧\n헌납하면 잠시 제단이 빛납니다. 할당량 납부와는 별개입니다."), FText::AsNumber(TotalOfferingCredits));
-		FDigetherHubOption& Option = View.Options.AddDefaulted_GetRef();
-		Option.Label = FText::Format(NSLOCTEXT("DigetherHub", "OfferLabel", "헌납 · {0} 크레딧"), FText::AsNumber(Catalog->OfferingCostCredits));
-		Option.Cost = Catalog->OfferingCostCredits;
-		Option.Action = EDigetherHubAction::Offer;
-		Option.bEnabled = View.Balance >= Catalog->OfferingCostCredits;
 	}
 	return View;
 }
@@ -527,10 +524,6 @@ FDigetherHubView ADigetherHubStateActor::Execute(ADigetherGameplayPlayerControll
 			Result = DigetherHubRules::SelectStage(Candidate, OptionId, bDestinationLocked);
 		}
 	}
-	else if (Action == EDigetherHubAction::Offer && Facility->Kind == EDigetherHubFacilityKind::Altar)
-	{
-		Result = DigetherHubRules::Offer(Candidate, Wallet, Catalog->OfferingCostCredits);
-	}
 	if (Result == EDigetherHubResult::Success)
 	{
 		const bool bWalletChanged = Wallet.BalanceCredits != Player->CaptureState().BalanceCredits;
@@ -546,12 +539,6 @@ FDigetherHubView ADigetherHubStateActor::Execute(ADigetherGameplayPlayerControll
 			SelectedStageId = Candidate.SelectedStageId;
 			TotalOfferingCredits = Candidate.TotalOfferingCredits;
 			DigetherHubRules::RememberAppliedRequest(AppliedRequests, PlayerId, RequestId);
-			if (Action == EDigetherHubAction::Offer)
-			{
-				OfferingPulseCounter = OfferingPulseCounter == MAX_int32 ? 1 : OfferingPulseCounter + 1;
-				OfferingPulseEndsAtServerTime = GetWorld()->GetGameState()->GetServerWorldTimeSeconds() + Catalog->OfferingPulseSeconds;
-				OnRep_OfferingPulseCounter();
-			}
 			ForceNetUpdate();
 			if (bWalletChanged)
 			{
