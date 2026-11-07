@@ -21,7 +21,7 @@
 | 폴더 | 종류 | 대표 문서 |
 |---|---|---|
 | [planning/](planning/README.md) | 기획 상세: Notion 이관 안내, 결정 대기, 기능별 기획 | [결정 목록](planning/DECISIONS.md), [기지 기능](planning/BASE_FEATURE_DESIGN.md) |
-| design/ | 기술 설계 상세: 구현 계약·코드 구조·기능별 구현 설계·엔진 기능 조사 | [개발반 구현 설계](design/DEVELOPMENT_SYSTEM_DESIGN.md), [코드 구조 계획](design/CODE_STRUCTURE_PLAN.md), [굴착 구현](design/EXCAVATION_IMPLEMENTATION.md), [에디터 편의 설계](design/EDITOR_PRODUCTIVITY_DESIGN.md), [UE 기능 활용 범위](design/UNREAL_FEATURE_COVERAGE.md) |
+| design/ | 기술 설계 상세: 구현 계약·코드 구조·기능별 구현 설계·엔진 기능 조사 | [개발반 구현 설계](design/DEVELOPMENT_SYSTEM_DESIGN.md), [코드 구조 계획](design/CODE_STRUCTURE_PLAN.md), [굴착 구현](design/EXCAVATION_IMPLEMENTATION.md), [에디터 편의 설계](design/EDITOR_PRODUCTIVITY_DESIGN.md), [게임패드 지원 설계](design/GAMEPAD_SUPPORT_DESIGN.md), [UE 기능 활용 범위](design/UNREAL_FEATURE_COVERAGE.md) |
 | decisions/ | 기술·운영 결정 기록(ADR) | [도구 분담](decisions/ADR-001-document-ownership.md), [엔진 버전](decisions/ADR-003-engine-version-5.8.4.md), [코드 Git·에셋 SVN](decisions/ADR-004-git-code-svn-assets.md) |
 | prototype/ | 프로토타입 구성·실행·시험 계약 | [그레이박스 프로토타입](prototype/PROTOTYPE.md), [Steam 외부망 시험](prototype/PROTOTYPE_STEAM.md), [미로·폐교 흐름](prototype/MAZE_SCHOOL_FLOW.md) |
 | verification/ | 검증 계획과 과거 검증 기록(reviews/) | [검증 계획](verification/VERIFICATION_PLAN.md) |
