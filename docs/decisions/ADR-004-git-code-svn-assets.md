@@ -19,7 +19,7 @@
 
 ## 나누는 기준
 
-에셋을 옮기지 않고, 로직 에셋이 이미 모여 있는 폴더를 Git 폴더로 정했다. 규칙의 원본은 루트 `.gitignore`와 `scripts/svn/Initialize-SvnAssets.ps1`의 `svn:ignore`이며 두 곳을 함께 고친다.
+에셋을 옮기지 않고, 로직 에셋이 이미 모여 있는 폴더를 Git 폴더로 정했다. 규칙의 원본은 루트 `.gitignore`와 `scripts/svn/Initialize-SvnAssets.ps1`의 `svn:ignore`이며 두 곳을 함께 고친다. SVN 작업 사본은 프로젝트 폴더(`DIGETHER/DIGETHER`) 하나이고, `trunk`의 `svn:ignore *`가 `Content`·`SourceArt` 밖의 파일을 모두 제외한다. 무시된 파일도 직접 Add하면 등록되므로 Add 대상은 두 폴더 안으로 한정한다.
 
 | Git (GitHub, LFS 없음) | SVN (팀 PC) |
 |---|---|
@@ -46,6 +46,7 @@
 | SVN 쪽 파일 877개를 Git 추적에서 제거(`git rm --cached`, 디스크 파일 유지) | 로컬 커밋(디스크 파일 유지) |
 | Git 폴더의 에셋 70개를 LFS 포인터에서 실제 파일로 저장 | `git add --renormalize`로 Git 추적 에셋 실제 파일 저장 |
 | SVN 첫 등록(`scripts/svn/Initialize-SvnAssets.ps1`) | 2026-11-10 실행. 저장소 `DIGETHER`의 `trunk/Content` 873개·`trunk/SourceArt` 11개 등록(r1~r6), 서버 목록에 Git 폴더 파일 없음, `svn:needs-lock` 881개(`.jpg` 2개·`.hlsl` 1개 제외), `content.rev` 6 |
+| 작업 사본을 프로젝트 폴더 하나로 변경(2026-11-10 사용자 선택) | `DIGETHER/DIGETHER`를 `trunk`에 연결하고 `trunk`에 `svn:ignore *`를 걸었다(r7, `content.rev` 7). 등록된 `Content`·`SourceArt`만 관리되고 `Config`·`Source` 등은 커밋 후보에 뜨지 않음을 등록 PC에서 확인. 폴더별로 따로 받던 방식은 잘못된 위치 연결 실수가 나서 바꿨다 |
 | 팀원 PC 전환 | 미확인. 저장소 주소와 계정은 관리자에게 받는다 |
 
 **순서 주의:** Git의 추적 제거 커밋을 푸시하기 전에 SVN 첫 등록이 끝나고 팀원 전원이 SVN 작업 사본을 만들어야 한다. pull하면 Git이 추적에서 빠진 아트·맵 파일을 디스크에서 지우므로 pull 직후 `svn update`로 복원한다. 전환 전후 커밋 사이의 브랜치 전환도 같은 이유로 SVN 파일을 지우거나 덮어쓴다. 팀원 쪽 절차는 [개발 흐름](../project/DEVELOPMENT_WORKFLOW.md#git과-svn-전환-절차)을 따른다.
