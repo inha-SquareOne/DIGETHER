@@ -85,6 +85,7 @@ foreach ($t in $Targets) {
 }
 
 if ($DryRun) { Write-Host 'DryRun: content.rev 미작성'; return }
-$rev = (& svn info --show-item last-changed-revision (Join-Path $Project 'Content')).Trim()
+# 작업 사본의 폴더 리비전은 속성 커밋 시점에 머무르므로 서버 trunk의 마지막 변경 리비전을 쓴다
+$rev = (& svn info --show-item last-changed-revision "$RepoUrl/trunk").Trim()
 [System.IO.File]::WriteAllText((Join-Path $RepoRoot 'content.rev'), "$rev`n", (New-Object System.Text.UTF8Encoding $false))
 Write-Host "content.rev = $rev"
