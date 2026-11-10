@@ -1,6 +1,6 @@
 # 지형·파괴 기능 카탈로그
 
-기준일 2026-11-04 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 채택 결정 아님**. 색인은 [기능 카탈로그](README.md).
+기준일 2026-11-04 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 채택 결정 아님**. 색인은 [기능 카탈로그](README.md). 2026-11-10 부분 정정: "DIGETHER에서 쓰이는 곳" 표에 `Game/Excavation/Dain` 계열을 추가하고 여진·붕괴 행을 코드 기준으로 고쳤다. 엔진 기능 조사 내용은 기준일 그대로다.
 
 범위: 런타임 메시 생성·갱신(ProceduralMeshComponent, DynamicMeshComponent, Geometry Scripting, MeshDescription), 충돌 쿠킹, Chaos 파괴(Geometry Collection·Fields·Anchor), Landscape, Nanite, 데칼, 비동기 생성, 지형 상태 복제. 내비 재생성은 [AI_NAVIGATION.md](AI_NAVIGATION.md), 물리·충돌 기본은 [PHYSICS_COLLISION.md](PHYSICS_COLLISION.md), 복제 일반은 [NETWORKING.md](NETWORKING.md), 저장은 [DATA_SAVE.md](DATA_SAVE.md).
 
@@ -20,8 +20,9 @@
 |---|---|
 | S07·DG-002 굴착 | `Prototype/World/DigetherExcavationTerrain.{h,cpp}`: `UProceduralMeshComponent` 2개(A/B 교대), `bUseAsyncCooking=false`, `bUseComplexAsSimpleCollision=true`, 프로파일 `BlockAll`. 준비용 컴포넌트에서 `CreateMeshSection_LinearColor`→`GetBodySetup()`의 `bCreatedPhysicsMeshes`·`TriMeshGeometries` 확인 후 활성 컴포넌트 교체. **이미 사용**(단일 8m×8m 한정 볼륨, 03 패키지 검증 완료로 문서화됨, 성능·실패 주입은 미측정) |
 | 지형 상태 복제 | `ADigetherExcavationTerrain`이 `Snapshot`(Schema·Revision·`TArray<uint8> Density`)을 `ReplicatedUsing=OnRep_Snapshot`로 복제, `bAlwaysRelevant=true`, `SetNetUpdateFrequency(10)`. 메시는 각 측에서 재생성. **이미 사용** |
+| S07 굴착(다인 계열, 2026-11-06 이후) | `Game/Excavation/Dain/DigetherSoilField.{h,cpp}`(순수 계산: 가변 격자, 바깥 한 겹 빈 공간 고정, 구형 제거, 사면체 분할 표면)와 `DigetherDiggableSoil.{h,cpp}`: `UProceduralMeshComponent` 2개(`SoilMesh`·`SoilBack` 교대), `bUseAsyncCooking=false`, `bUseComplexAsSimpleCollision=true`, 준비 쪽에서 `CreateMeshSection_LinearColor`→`GetBodySetup()` 확인 후 교체. **복제 설정·복제 속성 없음**, 초기화·굴착은 서버 권한에서만 동작. 시험 코드는 `Game/Excavation/DainLab/`. 두 계열 중 어느 쪽이 제품 기준인지는 결정 대기다([굴착 구현 설계](../../design/EXCAVATION_IMPLEMENTATION.md#구현-계열-현황-2026-11-10)) |
 | `DIGETHER.Build.cs` | `ProceduralMeshComponent` PrivateDependency, uproject에 플러그인 활성. `GeometryScriptingCore`·`GeometryFramework`·`GeometryCore`·`GeometryCollectionEngine` 의존은 **없음** |
-| S09·DG-003 여진·붕괴 | 같은 액터에서 밀도 가산으로 구현(물리 시뮬레이션 아님). Chaos 파괴 **미사용** |
+| S09·DG-003 여진·붕괴 | 프로토타입 계열 액터가 여진 간격마다 마지막 굴착 지점 주변 밀도를 원래 값으로 즉시 되돌린다(물리 시뮬레이션 아님, `CheckTremor`→`ServerRestoreAt`). 기획 기준의 천장 판정·국소 예고 지연은 코드가 없고, 다인 계열에는 복원 연산이 없다. Chaos 파괴 **미사용** |
 | DG-006 던전 벽 파괴 | **미구현·미결정**. 후보 비교는 [UNREAL_FEATURE_COVERAGE.md](../../design/UNREAL_FEATURE_COVERAGE.md) 기술 비교 표(B)에 있고 이 문서는 후보 정보만 보탠다 |
 | 굴착 흔적 표현 | 데칼·Niagara 사용 코드 없음(`Source` grep). **미사용** |
 | 내비 재생성 | 이 문서 범위 아님. [AI_NAVIGATION.md](AI_NAVIGATION.md) |

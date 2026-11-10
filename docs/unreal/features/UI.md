@@ -77,7 +77,7 @@
 - 필수 설정: `GameViewportClientClassName`을 `CommonGameViewportClient`로(프로젝트 설정됨), 프로젝트 설정 > CommonInput에서 `InputData`(`UCommonUIInputData` 서브클래스: Click/Back 액션을 DataTable 또는 Enhanced Input 액션으로 지정). 프로젝트 `CommonInputSettings.InputData=/Game/Frontend/UI/Input/BP_UIInputData`.
 - **Enhanced Input 연동은 기본 꺼짐**: `UCommonInputSettings::bEnableEnhancedInputSupport = false`(재시작 필요, 소스). 지금은 `DT_UIActions` DataTable 방식이다. 입력 전체 방향은 [입력](INPUT.md)과 맞춰 결정한다.
 - 활성 위젯 규약: `GetDesiredInputConfig`(입력 모드·마우스 캡처 설정), `NativeGetDesiredFocusTarget`, `NativeOnHandleBackAction`, `bIsBackHandler`, `bAutoActivate`. 컨테이너는 `UCommonActivatableWidgetStack`(LIFO)과 `Queue`, `AddWidget<T>(Class)`는 풀에서 인스턴스를 꺼낸다(소스).
-- 플랫폼 아이콘: `UCommonInputPlatformSettings`가 `UCommonInputBaseControllerData` 서브클래스 목록(`GamepadName`, `InputBrushDataMap`)을 갖는다. `CommonActionWidget`이 현재 입력 장치에 맞는 브러시를 보여 준다. 아직 컨트롤러 데이터 에셋이 없고, 지원 입력 장치 결정 D20이 미정이다([DECISIONS](../../planning/DECISIONS.md)).
+- 플랫폼 아이콘: `UCommonInputPlatformSettings`가 `UCommonInputBaseControllerData` 서브클래스 목록(`GamepadName`, `InputBrushDataMap`)을 갖는다. `CommonActionWidget`이 현재 입력 장치에 맞는 브러시를 보여 준다. 아직 컨트롤러 데이터 에셋이 없다. D20 답변은 MVP 입력을 키보드·마우스만으로 정했고([DECISIONS](../../planning/DECISIONS.md)), 패드 아이콘 범위는 [게임패드 지원 설계](../../design/GAMEPAD_SUPPORT_DESIGN.md)의 결정 대기 항목이다(2026-11-10 정정).
 - 프로젝트 콘솔 변수: `DefaultGame.ini [ConsoleVariables]`에 `CommonUI.CheckKeyboardFocusAndParentage` 등 3개가 켜져 있다. 이름만 확인했고 각 효과는 이번에 확인하지 못했다(미확인).
 - 공식 CommonUI 문서 페이지는 목차만 추출되어 문서 근거를 얻지 못했다. 위 내용은 소스·프로젝트 코드 근거다.
 

@@ -1,13 +1,13 @@
 # 게임패드 지원 설계 — 2026-11-07
 
-상태: **설계 초안, 채택·구현 결정 아님.** 기준 UE 5.8.4 (CL 58902052), Windows·Steam, 리슨 서버 협동. 엔진 기능 근거는 [입력 카탈로그](../unreal/features/INPUT.md)·[UI 카탈로그](../unreal/features/UI.md)를 보완한다.
+상태: **설계 초안, 채택·구현 결정 아님.** 기준 UE 5.8.4 (CL 58902052), Windows·Steam, 리슨 서버 협동. 엔진 기능 근거는 [입력 카탈로그](../unreal/features/INPUT.md)·[UI 카탈로그](../unreal/features/UI.md)를 보완한다. 2026-11-10 부분 정정: G0-1 구현(2026-11-07) 뒤 낡은 현황 표·줄 번호·예시 이름을 코드와 맞추고, 검토에서 나온 질문을 [결정 대기 목록](#7-결정-대기-목록)에 추가했다(GP-10~13, GP-4 보강). 설계 방향과 권장안은 바꾸지 않았다.
 
 ## 1. 결론
 
 - **현재 기획 결정 D20은 "MVP 입력은 키보드·마우스만"이다**([DECISIONS](../planning/DECISIONS.md)). 이 설계는 D20을 바꾸지 않는다. MVP에서는 패드를 막지 않는 구조(단계 G0)만 준비하고, 패드 지원(G1·G2)은 D20 개정 후 진행한다.
 - 엔진만으로 Windows에서 보장되는 패드는 **XInput(Xbox 계열)** 뿐이다. PS·스위치 패드는 **Steam Input의 Xbox 에뮬레이션**에 맡기는 것을 권장한다.
 - 엔진에 없어서 프로젝트가 만들어야 하는 것: 패드 종류 판별(Windows XInput은 종류를 알려 주지 않음), Xbox·PS 버튼 아이콘, 패드 감도·진동 옵션, 패드 해제 처리, 조준 보조, Steam Deck 온스크린 키보드.
-- 현재 코드에서 패드를 **의도적으로 막는 곳은 키 재설정 3곳**이고, 그 밖에 키 이름이 박힌 안내 문구·마우스 전용 UI가 있다. 게임 본편 패드 조작은 **정식 캐릭터(Pawn)가 아직 없어서** 기준 코드가 없다.
+- 현재 코드에서 패드를 **의도적으로 막는 곳은 키 재설정 3곳과 안내 문구 조회 1곳**(G0-1에서 추가, `Game/Input/DigetherInputPrompt.cpp`의 `ChooseDisplayKey`)이다. 두 필터는 조건이 다르다(재설정은 패드·터치·축·Esc·AnyKey 제외, 문구 조회는 패드·터치만 제외). 그 밖에 고정된 이동·시점 안내 문구와 마우스 전용 UI가 있다. 게임 본편 패드 조작은 **정식 캐릭터(Pawn)가 아직 없어서** 기준 코드가 없다.
 
 ## 2. 지원 단계 제안
 
@@ -19,28 +19,28 @@
 
 Steam의 Full/Partial 공식 정의 원문은 확인하지 못했다(`미확인`). Steam Deck 호환 문서는 기본 컨트롤러 구성만으로 모든 콘텐츠 접근, 사용 중인 입력과 맞는 글리프, 텍스트 입력 시 온스크린 키보드 표시를 요구한다(https://partner.steamgames.com/doc/steamdeck/compat).
 
-**권장:** 지금은 G0만 진행하고, G1 착수 여부는 기획 답변을 받은 뒤 정한다. G0 작업 대부분은 키보드 재설정에도 바로 쓸모가 있다(아래 4.3의 안내 문구 문제는 지금도 키를 바꾸면 틀린 키를 보여 주는 결함이다).
+**권장:** 지금은 G0만 진행하고, G1 착수 여부는 기획 답변을 받은 뒤 정한다. G0 작업 대부분은 키보드 재설정에도 바로 쓸모가 있다(4.4의 안내 문구 문제는 키보드 재설정만으로도 틀린 키를 보여 주던 결함이며, 상호작용·붓기 문구는 G0-1에서 고쳤다).
 
 ## 3. 현재 상태와 막히는 지점
 
-경로는 `DIGETHER/Source/DIGETHER/` 기준이다. 바이너리 에셋(IA·IMC·`DT_UIActions`)의 키 지정은 열지 않았다.
+경로는 `DIGETHER/Source/DIGETHER/` 기준이다. 바이너리 에셋(IA·IMC·`DT_UIActions`)의 키 지정은 열지 않았다. 줄 번호는 2026-11-10 코드 기준이다.
 
 | 영역 | 현재 | 패드 지원 시 문제 |
 |---|---|---|
 | 허브 Pawn | `ADigetherTestPawn`(`ADefaultPawn`, 임시). 엔진 legacy 축 매핑으로 패드 이동·시점이 들어올 가능성이 있음(추정) | Enhanced Input·재설정·감도를 거치지 않음. 정식 캐릭터 결정 전에는 패드 조작 기준이 없음 |
 | 프로토타입 캐릭터 | `Prototype/Player/DigetherPrototypeCharacter.cpp:476-519` `BindKey`/`BindAxisKey`로 WASD·E·F·1~5 등 직접 지정, 키 비교 로직 포함 | 패드 대상 아님. 정식 캐릭터에서 Enhanced Input으로 새로 만든다 |
-| 허브 컨트롤러 | `Game/Framework/DigetherGameplayPlayerController.cpp:47-156` Enhanced Input(Interact·Pour·Pause) | 코드 변경 없이 IMC에 패드 키만 추가 가능 |
+| 허브 컨트롤러 | `Game/Framework/DigetherGameplayPlayerController.cpp:47-156` Enhanced Input(Interact·Pour·Pause). IMC가 액션당 하나이고 셋 다 우선순위 1로 추가된다(`:53,63,73`) | 코드 변경 없이 IMC에 패드 키만 추가 가능. 다만 패드는 버튼 수가 적어 상황별 재사용이 필요하므로 컨텍스트 분류·우선순위가 먼저 정해져야 한다(GP-12) |
 | 음성 | `Game/Voice/DigetherVoiceComponent.cpp:178-222` `IMC_Voice`, 에셋 없을 때 V 대체 | IMC에 패드 키 추가. 대체 경로는 키보드 전용 |
-| 키 재설정 필터 | `Game/Settings/DigetherKeyBindings.cpp:45` `IsBindableKey`가 `IsGamepadKey()`와 모든 축(Axis1D/2D/3D) 제외 | ① 행 구성(`:12-22`) ② 입력 캡처(`Game/UI/Settings/DigetherSettingsPanelWidget.cpp:449,463`) ③ 저장(`DigetherKeyBindings.cpp:118`) 세 곳이 같은 필터를 씀 |
+| 키 재설정 필터 | `Game/Settings/DigetherKeyBindings.cpp:43-45` `IsBindableKey`가 `IsGamepadKey()`와 모든 축(Axis1D/2D/3D) 제외. 행 구성은 "First 슬롯이고 기본 키가 재설정 가능 키"인 매핑만 고른다(`:16`) | ① 행 구성(`:12-22`) ② 입력 캡처(`Game/UI/Settings/DigetherSettingsPanelWidget.cpp:449,463`) ③ 저장(`DigetherKeyBindings.cpp:118`) 세 곳이 같은 필터를 씀. 재설정 대상 IMC 목록(`Config/DefaultGame.ini`의 `RebindableMappingContexts`)에 템플릿 `IMC_Default`·`IMC_MouseLook`이 들어 있고, 이 IMC들에 패드 매핑이 이미 있는지는 `미확인`(바이너리) |
 | 재설정 교환 | `AssignWithSwap`(`DigetherKeyBindings.cpp:25-41`)이 행당 키 하나 | 장치(슬롯) 개념 없음 |
-| 재설정 대기 | `NativeOnPreviewKeyDown`이 모든 키를 삼키고 Escape만 취소(`Game/UI/Settings/DigetherSettingsPanelWidget.cpp:438-454`). 캡처는 KeyDown·MouseButtonDown뿐 | 패드 사용자는 대기 상태에서 빠져나올 수 없음(코드 근거 판단). 스틱·트리거 축은 캡처 불가 |
+| 재설정 대기 | `NativeOnPreviewKeyDown`이 모든 키를 삼키고 Escape만 취소(`Game/UI/Settings/DigetherSettingsPanelWidget.cpp:438-468`). 캡처는 KeyDown·MouseButtonDown뿐 | 패드 사용자는 대기 상태에서 빠져나올 수 없음(코드 근거 판단). 스틱·트리거 축은 캡처 불가 |
 | 조작 설정 | `UDigetherGameUserSettings` 마우스 감도·Y반전만. 적용처는 템플릿 `DIGETHERCharacter.cpp:120` 한 곳 | 패드 감도·데드존·진동 항목과 실제 적용 경로 없음 |
-| 안내 문구 | `Game/Hub/DigetherHubInteractionComponent.cpp:135-175` "E · …", "우클릭 유지", "이동 WASD" 고정 | 패드뿐 아니라 키보드 재설정 후에도 틀린 키 표시 |
-| UI 입력 | 메인 메뉴·대기실만 `GetDesiredInputConfig` 구현. 일시정지·시설·결과 화면은 직접 `SetInputMode` | 화면별로 입력 모드 처리 방식이 다름 |
+| 안내 문구 | `Game/Hub/DigetherHubInteractionComponent.cpp:122-182` `GetInteractionHint`가 상호작용·붓기 키를 `DigetherInputPrompt::GetActionKeyText`(실제 적용 매핑 조회)로 표시한다(2026-11-07 G0-1). 이동·시점 안내 "이동 WASD / 시점 마우스"(`:181`)는 고정이고, 말하기 문구에는 조회 사용처가 없다 | 조회가 키보드·마우스 키만 고른다(`Game/Input/DigetherInputPrompt.cpp:9-19`). 패드 지원 시 현재 입력 장치 기준 선택으로 넓히고 재설정 필터와 함께 바꿔야 한다 |
+| UI 입력 | 메인 메뉴·대기실만 `GetDesiredInputConfig` 구현. 일시정지(`Game/Framework/DigetherGameplayPauseMenu.cpp:50,82`)·시설(`DigetherHubInteractionComponent.cpp:244,314`)·결과 화면(`Game/UI/DigetherPlayerScreenComponent.cpp:157,174`)은 직접 `SetInputMode` | 화면별로 입력 모드 처리 방식이 다름. 일시정지를 닫을 때 "결과 화면이 떴으면 결과 화면의 입력 모드 유지" 예외 처리(`DigetherGameplayPauseMenu.cpp:77-81`)가 이미 있어 화면 조합마다 수동 조율이 필요하다(GP-11) |
 | UI 위젯 | 시설 패널·결과 화면은 일반 `UButton`, 결과 화면은 뒤로 처리 없음, 시설 설명은 툴팁(마우스 전용), 크레딧 빨리감기는 클릭만 | 패드로 접근 불가한 기능이 생김 |
 | 뒤로 키 | `bIsBackHandler` 사용, `bEnableEnhancedInputSupport` 꺼짐 → `DT_UIActions`가 결정 | 패드 B 지정 여부 미확인 |
 | 아이콘 | 컨트롤러 데이터 에셋 없음. CommonUI 플러그인에도 Xbox/PS 아이콘 없음 | 아이콘 에셋·데이터를 새로 만들어야 함 |
-| 시험 | `Game/Tests/DigetherUserOptionsTest.cpp:39`가 "패드 키 제외"를 고정 | 정책 변경 시 기대값을 함께 바꿔야 함 |
+| 시험 | `Game/Tests/DigetherUserOptionsTest.cpp:39`가 "패드 키 제외"를 고정. 문구 조회 시험은 `Game/Tests/DigetherInputPromptTest.cpp` | 정책 변경 시 기대값을 함께 바꿔야 함 |
 
 ## 4. 설계
 
@@ -87,7 +87,7 @@ Steam의 Full/Partial 공식 정의 원문은 확인하지 못했다(`미확인`
 ### 4.4 현재 입력 장치와 안내 문구·아이콘
 
 - 현재 장치는 `UCommonInputSubsystem`(`GetCurrentInputType`, `OnInputMethodChangedNative`)으로 판단한다. 아날로그 축만 움직일 때는 전환하지 않고 스틱이 디지털 키로 바뀌는 기울기(약 0.24)에서 전환된다. 스래싱 방지는 **전환 간격이 3초 미만인 연속 전환**을 세어 한도(30)를 넘으면 키보드·마우스로 고정하고, 쿨다운(1초) 이후 들어오는 입력에서 해제를 다시 판단한다(엔진 `CommonInputSubsystem.cpp:193,242-277,354-364`).
-- **안내 문구는 액션 기준으로 만든다.** "E · 줍기" 대신 `액션 + 현재 장치 → 키 이름/아이콘`을 조회하는 공용 함수(예: `UDigetherInputPromptLibrary`)를 두고, 장치 전환·키 재설정 시 다시 그린다. 이 함수는 Enhanced Input에 실제 적용된 키(`QueryKeysMappedToAction`)를 직접 읽는다.
+- **안내 문구는 액션 기준으로 만든다.** "E · 줍기" 대신 `액션 + 현재 장치 → 키 이름/아이콘`을 조회하는 공용 함수를 두고, 장치 전환·키 재설정 시 다시 그린다. 이 함수는 Enhanced Input에 실제 적용된 키(`QueryKeysMappedToAction`)를 직접 읽는다. 현재 구현(G0-1)은 네임스페이스 `DigetherInputPrompt`(`Game/Input/`)이며 장치 인자 없이 키보드·마우스 키만 고른다. 다시 그리기는 이벤트 구독이 아니라 HUD가 0.1초 주기로 문구를 다시 조회하는 방식이다(`Game/UI/Hud/DigetherRunHudWidget.cpp`의 `InteractionRefreshSeconds`). 장치 전환 알림 구독은 G1-2에서 정한다.
 - `CommonActionWidget`이 재설정을 반영하려면 **CommonUI EI 연동(`bEnableEnhancedInputSupport`)이 켜져 있고 위젯에 `EnhancedInputAction`이 지정돼 있어야 한다.** 매핑 재구축 알림 구독도 이 조건일 때만 한다(엔진 `CommonActionWidget.cpp:122,423-450`). 현재처럼 꺼져 있으면 `DT_UIActions` 기반 아이콘을 쓴다. 따라서 G0(연동 꺼짐)에서는 공용 조회 함수로 문구를 그리고, `CommonActionWidget` 사용은 4.5에서 연동을 켠 뒤로 둔다. 아이콘 표시에는 해당 키의 브러시가 컨트롤러 데이터에 등록돼 있어야 한다. 홀드 키 동적 해석은 CVar `CommonUI.bEnhancedInputDynamicallyResolveHoldKeysForInputAction`(기본 false)이 필요하다.
 - **아이콘 에셋**: `UCommonInputBaseControllerData` 하위 데이터(키보드·Xbox·PS)와 `CommonInputPlatformSettings` 연결을 새로 만든다. 아이콘 그림은 아트 담당 확인이 필요하다.
 - **패드 종류 판별** — Windows XInput은 모든 패드를 같은 식별자(`XInputInterface`/`XInputController`)로 보고한다(엔진 `Plugins/Runtime/Windows/XInputDevice/.../XInputInterface.cpp:117-118,148-152,238`).
@@ -137,7 +137,7 @@ Steam의 Full/Partial 공식 정의 원문은 확인하지 못했다(`미확인`
 ### 4.9 텍스트 입력과 Steam Deck(G2)
 
 - 방 이름·코드 등 텍스트 입력 칸이 있으면 패드 사용 시 Steam 온스크린 키보드(`ISteamUtils::ShowFloatingGamepadTextInput`/`ShowGamepadTextInput`)를 띄운다. 엔진 연동이 없어 Steamworks SDK(엔진에 헤더 포함) 직접 호출이 필요하다.
-- 실제 텍스트 입력 칸 목록은 G2 착수 때 다시 센다.
+- 실제 텍스트 입력 칸 목록은 G2 착수 때 다시 센다. 2026-11-10 코드 기준으로는 방 만들기의 방 이름(`Game/UI/MainMenu/DigetherCreateRoomPanelWidget`, 기본 이름을 자동으로 채우고 기본 포커스가 이 칸), 코드 참가의 방 코드(`DigetherJoinRoomPanelWidget`), 납부 금액 입력(`Game/UI/Deposit/DigetherDepositPanelWidget`) 세 곳에 입력 칸이 있다. 이 화면들을 G1 메뉴 범위에 넣을지는 GP-13에서 정한다.
 
 ### 4.10 네트워크
 
@@ -147,7 +147,7 @@ Steam의 Full/Partial 공식 정의 원문은 확인하지 못했다(`미확인`
 
 | 단계 | 작업 | 선행 조건 | 확인 기준 |
 |---|---|---|---|
-| G0-1 | 상호작용·붓기·말하기 안내 문구를 액션 기준 조회로 교체(`DigetherHubInteractionComponent:135-170` 등). 이동·시점 안내("이동 WASD / 시점 마우스", `:175`)는 허브 Pawn이 legacy 축 입력(`ADefaultPawn`)이라 G0-4 이후 교체 | 없음(이동·시점은 G0-4) | 키보드 재설정 후 문구가 새 키를 표시. 자동 시험. **2026-11-07 구현**: `Game/Input/DigetherInputPrompt`(실제 적용 매핑 조회, G0은 키보드·마우스 키만), 허브 문구 8종, 키 설정 화면 표기 공용화. Game 시험 184개 성공, L_Hub 단독 실행에서 "E" 표시 확인. 재설정 후 실제 화면 갱신은 미확인 |
+| G0-1 | 상호작용·붓기·말하기 안내 문구를 액션 기준 조회로 교체(`DigetherHubInteractionComponent`의 `GetInteractionHint` 등). 이동·시점 안내("이동 WASD / 시점 마우스", `:181`)는 허브 Pawn이 legacy 축 입력(`ADefaultPawn`)이라 G0-4 이후 교체 | 없음(이동·시점은 G0-4) | 키보드 재설정 후 문구가 새 키를 표시. 자동 시험. **2026-11-07 구현**: `Game/Input/DigetherInputPrompt`(실제 적용 매핑 조회, G0은 키보드·마우스 키만), 허브 문구 8종, 키 설정 화면 표기 공용화. 2026-11-07 당시 Game 시험 184개 성공, L_Hub 단독 실행에서 "E" 표시 확인. HUD가 0.1초 주기로 다시 조회하므로 재설정 반영은 구조상 가능하나 실제 화면 갱신은 미확인. 말하기 문구는 조회를 쓰는 곳이 아직 없다(2026-11-10 코드 확인) |
 | G0-2 | `IsBindableKey` 장치별 분리, 행=액션·칸=장치 구조, 장치 내 교환, (A안이면) 기존 저장 이전. 패드 칸은 숨김 | 4.3 안 A/B 선택 | 기존 키보드 재설정 회귀 없음, 시험 39행 갱신, 키를 바꾼 기존 저장 슬롯 로드 후 사용자 키 유지·기본 키 중복 없음 |
 | G0-3 | 감도 커스텀 모디파이어(마우스용)로 감도 적용 경로 일원화 | 정식 캐릭터 입력 구조 | 감도 변경이 실제 Pawn 시점에 반영 |
 | G0-4 | 정식 캐릭터 입력을 Enhanced Input으로 작성 | 정식 캐릭터 결정 | `BindKey` 없음 |
@@ -161,7 +161,7 @@ Steam의 Full/Partial 공식 정의 원문은 확인하지 못했다(`미확인`
 ## 6. 검증 계획
 
 - 현재: 문서 변경만 있으므로 L1 문서 검사.
-- 단계 착수 시 [입력 카탈로그](../unreal/features/INPUT.md)·[UI 카탈로그](../unreal/features/UI.md)의 오래된 현황(컨텍스트 미등록·저장 분리 미결·"D20 미결" 표기 등)을 이 설계와 실제 구현 기준으로 갱신하는 것을 완료 조건에 넣는다.
+- [입력 카탈로그](../unreal/features/INPUT.md)·[UI 카탈로그](../unreal/features/UI.md)의 프로젝트 현황은 2026-11-10에 G0-1 구현 기준으로 한 차례 갱신했다. 이후에는 각 G 항목을 반영하는 작업 안에서 두 카탈로그의 현황을 함께 갱신하는 것을 완료 조건에 넣는다.
 - G0: 자동 시험(재설정 장치 분리·교환·필터, 문구 조회) + 키보드 회귀.
 - G1 이상: 실제 패드가 필요하다. Xbox(XInput) 직접 연결, DualSense를 Steam Input 경유, 리슨 서버 호스트와 클라이언트 각각에서 패드 사용. 입력은 로컬이지만 상호작용 RPC 경로는 M2(2인 이상)로 확인한다. Steam Input·Deck은 Steam 실행본에서만 확인 가능하다(M3).
 - 장치 없음·Steam 미실행을 성공으로 보고하지 않는다.
@@ -173,12 +173,18 @@ Steam의 Full/Partial 공식 정의 원문은 확인하지 못했다(`미확인`
 | GP-1 | 패드 지원 목표 단계(G1 부분 / G2 전체·Deck)와 시점. D20 개정 여부 | 기획·사용자 |
 | GP-2 | 패드 기본 버튼 배치(상호작용·붓기·말하기·달리기·웅크리기·슬롯 전환 등) | 기획 |
 | GP-3 | 패드 종류별 아이콘 범위(Xbox만 / 수동 선택 / 자동 판별) | 기획·사용자 |
-| GP-4 | 4.3 재설정 장치 분리 A/B, 확인·뒤로 버튼 재설정 허용 여부 | 사용자 |
+| GP-4 | 4.3 재설정 장치 분리 A/B, 확인·뒤로 버튼 재설정 허용 여부. 2026-11-10 검토에서 나온 추가 후보: 패드 매핑에 별도 MappingName을 주는 방식(엔진 `EnhancedActionKeyMapping.h`의 매핑별 설정 덮어쓰기 `SettingBehavior = OverrideSettings`. 하위 클래스·저장 이전·IMC 순서 의존이 없는 대신 매핑별 에셋 설정과 UI의 행 짝짓기 규칙이 필요, 프로필 동작은 `미확인`)을 A/B와 같은 기준으로 비교할지. G0-2를 "장치 판정 함수 단일화 + 등록 IMC의 First 슬롯이 키보드·마우스인지 검사"로 줄이고 구조 변경·저장 이전을 D20 개정 뒤로 옮길지 | 사용자 |
 | GP-5 | CommonUI Enhanced Input 연동 켜기 | 사용자 |
 | GP-6 | 패드 옵션 항목·범위·기본값(감도·데드존·커브·진동) | 기획 |
 | GP-7 | 조준 보조 여부 | 기획 |
 | GP-8 | 패드 해제 시 동작(안내만 / 이동 정지) | 기획 |
 | GP-9 | Steamworks Steam Input 옵트인 구성 | 사용자(App ID 확정 후) |
+| GP-10 | D20 기간(MVP)에 패드가 연결됐을 때의 동작(무시 / 부분 허용). 현재 정책이 없다. 프로젝트 `Config`에는 CommonInput 플랫폼 설정 구획이 없고 `InputData`만 지정돼 있다(`DefaultGame.ini`). 엔진에는 플랫폼별 `bSupportsGamepad` 스위치가 있으나(`CommonInputBaseTypes.h`) Windows 기본값과 실기 효과, 허브 Pawn의 legacy 축 입력에 미치는 영향은 `미확인` | 기획·사용자 |
+| GP-11 | 인게임 UI 입력 모드 통일(HUD·게임 메뉴·모달을 한 곳에서 관리하는 루트 레이아웃)을 G1-3보다 앞당길지. D20과 무관한 작업이며 일시정지·시설·결과 화면이 각자 `SetInputMode`를 호출하는 현재 구조(3절)가 근거다. WBP 수정과 결과·크레딧 흐름 회귀 확인이 따른다 | 사용자 |
+| GP-12 | 입력 컨텍스트 분류(공통·거점·탐사·관전·UI)와 우선순위. 현재 Interact·Pour·Pause IMC가 모두 우선순위 1이다. GP-2 버튼 배치보다 먼저 정해야 하는지, 정식 캐릭터 입력 작업과 묶을지 | 사용자 |
+| GP-13 | 단계 경계 정리: G0-3·G0-4는 선행 조건이 이 설계 밖(정식 캐릭터 결정)이라 G0 완료를 막는다. 정식 캐릭터 설계의 완료 조건으로 옮길지. G1 메뉴 범위를 화면 단위로 정할 때 텍스트 입력 화면(4.9)을 제외할지 온스크린 키보드를 선행할지. G1-4(재설정 노출·원키 캡처·옵션과 진동)를 독립 작업으로 나눌지 | 사용자 |
+
+GP-1~13은 이 표에서 관리하며 [결정과 미결 사항](../planning/DECISIONS.md)에는 이 절로 오는 링크만 둔다. 4.4-b의 `SetGamepadInputType`은 엔진 `CanChangeGamepadType()`이 참일 때만 동작하므로(`CommonInputSubsystem.cpp`) G1-2에서 플랫폼 설정을 함께 확인한다.
 
 ## 8. 확인 한계
 

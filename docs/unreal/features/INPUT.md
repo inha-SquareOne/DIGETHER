@@ -1,6 +1,6 @@
 # 입력 기능 카탈로그
 
-기준일 2026-11-04 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 채택 결정 아님**. 색인은 [기능 카탈로그](README.md).
+기준일 2026-11-04 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 채택 결정 아님**. 색인은 [기능 카탈로그](README.md). 2026-11-10 부분 정정: 프로젝트 현황(키 재설정, 게임 컨트롤러 입력, 안내 문구 조회, D20 답변)만 코드 기준으로 고쳤고 엔진 기능 조사 내용은 기준일 그대로다.
 
 범위: Enhanced Input(Action·Mapping Context·Modifier·Trigger·사용자 설정·리바인딩), 입력 모드(Game/UI), CommonInput(게임패드 아이콘 포함), GameInput 플러그인, 입력 디버깅, 접근성(홀드/토글). 캐릭터·카메라는 [GAMEPLAY_FRAMEWORK.md](GAMEPLAY_FRAMEWORK.md), UI 화면은 [UI.md](UI.md), 설정 저장은 [DATA_SAVE.md](DATA_SAVE.md), 입력 시험은 [DEBUG_TEST.md](DEBUG_TEST.md)를 본다. 프로젝트 기준은 [표준 기능](../STANDARD_FEATURES.md#enhanced-input)이다.
 
@@ -9,7 +9,7 @@
 ## 요약
 - **Enhanced Input이 기본 경로다.** 플러그인 `EnabledByDefault: true`, `IsBetaVersion: false`, 공식 문서도 실험 표시가 없다. 프로젝트는 `DefaultInput.ini`에서 이미 `EnhancedPlayerInput`/`EnhancedInputComponent`를 기본으로 지정했다.
 - **현재 코드는 두 갈래다.** 템플릿 `DIGETHERCharacter`는 Enhanced Input(`BindAction`+`AddMappingContext`)을 쓰지만, 실제 프로토타입 `ADigetherPrototypeCharacter`는 `BindKey`/`BindAxisKey`를 직접 쓴다. [표준 기능](../STANDARD_FEATURES.md)이 피하라고 한 구식 바인딩이며 키 재설정·게임패드·컨텍스트 전환이 안 된다. 정식 Pawn에서 정리 대상이다.
-- **리바인딩은 엔진 기능이 있다.** `UEnhancedInputUserSettings`(SaveGame 기반)와 `UPlayerMappableKeySettings`, 키 프로필로 매핑·저장·초기화를 제공한다. 5.8에서는 `UPlayerMappableInputConfig`가 5.3부터 deprecated이므로 쓰지 않는다. 프로젝트는 아직 컨텍스트를 사용자 설정에 등록하지 않는다.
+- **리바인딩은 엔진 기능이 있다.** `UEnhancedInputUserSettings`(SaveGame 기반)와 `UPlayerMappableKeySettings`, 키 프로필로 매핑·저장·초기화를 제공한다. 5.8에서는 `UPlayerMappableInputConfig`가 5.3부터 deprecated이므로 쓰지 않는다. 프로젝트는 2026-11-06부터 이 기능으로 키 재설정을 구현했고(`Game/Settings/DigetherKeyBindings.cpp`가 `RebindableMappingContexts`의 컨텍스트를 사용자 설정에 등록), 키보드·마우스 키만 받는다.
 - **5.8의 입력 모드 태그 필터링(GameplayTag)이 있다.** 필터 대상 Mapping Context는 현재 입력 모드와 쿼리가 맞을 때만 처리된다. 기본 옵션은 프로젝트 기본 쿼리 사용이며, `Engine/Config/BaseInput.ini`는 쿼리와 입력 모드 모두 `EnhancedInput.Modes.Default`를 지정한다. 빈 쿼리는 일치하지 않는다(아래 소스 경로).
 - **CommonUI·CommonInput은 이미 활성이다.** 프로젝트는 `CommonGameViewportClient`와 `BP_UIInputData`를 설정했고 메뉴 화면이 `FUIInputConfig`로 입력 모드를 선언한다. 단 `bEnableEnhancedInputSupport`는 기본 `false`이며 프로젝트에서 켜지 않았다.
 - **GameInputWindows는 Beta이며 GameInput 기반 플러그인 자체는 `IsBetaVersion:false`다.** 두 플러그인 모두 기본 비활성이며 프로젝트 descriptor에 명시되지 않았다. 기본 입력 경로를 바꿀 이유가 확인되기 전에는 후보로만 둔다.
@@ -21,8 +21,8 @@
 |---|---|
 | S01~S05 이동·시점·조준 상호작용 | Prototype은 `BindKey`/`BindAxisKey`(`Prototype/Player/DigetherPrototypeCharacter.cpp:476~505`) 직접 바인딩. 기존 `IA_*`/`IMC_*` 에셋(`DIGETHER/Content/Input/`의 `IA_Jump`·`IA_Look`·`IA_MouseLook`·`IA_Move`, `IMC_Default`, `IMC_MouseLook`)은 템플릿 `DIGETHERCharacter`/`DIGETHERPlayerController`가 사용. 템플릿 Variant 폴더에도 `IA_*`/`IMC_*`가 있다 |
 | 정식 Pawn | 미결정. `ADigetherTestPawn`(`ADefaultPawn`)은 입력을 직접 정의하지 않는다 |
-| 관전·레버·긴급 탈출 입력 | Gameplay PlayerController는 입력 바인딩 없이 콘솔 `Exec`(`ProcessConsoleExec`)와 서버 RPC만 있다(`DigetherGameplayPlayerController.h`) |
-| S30~S33 설정·접근성 | `UDigetherGameUserSettings`가 마우스 감도·Y 반전을 `GameUserSettings.ini`에 저장(`Game/Settings/`). 템플릿 Character가 읽어 적용(`DIGETHERCharacter.cpp:120`). **키 재설정 C++ 구현(2026-11-06)**: `DefaultInput.ini bEnableUserSettings=True`, `UDigetherKeyBindingLibrary`(행 조회·바뀐 키만 `MapPlayerKey`·`AsyncSaveSettings`), `UDigetherUserOptionsSubsystem`이 DIGETHER Options의 `RebindableMappingContexts`를 등록, 설정 패널 키 탭(겹치는 키는 교환). 행이 보이려면 IA에 Player Mappable Key Settings가 있어야 하며 에셋 지정 전이라 실기 미검증 |
+| 상호작용·레버·붓기·일시정지 입력 | Gameplay PlayerController가 Enhanced Input으로 상호작용(레버 길게 누르기 포함)·붓기·일시정지 액션을 바인딩한다(`Game/Framework/DigetherGameplayPlayerController.cpp`의 `SetupInputComponent`, IMC는 `Content/Game/Input/`의 `IMC_HubInteract`·`IMC_Pour`·`IMC_Pause`, 셋 다 우선순위 1). C++는 Started/Completed/Canceled 이벤트를 받아 길게 누르기를 서버 게이지로 처리한다(IA 에셋의 트리거 설정은 열어 보지 않음). 음성은 `IMC_Voice`. 개발용 콘솔 `Exec`(`ProcessConsoleExec`)도 남아 있다. 안내 문구는 `Game/Input/DigetherInputPrompt`가 실제 적용 매핑에서 키 이름을 조회한다(2026-11-07, 키보드·마우스 키만). 관전 대상 전환·긴급 탈출의 입력 액션은 이 표에서 확인하지 않았다 |
+| S30~S33 설정·접근성 | `UDigetherGameUserSettings`가 마우스 감도·Y 반전을 `GameUserSettings.ini`에 저장(`Game/Settings/`). 템플릿 Character가 읽어 적용(`DIGETHERCharacter.cpp:120`). **키 재설정 C++ 구현(2026-11-06)**: `DefaultInput.ini bEnableUserSettings=True`, `UDigetherKeyBindingLibrary`(행 조회·바뀐 키만 `MapPlayerKey`·`AsyncSaveSettings`), `UDigetherUserOptionsSubsystem`이 DIGETHER Options의 `RebindableMappingContexts`를 등록, 설정 패널 키 탭(겹치는 키는 교환). 행이 보이려면 IA에 Player Mappable Key Settings가 있어야 한다. 2026-11-06 후속 작업에서 IA·IMC 에셋에 지정했고 PIE에서 키 12행·교환·저장 뒤 새 프로세스 복원을 확인했다(로컬 작업 기록 기준, 패드 키는 대상 아님) |
 | UI 입력 | `DefaultEngine.ini`에 `GameViewportClientClassName=/Script/CommonUI.CommonGameViewportClient`, `DefaultGame.ini`에 `[/Script/CommonInput.CommonInputSettings] InputData=BP_UIInputData`. 메인 메뉴·로비 화면은 `FUIInputConfig(ECommonInputMode::Menu, EMouseCaptureMode::NoCapture)` |
 | 입력 모드 전환 | `ADigetherFrontendPlayerController::EndPlay`에서 `SetInputMode(FInputModeGameOnly())`, Prototype 납부 입력은 `FInputModeGameAndUI`+`SetIgnoreMoveInput` |
 | 입력 플러그인 | `uproject`에 `EnhancedInput`은 명시되지 않았으나 엔진 기본 활성이며 모듈 의존(`DIGETHER.Build.cs`: `EnhancedInput`, `InputCore`, 비공개 `CommonInput`)이 있다. `GameInput*`·`PlayerInputDebugger`는 기본 비활성이고 프로젝트 명시 없음. `InputDebugging`은 기본 활성·Runtime 모듈 Shipping 제외이며 실제 로드는 미확인 |
@@ -43,8 +43,8 @@
 | `UEnhancedInputLocalPlayerSubsystem` | EnhancedInput (Runtime) | 로컬 플레이어별 컨텍스트 추가·제거, 입력 모드, 주입(`InjectInputForAction`), `GetUserSettings` | 컨텍스트 전환 | 템플릿 `DIGETHERPlayerController`가 사용 | 소스 `EnhancedInputSubsystems.h:21`, `EnhancedInputSubsystemInterface.h:114~336` |
 | `UEnhancedInputWorldSubsystem` | EnhancedInput (Runtime, **Experimental 표기**) | 월드 단위 입력 처리(로컬 플레이어 없는 입력) | 해당 없음 | 미사용(`bEnableWorldSubsystem` 기본 false) | 소스 `EnhancedInputDeveloperSettings.h` (DisplayName "Enable World Subsystem (Experimental)"), `EnhancedInputDeveloperSettings.cpp:21` |
 | 입력 모드 태그 필터링 | EnhancedInput | IMC의 `InputModeFilterOptions`·`InputModeQueryOverride`/`GetInputModeQuery()`와 현재 입력 모드 태그로 매핑 필터 | 상황별(탐사/관전/UI) 분리 | C++·Config의 별도 설정 없음. 기본 필터 활성, BP별 쿼리 미확인 | 소스 `EI/Public/InputMappingContext.h`, `EI/Private/InputMappingContext.cpp`, `EI/Private/EnhancedInputSubsystemInterface.cpp`, `Engine/Config/BaseInput.ini` |
-| Player Mappable Key (`UPlayerMappableKeySettings`) | EnhancedInput | Action/매핑에 이름·표시명·카테고리·지원 키 프로필 부여 | 리바인딩 UI 항목 | 미사용 | 소스 `PlayerMappableKeySettings.h:17~72` |
-| `UEnhancedInputUserSettings` | EnhancedInput (Runtime, 비Beta) | 사용자 키 변경 저장(SaveGame 슬롯 `EnhancedInputUserSettings`), 키 프로필, `MapPlayerKey`/`UnMapPlayerKey`/`ResetAllPlayerKeysInRow`, `SaveSettings`/`AsyncSaveSettings`, `RegisterInputMappingContext` | 키 재설정(S30~S33) | 미사용 | 소스 `UserSettings/EnhancedInputUserSettings.h:53~915`, `EnhancedInputDeveloperSettings.h:77~95` |
+| Player Mappable Key (`UPlayerMappableKeySettings`) | EnhancedInput | Action/매핑에 이름·표시명·카테고리·지원 키 프로필 부여 | 리바인딩 UI 항목 | 사용(2026-11-06, 재설정 대상 IA·IMC 에셋에 지정. 에셋 내용은 이 문서에서 열어 보지 않음) | 소스 `PlayerMappableKeySettings.h:17~72` |
+| `UEnhancedInputUserSettings` | EnhancedInput (Runtime, 비Beta) | 사용자 키 변경 저장(SaveGame 슬롯 `EnhancedInputUserSettings`), 키 프로필, `MapPlayerKey`/`UnMapPlayerKey`/`ResetAllPlayerKeysInRow`, `SaveSettings`/`AsyncSaveSettings`, `RegisterInputMappingContext` | 키 재설정(S30~S33) | 사용(2026-11-06, `Game/Settings/DigetherKeyBindings.cpp`. `DefaultInput.ini`의 `bEnableUserSettings=True`) | 소스 `UserSettings/EnhancedInputUserSettings.h:53~915`, `EnhancedInputDeveloperSettings.h:77~95` |
 | Developer Settings 기본 컨텍스트 | EnhancedInput | `DefaultMappingContexts`를 모든 로컬 플레이어에 자동 적용 | 공통 UI·디버그 컨텍스트 | 미사용 | 소스 `EnhancedInputDeveloperSettings.h:54` (제약: 게임 루트 콘텐츠만) |
 | `UEnhancedInputPlatformSettings` | EnhancedInput | 플랫폼별 컨텍스트 리디렉트(문서), `InputDataClasses`는 5.7부터 deprecated | PC 단일이면 불필요 | 미사용 | 소스 `EnhancedInputPlatformSettings.h:51,77,88`; 문서 |
 | `UPlayerMappableInputConfig` | EnhancedInput | 이전 방식 프리셋 | **쓰지 않음** | 미사용 | 소스 `PlayerMappableInputConfig.h:23` (5.3 deprecated) |
@@ -105,7 +105,7 @@
 
 ### GameInput 플러그인
 - 구성: `GameInput`(`Runtime/GameInput`, 모듈 `GameInputBase`, Win64, 비Beta, `EnabledByDefault false`)과 `GameInputWindows`(Beta, `GameInput` 의존, `GameInputWindowsLibrary` 모듈 의존). 장치 식별·데드존·원시 리포트 번역 설정(`GameInputDeveloperSettings.h`), 햅틱 엔드포인트 설정이 있다.
-- 쓸모: 레거시 XInput/RawInput으로 처리하기 어려운 범용 장치 후보. DIGETHER의 지원 입력 장치는 D20에서 미결이므로([결정 목록](../../planning/DECISIONS.md)) 필요성도 아직 확정하지 않는다.
+- 쓸모: 레거시 XInput/RawInput으로 처리하기 어려운 범용 장치 후보. DIGETHER의 MVP 입력은 키보드·마우스만이고(D20 답변 14, [결정 목록](../../planning/DECISIONS.md)) 패드 지원 범위는 [게임패드 지원 설계](../../design/GAMEPAD_SUPPORT_DESIGN.md)의 결정 대기 항목이므로 필요성도 아직 확정하지 않는다. 그 설계는 GameInput을 보류로 둔다.
 - 주의: Beta 표시, 활성 시 기본 입력 경로가 바뀌는지, Steam Input·Steam 오버레이와의 상호작용은 이번에 확인하지 않았다(`미확인`). 엔진 설치에서 `SteamInput` 이름의 플러그인·모듈은 찾지 못했다(검색 실패 ≠ 미지원).
 
 ### 입력 디버깅

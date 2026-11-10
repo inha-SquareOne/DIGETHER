@@ -1,6 +1,6 @@
 # 온라인 서브시스템·세션·음성 기능 카탈로그
 
-기준일 2026-11-04 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 목록 자체는 채택 결정 아님**. 색인은 [기능 카탈로그](README.md). 복제·레벨 전환·재접속은 [NETWORKING.md](NETWORKING.md)에 둔다. 세션 제공자, 정식 App ID, Steam Cloud 사용은 [결정 목록](../../planning/DECISIONS.md)에서 미결이다. 음성은 이후 **2026-11-04 사용자 결정으로 엔진 기본 VoIP를 선택**했으며 아직 미구현이다. 수신 제한·관전자 음성 방식은 2026-11-06 사용자 결정([아래](#수신-제한관전자-음성-방식-2026-11-06-사용자-결정))을 따른다. 이 문서는 누가 무엇을 듣는가 같은 게임 규칙을 새로 정하지 않는다.
+기준일 2026-11-04 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 목록 자체는 채택 결정 아님**. 색인은 [기능 카탈로그](README.md). 복제·레벨 전환·재접속은 [NETWORKING.md](NETWORKING.md)에 둔다. 세션 제공자, 정식 App ID, Steam Cloud 사용은 [결정 목록](../../planning/DECISIONS.md)에서 미결이다. 음성은 이후 **2026-11-04 사용자 결정으로 엔진 기본 VoIP를 선택**했고 2026-11-06에 1차 구현했다(실제 음성 송수신은 미검증, [구현 현황](#구현-현황-2026-11-06)). 프로젝트 상태 칸은 2026-11-10 코드 대조로 정정했다. 수신 제한·관전자 음성 방식은 2026-11-06 사용자 결정([아래](#수신-제한관전자-음성-방식-2026-11-06-사용자-결정))을 따른다. 이 문서는 누가 무엇을 듣는가 같은 게임 규칙을 새로 정하지 않는다.
 
 근거 표시: `소스` = 로컬 5.8.4 헤더·`.uplugin`·`.Build.cs`·`BaseEngine.ini`를 이번에 직접 열어 확인(경로 `Engine/...`). `문서` = Epic 공식 문서를 이번에 열어 확인. `미확인` = 이번에 확인하지 못함.
 
@@ -16,7 +16,7 @@
 | 관련 기능 | 현재 프로젝트 상태 |
 |---|---|
 | S01 세션 | `UDigetherSessionSubsystem`(`Game/Online`): `IOnlineSession` 사용. Steam 모드는 로비, `-nosteam`은 LAN/Null. 최대 4인(`DigetherRoomProtocol::MaxPlayers`). 방 코드·이름을 세션 설정에 기록. 초대는 `IOnlineExternalUI`. Steam 초대와 방 코드를 모두 쓰는 방향은 2026-11-04 기획 답변(초안, 확정)이며 게임 안 친구 목록은 UI 시안 뒤 검토 |
-| 접속 거절 | `DigetherJoinRules` + `PreLogin`: Steam 모드에서 Steam ID 요구, 만석·신규 참가 차단 구간 거절. 문 닫힘 중 참가 잠금과 참가 실패 문구 6종은 구현(실행 검증 일부). 같은 ID는 이전 접속 종료 후 새 접속 수락(사용자 결정 2026-11-05)이며 기획 기준(구현 진행 중)([NETWORKING.md](NETWORKING.md) 재접속 절) |
+| 접속 거절 | `DigetherJoinRules` + `PreLogin`: Steam 모드에서 Steam ID 요구, 만석·신규 참가 차단 구간 거절. 문 닫힘 중 참가 잠금과 참가 실패 문구 6종은 구현(실행 검증 일부). 같은 ID는 이전 접속 종료 후 새 접속 수락(사용자 결정 2026-11-05)이며 `PreLoginAsync`로 구현했다(자동 테스트 통과, M2 미검증. [NETWORKING.md](NETWORKING.md) 재접속 절) |
 | S28 음성 | **엔진 기본 VoIP 선택(2026-11-04 사용자 결정), 1차 구현(2026-11-06, 실제 음성 미검증).** `DefaultEngine.ini [OnlineSubsystem] bHasVoiceEnabled=true`·`[Voice] bEnabled=true`, `DefaultGame.ini bRequiresPushToTalk=false`. 코드는 `Game/Voice/`(아래 [구현 현황](#구현-현황-2026-11-06)), 세션 설정 `bUseLobbiesVoiceChatIfAvailable=false`. `uproject`에 `EOSVoiceChat` 활성(설정 없음). D-009의 제공자 미결 표시는 이전 상태이며 PQ-13의 호스트 음성 활동 검증은 남아 있다. 거리 시험값은 아래 [기획 시험값](#기획-시험값-2026-11-04-답변-초안) |
 | S30 저장 | Steam Cloud 사용 여부 미결. `UserCloud`는 OSS Steam에 구현돼 있다 |
 | 플러그인 | 이 영역에서 `uproject`가 직접 활성화한 플러그인은 `SteamSockets`, `EOSVoiceChat`이다. `OnlineSubsystemSteam`·`SteamShared`·`OnlineSubsystem`·`OnlineSubsystemUtils`·`OnlineServices`·`EOSShared`·`VoiceChat`는 이 플러그인들의 의존성에 포함된다(소스 각 `.uplugin`의 `Plugins`). 실제 모듈 로드는 타깃·플랫폼 조건에 따른다 |
@@ -49,10 +49,10 @@
 | Online Framework | `OnlineFramework`(Runtime 등, 기본 비활성) | Party, Lobby, Rejoin, Qos, PatchCheck 등 모듈 | Rejoin·Qos는 참고용 | 미사용 | 소스 `OnlineFramework.uplugin` |
 | 세션용 Blueprint 프록시 | `OnlineSubsystemUtils`·`OnlineBlueprintSupport`(UncookedOnly) | Create/Find/Join/DestroySession, 업적·순위 호출 노드 | Blueprint 팀의 세션 작업 | 미사용(C++ 서브시스템 사용) | 소스 `OnlineSubsystemUtils/Classes/*CallbackProxy.h` |
 | CommonUser 등 샘플 세션 코드 | — | — | — | 미확인(로컬 `Engine/Plugins`에서 해당 플러그인 설명자 미발견; Lyra 포함 여부도 미확인) | 미확인; 파일명 검색은 미지원 근거가 아님 |
-| 엔진 VoIP (`IOnlineVoice`, `FVoiceEngineImpl`, Voice 채널) | OnlineSubsystem·OnlineSubsystemUtils·Engine | 로컬 마이크 캡처→게임 NetDriver Voice 채널→서버 중계→재생 | 호스트가 음성 흐름을 거치는 구조 | 채택(2026-11-04 사용자 결정), 구현 비활성(ini) | 소스 `VoiceInterface.h`, `VoiceChannel.cpp`, `NetDriver.cpp` |
-| Steam 음성 | OnlineSubsystemSteam | `FOnlineVoiceSteam`(`FOnlineVoiceImpl` 파생)+`FVoiceEngineSteam`(`FVoiceEngineImpl` 파생). Steam 음성은 엔진 VoIP 경로 위에 얹힌다 | Steam 판매 시 가장 직접적 | 비활성 | 소스 `VoiceInterfaceSteam.h`, `VoiceEngineSteam.h` |
-| `UVOIPTalker` | Engine(`Net/VoiceConfig.h`) | 플레이어 음성에 위치·감쇠·이펙트 부착, `GetVoiceLevel` | 근거리 음성(엔진 VoIP) | 미사용 | 소스 `Engine/Source/Runtime/Engine/Public/Net/VoiceConfig.h` |
-| 서버 측 음성 라우팅 훅 | Engine | `UNetDriver::ReplicateVoicePacket`(가상), `UNetConnection::ShouldReplicateVoicePacketFrom`(비가상), `APlayerController::GameplayMutePlayer`/`ClientMutePlayer` | 누가 누구 음성을 받는지 서버에서 제한 | 미사용 | 소스 `NetDriver.h/.cpp`, `NetConnection.cpp`, `PlayerController.h` |
+| 엔진 VoIP (`IOnlineVoice`, `FVoiceEngineImpl`, Voice 채널) | OnlineSubsystem·OnlineSubsystemUtils·Engine | 로컬 마이크 캡처→게임 NetDriver Voice 채널→서버 중계→재생 | 호스트가 음성 흐름을 거치는 구조 | 채택(2026-11-04 사용자 결정), ini로 켬(2026-11-06) | 소스 `VoiceInterface.h`, `VoiceChannel.cpp`, `NetDriver.cpp` |
+| Steam 음성 | OnlineSubsystemSteam | `FOnlineVoiceSteam`(`FOnlineVoiceImpl` 파생)+`FVoiceEngineSteam`(`FVoiceEngineImpl` 파생). Steam 음성은 엔진 VoIP 경로 위에 얹힌다 | Steam 판매 시 가장 직접적 | 엔진 VoIP를 켰으므로 Steam 모드에서 쓰이는 경로(Steam 실제 음성은 미검증) | 소스 `VoiceInterfaceSteam.h`, `VoiceEngineSteam.h` |
+| `UVOIPTalker` | Engine(`Net/VoiceConfig.h`) | 플레이어 음성에 위치·감쇠·이펙트 부착, `GetVoiceLevel` | 근거리 음성(엔진 VoIP) | 사용(`UDigetherVoiceTalker`) | 소스 `Engine/Source/Runtime/Engine/Public/Net/VoiceConfig.h` |
+| 서버 측 음성 라우팅 훅 | Engine | `UNetDriver::ReplicateVoicePacket`(가상), `UNetConnection::ShouldReplicateVoicePacketFrom`(비가상), `APlayerController::GameplayMutePlayer`/`ClientMutePlayer` | 누가 누구 음성을 받는지 서버에서 제한 | `GameplayMutePlayer`/`GameplayUnmutePlayer` 사용(`UDigetherVoiceRoutingComponent`). `ReplicateVoicePacket` 재정의는 미사용 | 소스 `NetDriver.h/.cpp`, `NetConnection.cpp`, `PlayerController.h` |
 | VoiceChat 인터페이스 | `Plugins/Online/VoiceChat/VoiceChat`(**ClientOnly**) | `IVoiceChat`/`IVoiceChatUser`: 로그인, 채널 입장, 위치 채널, 장치, 음소거, 발화 이벤트 | 제공자 중립 음성 API | 간접 활성(`EOSVoiceChat` 의존) | 소스 `VoiceChat.uplugin`, `VoiceChat.h` |
 | EOSVoiceChat | `Plugins/Online/VoiceChat/EOSVoiceChat`(**ClientOnlyNoCommandlet**, 기본 비활성, Android/Mac/Win64) | EOS RTC로 구현한 `IVoiceChat`; `Set3DPosition`은 미구현 | 위치 음성 API의 제공자 구현 한계 확인 대상 | 플러그인 활성, **설정 없음**; 선택한 음성 경로는 엔진 VoIP | 소스 `EOSVoiceChat.uplugin`, `EOSVoiceChat.cpp`, `Engine/Plugins/Online/VoiceChat/EOSVoiceChat/Source/EOSVoiceChat/Private/EOSVoiceChatUser.cpp` |
 | EOS 로비 RTC 방 | OnlineSubsystemEOS | 세션 설정 `bUseLobbiesVoiceChatIfAvailable`가 EOS 로비의 `bEnableRTCRoom`이 됨 | 로비 단위 음성 | 미사용(값 false) | 소스 `OnlineSessionEOS.cpp` |
@@ -68,7 +68,7 @@
 - 기본 서비스 선택: `[OnlineSubsystem] DefaultPlatformService=Steam`. 이름을 주면 다른 서비스를 지연 로드한다. (문서·소스)
 
 ### OnlineSubsystemSteam 설정
-- 프로젝트 `DefaultEngine.ini` (읽기만 함): `[OnlineSubsystem] DefaultPlatformService=Steam, bHasVoiceEnabled=false`, `[OnlineSubsystemSteam] bEnabled=true, SteamDevAppId=480, bUseSteamNetworking=true, bAllowP2PPacketRelay=true, bVACEnabled=false`, `[PacketHandlerComponents] +Components=OnlineSubsystemSteam.SteamAuthComponentModuleInterface`. 480은 공유 개발용 ID이며 출시 전 교체해야 한다(문서). 정식 App ID는 미결.
+- 프로젝트 `DefaultEngine.ini` (읽기만 함): `[OnlineSubsystem] DefaultPlatformService=Steam, bHasVoiceEnabled=true`(2026-11-04 조사 때는 false, 음성 1차 구현에서 켬), `[OnlineSubsystemSteam] bEnabled=true, SteamDevAppId=480, bUseSteamNetworking=true, bAllowP2PPacketRelay=true, bVACEnabled=false`, `[PacketHandlerComponents] +Components=OnlineSubsystemSteam.SteamAuthComponentModuleInterface`. 480은 공유 개발용 ID이며 출시 전 교체해야 한다(문서). 정식 App ID는 미결.
 - 엔진 기본(소스 `BaseEngine.ini`): `bEnabled=false, SteamDevAppId=0, GameServerQueryPort=27015, bInitServerOnClient=false, bRelaunchInSteam=false, GameVersion=1.0.0.0, bVACEnabled=1, bAllowP2PPacketRelay=true, P2PConnectionTimeout=90`.
 - 코드가 읽는 키(소스 `OnlineSubsystemSteam.cpp`): `SteamDevAppId`, `bRelaunchInSteam`(Steam에서 재실행), `bInitServerOnClient`. 문서: `bInitServerOnClient=true`는 Sessions(GameServer API)를 쓸 때만 필요하고 로비에는 불필요.
 - 세션 설정 제약: Steam에서 `bUsesPresence`와 `bUseLobbiesIfAvailable`는 같은 값이어야 한다. 다르면 경고 후 동작이 달라진다. (소스 `OnlineSessionInterfaceSteam.cpp` 경고문) 프로젝트는 Steam 모드에서 둘 다 true, `-nosteam` 모드에서는 값이 다르다(Null/LAN이므로 Steam 코드 경로 아님).
@@ -95,7 +95,7 @@
 - 결정 상태: 세션 서브시스템 Steam vs EOS는 미결([DECISIONS](../../planning/DECISIONS.md) D-003). 음성 방식은 이후 2026-11-04 사용자 결정으로 엔진 기본 VoIP를 선택했으므로 세션 제공자 결정과 구분한다.
 
 ### 엔진 VoIP 경로 (Steam 음성 포함)
-- 켜는 조건(소스): `[OnlineSubsystem] bHasVoiceEnabled=true`(엔진 기본값 true지만 프로젝트가 false로 덮음), `BaseEngine.ini [Voice] bEnabled=false`(엔진 기본). 프로젝트는 `[Voice]`를 덮어쓰지 않았다. `FVoiceModule`이 `GConfig [Voice] bEnabled`를 읽는다(소스 `Engine/Source/Runtime/Online/Voice/Private/VoiceModule.cpp`). 두 값 모두 정해야 한다. `[/Script/Engine.GameSession] bRequiresPushToTalk`(`DefaultGame.ini`)도 읽는다.
+- 켜는 조건(소스): `[OnlineSubsystem] bHasVoiceEnabled=true`(엔진 기본값 true), `BaseEngine.ini [Voice] bEnabled=false`(엔진 기본). 프로젝트 `DefaultEngine.ini`는 현재 두 값을 모두 true로 둔다(조사 당시에는 앞의 값을 false로 덮고 `[Voice]`는 덮어쓰지 않았다). `FVoiceModule`이 `GConfig [Voice] bEnabled`를 읽는다(소스 `Engine/Source/Runtime/Online/Voice/Private/VoiceModule.cpp`). 두 값 모두 정해야 한다. `[/Script/Engine.GameSession] bRequiresPushToTalk`(`DefaultGame.ini`)도 읽는다.
 - 한도: `MaxLocalTalkers`, `MaxRemoteTalkers`(엔진 기본 1/16), `VoiceNotificationDelta`, `PollingIntervalInMs`. (소스 `BaseEngine.ini` `[OnlineSubsystem]`)
 - 흐름(소스): 클라이언트 `ProcessLocalClientPackets`가 서버 연결의 Voice 채널로 보내고, 서버의 `UVoiceChannel::ReceivedBunch`가 `SerializeRemotePacket`로 로컬 음성 처리(호스트 재생)에 넘긴 뒤 `UNetDriver::ReplicateVoicePacket`로 다른 접속에 중계한다. 중계 조건은 수신자 PC의 `MuteList` 핸드셰이크 완료 여부와 `IsPlayerMuted`다(`UNetConnection::ShouldReplicateVoicePacketFrom`).
 - 서버 훅: `ReplicateVoicePacket`이 `virtual`이므로 NetDriver 서브클래스로 대상 필터링(거리·관전 등 정책)을 넣을 수 있다. 단 프로젝트 NetDriver가 Steam 소켓 드라이버라 서브클래스를 어느 쪽에 둘지 설계가 필요하다(미확인). 대안은 서버에서 `GameplayMutePlayer`/`GameplayUnmutePlayer`(PC 단위 음소거)로 청취 대상을 바꾸는 방식이다. (소스 `PlayerController.h`)
@@ -130,7 +130,7 @@
 
 Notion 승인본이 아닌 사용자 결정이며 1차 구현했다([구현 현황](#구현-현황-2026-11-06)).
 
-- **수신 제한**: 서버가 수신자 PC마다 `GameplayMutePlayer`/`GameplayUnmutePlayer`로 들을 수 없는 발화자를 음소거한다. 구역 이동·사망·탈출·관전 대상 변경·정산 화면·거점 복귀·크레딧 시작 같은 상태 변화 때 다시 계산한다. `ReplicateVoicePacket` 재정의(NetDriver 상속)는 거리 밖 패킷 차단이 필요해질 때만 추가 검토한다. 호스트 자신의 청취에도 음소거가 적용되는지는 실행 확인이 필요하다.
+- **수신 제한**: 서버가 수신자 PC마다 `GameplayMutePlayer`/`GameplayUnmutePlayer`로 들을 수 없는 발화자를 음소거한다. 결정은 구역 이동·사망·탈출·관전 대상 변경·정산 화면·거점 복귀·크레딧 시작 같은 상태 변화 때 다시 계산하는 것이다. 1차 구현은 상태 변화 지점에서 부르지 않고 0.25초 타이머로 전체를 다시 계산하므로, 상태가 바뀐 직후 최대 한 주기 동안 이전 수신 제한이 남는다. `ReplicateVoicePacket` 재정의(NetDriver 상속)는 거리 밖 패킷 차단이 필요해질 때만 추가 검토한다. 호스트 자신의 청취에도 음소거가 적용되는지는 실행 확인이 필요하다.
 - **관전자 → 관전자**: 위치·구역과 무관하게 전원 들림, 거리 감쇠·방향감 없음(수신 측 `UVOIPTalker`에 `ComponentToAttachTo` 미지정).
 - **생존자 → 관전자**: 관전 대상이 들을 수 있는 생존자만 들림(대상과 같은 구역, 갱도↔던전 차단 유지). 서버가 `SpectateTargetPlayerKey` 기준으로 계산한다. 감쇠·방향감은 관전 대상 위치 기준(근거리 시험값과 같음)이며, 관전자 PC의 청취 위치를 `SetAudioListenerOverride`로 관전 대상에 붙이고 대상이 바뀔 때 다시 붙인다.
 - **관전자 → 생존자**: 들리지 않음(기존 규칙).
