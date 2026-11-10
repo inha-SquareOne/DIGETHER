@@ -43,7 +43,7 @@ Android File Server의 개인 SecurityToken은 공유 DefaultEngine.ini에 넣�
 
 ### Git과 SVN 전환 절차
 
-2026-11-06 기준 1단계를 로컬 적용했으며, 사용자 후속 지시로 2단계 전에 Git 전환 변경을 로컬 커밋했다. SVN 첫 등록·content.rev와 팀원 전환·푸시는 미실행이다(ADR-004의 로컬 커밋 순서 예외).
+2026-11-06 기준 1단계를 로컬 적용했으며, 사용자 후속 지시로 2단계 전에 Git 전환 변경을 로컬 커밋했다. 2단계 SVN 첫 등록은 2026-11-10에 실행해 `content.rev`가 6이다. 팀원 전환(4단계)은 확인하지 않았다(ADR-004의 로컬 커밋 순서 예외).
 
 1. **Git 설정(로컬 커밋):** `.gitattributes`에서 LFS 제거, `.gitignore` Content 분리 규칙 추가, SVN 쪽 파일 `git rm --cached`.
 2. **SVN 첫 등록:** 최신 Content를 가진 PC에 SVN 명령줄 도구(TortoiseSVN의 command line client tools)를 설치하고 `.\scripts\svn\Initialize-SvnAssets.ps1 -RepoUrl <저장소 주소> -DryRun`으로 명령을 확인한 뒤 `-DryRun` 없이 실행한다. 끝나면 `content.rev`가 생긴다.
