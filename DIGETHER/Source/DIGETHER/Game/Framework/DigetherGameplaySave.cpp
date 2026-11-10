@@ -656,12 +656,6 @@ bool ADigetherGameplayGameMode::SaveProgress(ADigetherGameplayPlayerController* 
 	return bSucceeded;
 }
 
-bool ADigetherGameplayGameMode::SaveHubFacilityProgress()
-{
-	// 시설 거래의 자동 저장도 기존 호스트 인증·안전한 거점 단계·손상 파일 보호를 그대로 거친다.
-	return HasAuthority() && bRunReady && !bRestoreRejected && WriteProgress();
-}
-
 bool ADigetherGameplayGameMode::LoadProgress(ADigetherGameplayPlayerController* Requester, const bool bStartup)
 {
 	// 기획 S33: 실패 사건·크레딧 중에는 불러오기를 받지 않는다. 결과 기록·새 게임 생성을 우회하지 않게 한다.

@@ -21,8 +21,8 @@
 /DIGETHER/Source/DIGETHER/Game/Dev/ @AidenKim923
 
 # 용다인: DEV-012 굴착. 갱도 전체에는 김민성 담당 보강도 있어 광역 지정하지 않는다.
-# 권한 확인 대기: /DIGETHER/Source/DIGETHER/Prototype/World/DigetherExcavation* @go5rae
-# 권한 확인 대기: /DIGETHER/Source/DIGETHER/Prototype/Tests/DigetherExcavationTerrainTest.cpp @go5rae
+/DIGETHER/Source/DIGETHER/Game/Excavation/Dain/ @go5rae
+/DIGETHER/Source/DIGETHER/Game/Excavation/DainLab/ @go5rae
 
 # 김지훈: DEV-042 던전 진입. 현재 시험용 양방향 포탈 경로
 # 권한 확인 대기: /DIGETHER/Source/DIGETHER/Prototype/World/DigetherPrototypePortal.* @zhun0922

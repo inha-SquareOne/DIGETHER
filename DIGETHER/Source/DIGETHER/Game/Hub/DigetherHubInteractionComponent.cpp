@@ -8,6 +8,7 @@
 #include "Game/Elevator/DigetherElevatorLeverComponent.h"
 #include "Game/Framework/DigetherGameplayPlayerController.h"
 #include "Game/Hub/DigetherHubFacilityActor.h"
+#include "Game/Input/DigetherInputPrompt.h"
 #include "Game/UI/Hub/DigetherHubFacilityWidget.h"
 #include "GameFramework/Pawn.h"
 #include "TimerManager.h"
@@ -125,6 +126,8 @@ FText UDigetherHubInteractionComponent::GetInteractionHint() const
 	{
 		return FText::GetEmpty();
 	}
+	// 고정 키 대신 현재 적용 매핑의 키 이름(키 재설정 반영)
+	const FText InteractKey = DigetherInputPrompt::GetActionKeyText(Controller, Controller->GetInteractAction());
 	if (const ADigetherElevatorLeverActor* Lever = HeldInteractionLever.Get())
 	{
 		if (ShouldShowOtherLeverActive(*Lever))
@@ -132,17 +135,18 @@ FText UDigetherHubInteractionComponent::GetInteractionHint() const
 			return NSLOCTEXT("DigetherHub", "OtherLeverActive", "다른 레버가 작동 중입니다");
 		}
 		const FDigetherElevatorLeverPublicState State = Lever->GetLeverComponent()->GetPublicState();
-		return FText::Format(NSLOCTEXT("DigetherHub", "HoldingLever", "E를 계속 눌러 레버 작동 · {0}%"),
-			FText::AsNumber(FMath::RoundToInt(State.Progress * 100)));
+		return FText::Format(NSLOCTEXT("DigetherHub", "HoldingLever", "{0} 계속 누르기 · 레버 작동 {1}%"),
+			InteractKey, FText::AsNumber(FMath::RoundToInt(State.Progress * 100)));
 	}
+	const FText PourKey = DigetherInputPrompt::GetActionKeyText(Controller, Controller->GetPourAction());
 	if (Controller->IsPouring())
 	{
-		return NSLOCTEXT("DigetherHub", "Pouring", "우클릭 유지 · 금화를 붓는 중");
+		return FText::Format(NSLOCTEXT("DigetherHub", "Pouring", "{0} 유지 · 금화를 붓는 중"), PourKey);
 	}
 	AActor* Target = FindInteractionTarget();
 	if (Target != nullptr && Target->IsA<ADigetherFloorCoinActor>())
 	{
-		return NSLOCTEXT("DigetherHub", "FloorCoinPrompt", "E · 금화 줍기");
+		return FText::Format(NSLOCTEXT("DigetherHub", "FloorCoinPrompt", "{0} · 금화 줍기"), InteractKey);
 	}
 	if (const ADigetherHubFacilityActor* Facility = Cast<ADigetherHubFacilityActor>(Target))
 	{
@@ -155,24 +159,26 @@ FText UDigetherHubInteractionComponent::GetInteractionHint() const
 		case EDigetherHubFacilityKind::Altar: Name = NSLOCTEXT("DigetherHub", "AltarPrompt", "제단"); break;
 		case EDigetherHubFacilityKind::Stage: Name = NSLOCTEXT("DigetherHub", "StagePrompt", "스테이지 구입·선택"); break;
 		}
-		return FText::Format(NSLOCTEXT("DigetherHub", "UsePrompt", "E · {0}"), Name);
+		return FText::Format(NSLOCTEXT("DigetherHub", "UsePrompt", "{0} · {1}"), InteractKey, Name);
 	}
 	if (const ADigetherElevatorLeverActor* Lever = Cast<ADigetherElevatorLeverActor>(Target))
 	{
 		if (Lever->GetLeverKind() == EDigetherElevatorLeverKind::Departure)
 		{
-			return NSLOCTEXT("DigetherHub", "DeparturePrompt", "E 길게 누르기 · 출발 레버");
+			return FText::Format(NSLOCTEXT("DigetherHub", "DeparturePrompt", "{0} 길게 누르기 · 출발 레버"), InteractKey);
 		}
 		if (ShouldShowOtherLeverActive(*Lever))
 		{
 			return NSLOCTEXT("DigetherHub", "OtherLeverActive", "다른 레버가 작동 중입니다");
 		}
-		return Lever->GetPlacement() == EDigetherElevatorLeverPlacement::Outside
-			? NSLOCTEXT("DigetherHub", "AscentPromptOutside", "E 길게 누르기 · 상승 레버(밖) · 당긴 사람은 타지 않습니다")
-			: NSLOCTEXT("DigetherHub", "AscentPromptInside", "E 길게 누르기 · 상승 레버(안)");
+		return FText::Format(Lever->GetPlacement() == EDigetherElevatorLeverPlacement::Outside
+			? NSLOCTEXT("DigetherHub", "AscentPromptOutside", "{0} 길게 누르기 · 상승 레버(밖) · 당긴 사람은 타지 않습니다")
+			: NSLOCTEXT("DigetherHub", "AscentPromptInside", "{0} 길게 누르기 · 상승 레버(안)"), InteractKey);
 	}
-	return IsValid(Target) ? NSLOCTEXT("DigetherHub", "PourPrompt", "우클릭 길게 누르기 · 정산기에 금화 붓기")
-		: NSLOCTEXT("DigetherHub", "ApproachPrompt", "시설에 다가가 바라본 뒤 E · 이동 WASD / 시점 마우스");
+	// 이동·시점은 임시 Pawn의 엔진 기본 입력이라 정식 캐릭터 입력 전까지 고정 표기(설계 G0-4)
+	return IsValid(Target)
+		? FText::Format(NSLOCTEXT("DigetherHub", "PourPrompt", "{0} 길게 누르기 · 정산기에 금화 붓기"), PourKey)
+		: FText::Format(NSLOCTEXT("DigetherHub", "ApproachPrompt", "시설에 다가가 바라본 뒤 {0} · 이동 WASD / 시점 마우스"), InteractKey);
 }
 
 void UDigetherHubInteractionComponent::HandleInteractStarted()

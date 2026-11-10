@@ -13,7 +13,7 @@
 | 상점 | `BP_HubVisual_Shop` | 상점 기능 Actor·시설 ID·상호작용 원점 |
 | 물품 수령함 | `BP_HubVisual_Delivery` | 수령 기능 Actor·시설 ID·상호작용 원점 |
 | 침대 | `BP_HubVisual_Bed` | 침대별 기능 Actor·시설 ID·`RestLocationOffset` |
-| 제단의 수조 | `BP_HubVisual_Altar` | 제단 기능 Actor·시설 ID·기존 `OfferingLight` 참조 |
+| 제단의 수조 | `BP_HubVisual_Altar` | 기존 기능 Actor·시설 ID·`OfferingLight` 참조는 호환용 보존. 11/6 답변 15에 따라 헌납 기능 비활성 |
 | 납부대 | `BP_HubVisual_Deposit` | 납부대 기능 Actor·`StationId`·거리 판정 원점 |
 | 스테이지 구매·선택 패널 | `BP_HubVisual_StagePanel` | 스테이지 기능 Actor·시설 ID·상호작용 원점 |
 | 엘리베이터 바닥 외형 | `BP_HubVisual_Elevator` | 기능 엘리베이터와의 부착·탑승 영역 |
@@ -92,7 +92,7 @@ SceneRoot
 | 모든 시설 | 새 메시와 임시 메시가 동시에 보이지 않고, 새 아트의 충돌이 켜지지 않는다. 기존 `CollisionRoot` 형상과 접근 동선을 유지한다. |
 | 상호작용 | 시설 앞에서 기존 거리·시야 조건으로 UI가 열리고, 뒤쪽·벽 너머에서는 부적절하게 열리지 않는다. 큰 장식이 실제 조작 위치를 가리지 않는다. |
 | 침대 | `RestLocationOffset`을 유지하고 누움·기상 위치가 침대 및 주변 벽과 겹치지 않는다. 별도의 아트 소켓을 실제 휴식 위치로 오인하지 않는다. |
-| 제단 | `OfferingLight`가 가리키는 기존 조명 Actor를 유지한다. 효과 작동과 복구를 확인하고, 수조 내부가 잘못된 충돌로 막히지 않는다. |
+| 제단 | `OfferingLight`의 기존 참조는 보존하되 헌납 선택지·차감·점등을 제공하지 않는다([11/6 답변 15](../../planning/PLANNING_RESPONSE_2026-11-06.md)). 요청 거절·잔고 불변을 확인하고, 수조 내부가 잘못된 충돌로 막히지 않는다. |
 | 납부대·패널 | 기존 납부 UI와 스테이지 구매·선택 UI가 열리고 같은 기능 Actor에 요청한다. |
 | 엘리베이터 | 외형이 기능 엘리베이터에 부착된 상태를 유지하며 이동·복귀를 따라간다. `BoardingVolume`과 레버 연결을 보존하고 바닥·출입 경계를 확인한다. |
 | 레버 | 외형이 각 기능 레버에 부착돼 이동을 따라간다. 두 기능 레버를 엘리베이터의 자식으로 재구성하지 않는다. 현 이동 코드가 별도로 이동시키므로 중복 이동을 피한다. |

@@ -21,6 +21,7 @@ class UInputMappingContext;
 class ADigetherHubFacilityActor;
 class UDigetherHubFacilityWidget;
 class UDigetherHubInteractionComponent;
+class UDigetherPauseMenuWidget;
 class UDigetherPlayerScreenComponent;
 class UDigetherVoiceComponent;
 
@@ -86,6 +87,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Digether|Run Result")
 	void CloseRunResult();
 
+	// ESC 메뉴: 로컬 화면만 열고 닫음, 게임 진행은 멈추지 않음
+	UFUNCTION(BlueprintCallable, Category="Digether|Pause")
+	void OpenPauseMenu();
+	UFUNCTION(BlueprintCallable, Category="Digether|Pause")
+	void ClosePauseMenu();
+	UFUNCTION(BlueprintPure, Category="Digether|Pause")
+	bool IsPauseMenuOpen() const;
+
 	UFUNCTION(BlueprintCallable, Category="Digether|Hub")
 	void StartHubInteraction(ADigetherHubFacilityActor* Facility);
 	void SubmitHubOption(int32 OptionIndex);
@@ -93,6 +102,9 @@ public:
 	FText GetInteractionHint() const;
 
 	UDigetherHubInteractionComponent* GetHubInteractionComponent() const { return HubInteractionComponent; }
+	// 안내 문구의 키 이름 조회용
+	const UInputAction* GetInteractAction() const { return InteractAction; }
+	const UInputAction* GetPourAction() const { return PourAction; }
 	TSubclassOf<UDigetherHubFacilityWidget> GetHubFacilityWidgetClass() const { return HubFacilityWidgetClass; }
 	UDigetherPlayerScreenComponent* GetPlayerScreenComponent() const { return PlayerScreenComponent; }
 	UDigetherVoiceComponent* GetVoiceComponent() const { return VoiceComponent; }
@@ -262,6 +274,19 @@ private:
 	// --- 화면: HUD·런 결과·크레딧 (위젯 수명·입력 모드는 컴포넌트) ---
 	UPROPERTY(VisibleAnywhere, Category="Digether|UI")
 	TObjectPtr<UDigetherPlayerScreenComponent> PlayerScreenComponent;
+
+	// --- ESC 메뉴 (PauseMenu.cpp) ---
+	UPROPERTY(EditDefaultsOnly, Category="Digether|Pause|Input")
+	TObjectPtr<UInputMappingContext> PauseMappingContext;
+	UPROPERTY(EditDefaultsOnly, Category="Digether|Pause|Input")
+	TObjectPtr<UInputAction> PauseAction;
+	UPROPERTY(EditDefaultsOnly, Category="Digether|Pause|UI")
+	TSubclassOf<UDigetherPauseMenuWidget> PauseMenuWidgetClass;
+	UPROPERTY(Transient)
+	TObjectPtr<UDigetherPauseMenuWidget> PauseMenuWidget;
+	bool bPauseMenuPreviousCursorVisible = false;
+	void HandlePausePressed();
+	void HandlePauseMenuDeactivated();
 
 	// --- 음성: 마이크 모드·재생 설정·관전 청취 위치 (로컬 전용) ---
 	UPROPERTY(VisibleAnywhere, Category="Digether|Voice")

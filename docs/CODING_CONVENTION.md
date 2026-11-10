@@ -46,7 +46,7 @@ DIGETHER의 C++·Blueprint·에셋 작성 규칙이다. 기본은 Epic의 [Unrea
 
 ## 2. 파일과 폴더
 
-- 런타임 코드는 `DIGETHER/Source/DIGETHER/` 아래 기능 폴더에 둔다. 새 정식 코드는 `Game/<도메인>/`(Core·Data·Session·Run·Elevator·Inventory·Economy·Life·Interaction·Save·Input)에 둔다.
+- 런타임 코드는 `DIGETHER/Source/DIGETHER/` 아래 기능 폴더에 둔다. 새 정식 코드는 `Game/<도메인>/`에 둔다. 도메인 폴더 목록의 원본은 [코드 구조 계획의 폴더와 이름](design/CODE_STRUCTURE_PLAN.md#폴더와-이름)이다.
 - 에디터 전용 코드는 에디터 모듈·플러그인(`DigetherWorkbench` 등)에 두고, 런타임 모듈이 에디터 모듈에 의존하지 않게 한다.
 - 헤더는 `#pragma once`로 시작한다. 직접 쓰는 타입의 헤더만 포함하고, 포인터·참조로만 쓰는 타입은 전방 선언한다. `.generated.h`는 헤더의 마지막 include다.
 - 구현 파일에 대응하는 헤더가 있으면 그 헤더를 첫 include로 둔다.

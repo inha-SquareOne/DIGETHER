@@ -4,7 +4,6 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Game/Framework/DigetherFrameworkLog.h"
-#include "Game/Framework/DigetherGameplayGameMode.h"
 #include "Game/Hub/DigetherHubFacilityActor.h"
 #include "Game/Hub/DigetherHubInteractionComponent.h"
 #include "Game/Hub/DigetherHubStateActor.h"
@@ -118,17 +117,7 @@ void ADigetherGameplayPlayerController::Server_HubFacilityRequest_Implementation
 		LastHubRequestSeconds = Now;
 		// 패널 표시 이후 바뀐 생존·거리·시야의 서버 재검사
 		View = Hub->Execute(this, Facility, Action, OptionId, RequestId);
-		// 주기 조회의 불필요한 저장 방지
-		if (View.bProgressChanged)
-		{
-			if (ADigetherGameplayGameMode* Mode = ResolveGameplayGameMode())
-			{
-				if (!Mode->SaveHubFacilityProgress())
-				{
-					View.Message = FText::Format(NSLOCTEXT("DigetherHub", "AutosaveFailed", "{0}\n자동 저장에 실패했습니다. 현재 진행은 유지됩니다."), View.Message);
-				}
-			}
-		}
+		// 기획 답변 05(2026-11-06): 시설 변경은 메모리에 유지하고 공식 저장 시점에 함께 저장한다.
 	}
 	Client_HubFacilityResult(View);
 }

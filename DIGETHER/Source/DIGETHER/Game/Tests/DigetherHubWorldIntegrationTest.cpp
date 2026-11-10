@@ -24,7 +24,11 @@
 #include "Game/Hub/DigetherHubStateActor.h"
 #include "Game/Life/DigetherLifeStateComponent.h"
 #include "Game/Run/DigetherRunCoordinatorComponent.h"
+#include "Game/Save/DigetherSaveRules.h"
+#include "Game/Save/DigetherSaveStorage.h"
+#include "Kismet/GameplayStatics.h"
 #include "Misc/AutomationTest.h"
+#include "OnlineSubsystemTypes.h"
 #include "UObject/UnrealType.h"
 
 // 준비만 노출, 거래·점유·레버 시작/유지는 제품 서버 함수 직접 호출
@@ -43,6 +47,13 @@ public:
 			&& State->GetQuotaComponent()->SetQuotaState(FDigetherEconomyRules::MakeInitialQuotaState(Tuning), false)
 				== EDigetherEconomyResult::Success
 			&& Mode.InitializeRunActors();
+	}
+	static bool StartMineRun(ADigetherGameplayGameMode& Mode, ADigetherGameplayPlayerState& Player)
+	{
+		Mode.RunParticipants = { &Player };
+		Mode.DeparturePlayerCount = 1;
+		return Mode.RunCoordinatorComponent->StartRun(Mode.RunTuning, Mode.FixedRunRuleTuning,
+			Mode.GetWorld()->GetTimeSeconds(), false) == EDigetherRunResult::Success;
 	}
 #if !UE_BUILD_SHIPPING
 	static void SetSmokeRequester(ADigetherGameplayGameMode& Mode, ADigetherGameplayPlayerController* Controller)
@@ -129,16 +140,27 @@ namespace
 				if (GEngine) GEngine->DestroyWorldContext(World);
 			}
 			if (Instance) Instance->RemoveFromRoot();
+			for (const FString& Slot : TemporarySaveSlots)
+			{
+				if (UGameplayStatics::DoesSaveGameExist(Slot, 0)) UGameplayStatics::DeleteGameInSlot(Slot, 0);
+			}
 		}
 		FHubFacilityWorld(const FHubFacilityWorld&) = delete;
 		FHubFacilityWorld& operator=(const FHubFacilityWorld&) = delete;
 		bool IsReady() const { return bReady; }
 		UWorld* GetWorld() const { return World; }
 		ADigetherGameplayGameMode* GetMode() const { return Mode; }
+		ADigetherElevatorActor* GetElevator() const { return Elevator; }
 		ADigetherHubStateActor* GetHub() const { return Hub; }
 		ADigetherElevatorLeverActor* GetDeparture() const { return Departure; }
 		ADigetherElevatorLeverActor* GetAscent() const { return Ascent; }
 		ADigetherElevatorLeverActor* GetAscentOutside() const { return AscentOutside; }
+		bool TrackSaveSlots(const FDigetherSaveSlotNames& Names)
+		{
+			if (UGameplayStatics::DoesSaveGameExist(Names.Primary, 0) || UGameplayStatics::DoesSaveGameExist(Names.Backup, 0)) return false;
+			TemporarySaveSlots = { Names.Primary, Names.Backup };
+			return true;
+		}
 
 		FHubWorldPlayer AddPlayer(const FVector& Location = FVector(0, 0, 100), int32 Credits = 200)
 		{
@@ -235,6 +257,7 @@ namespace
 		ADigetherHubStateActor* Hub = nullptr;
 		UDigetherHubCatalog* Catalog = nullptr;
 		bool bReady = false;
+		TArray<FString> TemporarySaveSlots;
 	};
 
 	FDigetherHubView Inspect(FHubFacilityWorld& Fixture, const FHubWorldPlayer& Player, ADigetherHubFacilityActor* Facility)
@@ -427,6 +450,102 @@ bool FDigetherHubWorldLeverRetentionTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("잡기 도중 사망하면 실제 점유 해제"), Lever->GetLeverComponent()->GetActivePullerId().IsValid());
 	TestEqual(TEXT("사망 후 게이지 초기화"), Lever->GetLeverComponent()->GetPublicState().Progress, 0.f);
 	TestFalse(TEXT("사망 후 목적지 고정 해제"), Fixture.GetHub()->bDestinationLocked);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherHubWorldFinalAscentInsideLeverTest,
+	"DIGETHER.Game.Hub.World.FinalAscentRequiresInsideLever", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherHubWorldFinalAscentInsideLeverTest::RunTest(const FString& Parameters)
+{
+	FHubFacilityWorld Fixture;
+	if (!TestTrue(TEXT("서버 시설 월드 준비"), Fixture.IsReady())) return false;
+	FHubWorldPlayer Operator = Fixture.AddPlayer(FVector(400, 0, 100));
+	if (!TestTrue(TEXT("밖 레버 조작자 준비"), Operator.IsReady())) return false;
+	Fixture.UpdateBoarding(Operator);
+	ADigetherGameplayGameMode* Mode = Fixture.GetMode();
+	UDigetherElevatorComponent* Elevator = Fixture.GetElevator()->GetElevatorComponent();
+	if (!TestTrue(TEXT("탐사 참가자 등록"), FDigetherHubWorldTestAccess::StartMineRun(*Mode, *Operator.State))) return false;
+	TestEqual(TEXT("첫 하강"), Elevator->DepartHub(), EDigetherElevatorResult::Success);
+	Elevator->AdvanceTravel(MakeHubWorldTuning().ElevatorTravelSeconds);
+	if (!TestTrue(TEXT("첫 상승은 밖 레버 사용 가능"), Mode->BeginLeverPull(Operator.Controller, Fixture.GetAscentOutside()))) return false;
+	// 조작자는 탑승 영역 밖에 두고 빈 편을 실제 게이지·문 닫힘·운행 경로로 보낸다.
+	Mode->Tick(FDigetherElevatorTuning().AscentHoldSeconds);
+	TestEqual(TEXT("빈 첫 편도 상승 시작"), Elevator->GetPublicState().Phase, EDigetherElevatorPhase::Ascending);
+	TestEqual(TEXT("빈 편도 남은 탐사 시간 감소 횟수에 포함"), Mode->GetRunCoordinatorComponent()->GetConfirmedAscentCount(), 1);
+	Mode->Tick(MakeHubWorldTuning().ElevatorTravelSeconds);
+	Mode->Tick(FDigetherElevatorTuning().UpperStopSeconds);
+	Mode->Tick(MakeHubWorldTuning().ElevatorTravelSeconds);
+	if (!TestEqual(TEXT("첫 편이 돌아와 마지막 상승 대기"), Elevator->GetPublicState().Phase, EDigetherElevatorPhase::BottomWaiting)) return false;
+	TestEqual(TEXT("첫 상승 완료 횟수"), Elevator->GetPublicState().CompletedAscents, 1);
+	TestFalse(TEXT("마지막 상승은 밖 레버 거절"), Mode->BeginLeverPull(Operator.Controller, Fixture.GetAscentOutside()));
+	TestFalse(TEXT("거절된 밖 레버는 점유하지 않음"), Fixture.GetAscentOutside()->GetLeverComponent()->GetActivePullerId().IsValid());
+	Operator.Pawn->SetActorLocation(FVector(100, 0, 100));
+	Fixture.UpdateBoarding(Operator);
+	TestTrue(TEXT("마지막 상승은 안 레버 허용"), Mode->BeginLeverPull(Operator.Controller, Fixture.GetAscent()));
+	Mode->ReleaseLeverPull(Operator.Controller, Fixture.GetAscent());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherHubWorldPurchaseWaitsForOfficialSaveTest,
+	"DIGETHER.Game.Hub.World.PurchaseWaitsForOfficialSave", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherHubWorldPurchaseWaitsForOfficialSaveTest::RunTest(const FString& Parameters)
+{
+	FHubFacilityWorld Fixture;
+	if (!TestTrue(TEXT("서버 시설 월드 준비"), Fixture.IsReady())) return false;
+	FHubWorldPlayer Buyer = Fixture.AddPlayer();
+	if (!TestTrue(TEXT("구매자 준비"), Buyer.IsReady())) return false;
+	Buyer.Controller->SetAsLocalPlayerController();
+	Buyer.State->SetUniqueId(FUniqueNetIdRepl(FUniqueNetIdRef(FUniqueNetIdString::Create(
+		FGuid::NewGuid().ToString(), FName(TEXT("NULL"))))));
+	FString HostKey;
+	if (!TestEqual(TEXT("고유 시험 호스트 키"), DigetherSaveRules::MakeAuthenticatedPlayerKey(Buyer.State->GetUniqueId(), HostKey),
+		EDigetherSaveResult::Success)) return false;
+	const FDigetherSaveSlotNames Names = DigetherSaveStorage::MakeSlotNames(HostKey);
+	if (!TestTrue(TEXT("시험 슬롯은 기존 파일과 겹치지 않음"), Fixture.TrackSaveSlots(Names))) return false;
+	if (!TestTrue(TEXT("거래 이전 공식 저장 기준점 생성"), Fixture.GetMode()->SaveProgress(Buyer.Controller))) return false;
+	TArray<uint8> PrimaryBefore;
+	TArray<uint8> BackupBefore;
+	if (!TestTrue(TEXT("기준점 주 슬롯 읽기"), UGameplayStatics::LoadDataFromSlot(PrimaryBefore, Names.Primary, 0))
+		|| !TestTrue(TEXT("기준점 백업 슬롯 읽기"), UGameplayStatics::LoadDataFromSlot(BackupBefore, Names.Backup, 0))) return false;
+	ADigetherHubFacilityActor* Shop = Fixture.AddFacility(TEXT("Shop"), EDigetherHubFacilityKind::Shop);
+	Inspect(Fixture, Buyer, Shop);
+	Buyer.Controller->Server_HubFacilityRequest_Implementation(Shop, EDigetherHubAction::Purchase, TEXT("Wood"), FGuid::NewGuid());
+	TestEqual(TEXT("시설 구매는 즉시 메모리 잔고에 반영"), Buyer.State->CaptureState().BalanceCredits, 190);
+	TArray<uint8> PrimaryAfter;
+	TArray<uint8> BackupAfter;
+	TestTrue(TEXT("구매만으로 주 슬롯 변경 없음"), UGameplayStatics::LoadDataFromSlot(PrimaryAfter, Names.Primary, 0) && PrimaryAfter == PrimaryBefore);
+	TestTrue(TEXT("구매만으로 백업 슬롯 변경 없음"), UGameplayStatics::LoadDataFromSlot(BackupAfter, Names.Backup, 0) && BackupAfter == BackupBefore);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherHubWorldAltarDisabledTest,
+	"DIGETHER.Game.Hub.World.AltarDisabled", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherHubWorldAltarDisabledTest::RunTest(const FString& Parameters)
+{
+	FHubFacilityWorld Fixture;
+	if (!TestTrue(TEXT("서버 시설 월드 준비"), Fixture.IsReady())) return false;
+	FHubWorldPlayer Player = Fixture.AddPlayer();
+	if (!TestTrue(TEXT("참가자 준비"), Player.IsReady())) return false;
+	ADigetherHubFacilityActor* Shop = Fixture.AddFacility(TEXT("Shop"), EDigetherHubFacilityKind::Shop);
+	if (!TestTrue(TEXT("정상 시설 이용자 준비"), Inspect(Fixture, Player, Shop).bSuccess)) return false;
+	ADigetherHubFacilityActor* Altar = Fixture.AddFacility(TEXT("Altar"), EDigetherHubFacilityKind::Altar);
+	Fixture.GetHub()->TotalOfferingCredits = 25; // 이전 저장에서 복원한 값에 해당하는 시험 기준점
+	const FDigetherHubView View = Fixture.GetHub()->BuildView(Player.Controller, Altar);
+	TestFalse(TEXT("제단 이용은 미제공"), View.bInteractionAllowed);
+	TestTrue(TEXT("제단 UI에 헌납 옵션 없음"), View.Options.IsEmpty());
+	const int32 BalanceBefore = Player.State->CaptureState().BalanceCredits;
+	const FDigetherHubView Rejected = Fixture.GetHub()->Execute(Player.Controller, Altar,
+		EDigetherHubAction::Offer, NAME_None, FGuid::NewGuid());
+	TestFalse(TEXT("기존 클라이언트가 보낸 헌납 요청도 서버에서 거절"), Rejected.bSuccess);
+	TestEqual(TEXT("거절은 잔고 보존"), Player.State->CaptureState().BalanceCredits, BalanceBefore);
+	TestEqual(TEXT("이전 누적 헌납 기록 보존"), Fixture.GetHub()->CaptureProgress().TotalOfferingCredits, 25);
+	TestEqual(TEXT("거절은 헌납 연출을 발생시키지 않음"), Fixture.GetHub()->OfferingPulseCounter, 0);
+	TestFalse(TEXT("다른 시설에 위조한 헌납 요청도 거절"), Fixture.GetHub()->Execute(Player.Controller, Shop,
+		EDigetherHubAction::Offer, NAME_None, FGuid::NewGuid()).bSuccess);
+	TestEqual(TEXT("위조 요청도 잔고 보존"), Player.State->CaptureState().BalanceCredits, BalanceBefore);
 	return true;
 }
 

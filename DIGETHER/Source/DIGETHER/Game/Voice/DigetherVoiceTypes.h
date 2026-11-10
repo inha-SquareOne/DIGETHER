@@ -14,6 +14,14 @@ namespace DigetherVoiceDefaults
 	inline constexpr float RangeMaxCm = 2500.f;
 	// 서버 수신 제한·클라 재생 설정 갱신 간격
 	inline constexpr float RefreshSeconds = 0.25f;
+	// 플레이어별 음량 최대 배율(작게 들리는 동료 키움), 시험값
+	inline constexpr float MaxPlayerVolume = 2.f;
+
+	// 로컬 재생 음량 = 전체 목소리 × 플레이어별, 나만 음소거면 0
+	inline float PlaybackVolume(const float OverallVolume, const float PlayerVolume, const bool bMutedLocally)
+	{
+		return bMutedLocally ? 0.f : FMath::Clamp(OverallVolume, 0.f, 1.f) * FMath::Clamp(PlayerVolume, 0.f, MaxPlayerVolume);
+	}
 }
 
 enum class EDigetherVoiceRole : uint8

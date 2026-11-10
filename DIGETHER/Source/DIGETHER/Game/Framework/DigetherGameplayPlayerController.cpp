@@ -9,6 +9,7 @@
 #include "Game/Framework/DigetherFrameworkLog.h"
 #include "Game/Framework/DigetherGameplayGameMode.h"
 #include "Game/Framework/DigetherGameplayPlayerState.h"
+#include "Game/Framework/DigetherPlayerCameraManager.h"
 #include "Game/Hub/DigetherHubInteractionComponent.h"
 #include "Game/UI/Deposit/DigetherDepositPanelWidget.h"
 #include "Game/UI/DigetherPlayerScreenComponent.h"
@@ -19,6 +20,7 @@
 ADigetherGameplayPlayerController::ADigetherGameplayPlayerController()
 {
 	CheatClass = UDigetherCheatManager::StaticClass();
+	PlayerCameraManagerClass = ADigetherPlayerCameraManager::StaticClass();
 	HubInteractionComponent = CreateDefaultSubobject<UDigetherHubInteractionComponent>(TEXT("HubInteractionComponent"));
 	PlayerScreenComponent = CreateDefaultSubobject<UDigetherPlayerScreenComponent>(TEXT("PlayerScreenComponent"));
 	VoiceComponent = CreateDefaultSubobject<UDigetherVoiceComponent>(TEXT("VoiceComponent"));
@@ -62,6 +64,16 @@ void ADigetherGameplayPlayerController::BeginPlay()
 			}
 		}
 	}
+	if (IsLocalController() && PauseMappingContext)
+	{
+		if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+		{
+			if (UEnhancedInputLocalPlayerSubsystem* Input = LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
+			{
+				Input->AddMappingContext(PauseMappingContext, 1);
+			}
+		}
+	}
 #if !UE_BUILD_SHIPPING
 	ScheduleAutoCommands();
 #endif
@@ -70,7 +82,8 @@ void ADigetherGameplayPlayerController::BeginPlay()
 void ADigetherGameplayPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	ReleaseHeldInputsAndHubPanel();
-	if (IsLocalController() && (InteractMappingContext || PourMappingContext))
+	ClosePauseMenu();
+	if (IsLocalController() && (InteractMappingContext || PourMappingContext || PauseMappingContext))
 	{
 		if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
 		{
@@ -83,6 +96,10 @@ void ADigetherGameplayPlayerController::EndPlay(const EEndPlayReason::Type EndPl
 				if (PourMappingContext)
 				{
 					Input->RemoveMappingContext(PourMappingContext);
+				}
+				if (PauseMappingContext)
+				{
+					Input->RemoveMappingContext(PauseMappingContext);
 				}
 			}
 		}
@@ -126,6 +143,14 @@ void ADigetherGameplayPlayerController::SetupInputComponent()
 			Input->BindAction(PourAction, ETriggerEvent::Started, this, &ThisClass::HandlePourStarted);
 			Input->BindAction(PourAction, ETriggerEvent::Completed, this, &ThisClass::HandlePourReleased);
 			Input->BindAction(PourAction, ETriggerEvent::Canceled, this, &ThisClass::HandlePourReleased);
+		}
+	}
+	// ESC 메뉴 열기, 닫기는 메뉴의 뒤로 동작(CommonUI)이 담당
+	if (PauseAction)
+	{
+		if (UEnhancedInputComponent* Input = Cast<UEnhancedInputComponent>(InputComponent))
+		{
+			Input->BindAction(PauseAction, ETriggerEvent::Started, this, &ThisClass::HandlePausePressed);
 		}
 	}
 }

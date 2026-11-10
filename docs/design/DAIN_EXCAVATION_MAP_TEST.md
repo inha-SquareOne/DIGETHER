@@ -4,7 +4,7 @@
 
 ## 직접 실행
 
-1. UE 5.8.4로 `DIGETHER/DIGETHER.uproject`를 연다. 이번 PC의 프로젝트는 `D:\Jun\DIGETHER-Fork\DIGETHER\DIGETHER.uproject`다.
+1. UE 5.8.4로 저장소의 `DIGETHER/DIGETHER.uproject`를 연다.
 2. 콘텐츠 브라우저의 `콘텐츠 → Developers → Dain → Excavation → Maps`에서 `L_DainExcavation`을 연다. 다른 `L_ExcavationLab`과 구분한다. Developers가 숨겨져 있으면 콘텐츠 브라우저 설정에서 개발자 콘텐츠 표시를 켠다.
 3. 플레이 설정: 플레이어 수1, Net Mode Standalone. 상단 재생(선택 뷰포트)을 누른 뒤 화면을 클릭한다. Simulate는 사용하지 않는다.
 4. WASD 이동, 마우스로 조준, 좌클릭 또는 좌클릭 유지로 갈색 흙을 반복해서 판다. 사거리400cm, 시험 반경75cm/간격0.35초이며 정식 도구 수치가 아니다.
@@ -15,7 +15,7 @@
 
 ## 변경
 
-- 개인 맵 `Content/Developers/Dain/Excavation/Maps/L_DainExcavation.umap`: 기존 흙 Actor 한 개 교체. 위치(675,-450,-25), 단위 스케일, GridCells(5,18,10), CellSpacing50. 앞면X700, 뒤면X900인 약200cm 흙벽. 나머지 액터/맵 GameMode 유지.
+- 개인 맵 `Content/Developers/Dain/Excavation/Maps/L_DainExcavation.umap`: 기존 흙 Actor 한 개 교체. 위치(675,-450,-25), 단위 스케일, GridCells(5,18,10), CellSpacing50(초기 연결 당시 값. 현재 값은 아래 [표면 개선 후 현재 설정](#표면-개선-후-현재-설정)). 앞면X700, 뒤면X900인 약200cm 흙벽. 나머지 액터/맵 GameMode 유지.
 - 개인 머티리얼 `Content/Developers/Dain/Excavation/Materials/MI_DainSoilE2.uasset` 추가. 엔진 BasicShapeMaterial을 재사용해 갈색을 지정하고 두 PMC에 적용.
 - 개인 `DainLab/DigetherDainCharacter.cpp`: 첫 타격이 새 Actor이면 TryExcavate 호출. 기존 흙 Actor 분기도 보존.
 - 개인 `DainLab/DigetherDainVerification.h/.cpp`: 새/기존 Actor 모두 검사하도록 작은 조회 보조 함수 추가.

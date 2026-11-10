@@ -12,7 +12,7 @@
 
 ## DIGETHER에서 쓰이는 곳
 - **오디오 자산·재생 코드**: 프로젝트 소스에서 사운드 재생·SoundClass·Submix 사용처를 찾지 못했다. 효과음·음악 에셋 내부와 실제 재생은 미검증이다.
-- **옵션**: `UDigetherGameUserSettings`가 `FAudioDevice::SetTransientPrimaryVolume`으로 마스터 볼륨만 적용한다. 헤더 주석: 효과음·음악 SoundClass가 생기면 그 볼륨에 연결(지금은 저장만). 설정 패널에 사운드 탭 있음.
+- **옵션**: `UDigetherGameUserSettings`가 모든 오디오 장치에 마스터 볼륨(`SetTransientPrimaryVolume`)과 효과음·음악 볼륨(SoundMix 클래스 덮어쓰기 + `PushSoundMixModifier`)을 적용한다(2026-11-06 사용자 선택 SoundClass+SoundMix). 에셋은 프로젝트 설정 DIGETHER Options `VolumeSoundMix`·`EffectsSoundClass`·`MusicSoundClass`, 비어 있으면 저장만 한다(에셋 미생성). 맵 이동 후 `UDigetherUserOptionsSubsystem`이 다시 적용. 동료 목소리는 SoundClass 없이 `UDigetherVoiceTalker`가 발화 오디오 컴포넌트 음량을 직접 조절([음성](ONLINE_VOICE.md)).
 - **테스트**: 자동화 테스트 컴포넌트는 `AllowAudioPlayback(false)`로 오디오를 끄고 실행한다.
 - **프로젝트 오디오 설정** (`DefaultEngine.ini` Windows 섹션): `AudioSampleRate=48000`, `AudioCallbackBufferFrameSize=1024`, `AudioNumBuffersToEnqueue=1`, `AudioNumSourceWorkers=4`, `AudioMaxChannels=0`, `SpatializationPlugin=`·`ReverbPlugin=`·`OcclusionPlugin=` 모두 비어 있음.
 - **관련 기획**: S06 헤드랜턴·여진(DG-003/004) 연출, S25~S29 몬스터·근거리 음성(DG-016). 몬스터 청각은 [AI·내비게이션](AI_NAVIGATION.md), 음성 채팅 믹싱은 [온라인 음성](ONLINE_VOICE.md), 재생 위치 복제는 [네트워킹](NETWORKING.md)과 연결된다.

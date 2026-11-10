@@ -2828,8 +2828,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkGameOverLeaverTest,
 
 bool FDigetherFrameworkGameOverLeaverTest::RunTest(const FString& Parameters)
 {
-	// T34·S33 231행: 흡입 대기 중 떠난 사람은 기다리지 않음, 그 게임에서 번·잃은 돈이 있으면 결과에 유지,
-	// 기록 없는 떠난 사람은 결과 제외
+	// 11/6 기획 답변 08: 떠난 사람을 기다리지 않으며, 획득·손실이 0원인 이탈자도 참가 순서로 표시
 	FDigetherSaveIntegrationWorld Fixture(this);
 	if (!TestTrue(TEXT("퇴장 시험 월드"), Fixture.IsReady()))
 	{
@@ -2877,8 +2876,13 @@ bool FDigetherFrameworkGameOverLeaverTest::RunTest(const FString& Parameters)
 	{
 		Names.Add(Player.DisplayName);
 	}
-	TestTrue(TEXT("결과는 참가 순서(호스트·참가자·먼저 떠난 사람), 기록 없는 떠난 사람 제외"),
-		Names == TArray<FString>({ TEXT("Host"), TEXT("Guest"), TEXT("Left") }));
+	TestTrue(TEXT("결과는 참가 순서, 기록 없는 0원 이탈자도 포함"),
+		Names == TArray<FString>({ TEXT("Host"), TEXT("Guest"), TEXT("Left"), TEXT("Idle") }));
+	if (TestEqual(TEXT("모든 참가자 포함"), Shown.Players.Num(), 4))
+	{
+		TestEqual(TEXT("0원 이탈자 획득"), Shown.Players[3].EarnedCredits, 0);
+		TestEqual(TEXT("0원 이탈자 손실"), Shown.Players[3].DeathLossCredits, 0);
+	}
 	TestEqual(TEXT("떠난 사람 획득 포함 전체"), Shown.TotalEarnedCredits, 1080);
 	// 크레딧 중 남은 사람만으로 끝나도 새 게임으로 전환
 	FDigetherFrameworkSaveIntegrationAccess::TickGameOverAt(*Mode, GetIntegrationCreditEnd(*Mode) + 0.01);

@@ -1,6 +1,6 @@
 # 네트워크 복제·세션 이동·재접속 기능 카탈로그
 
-기준일 2026-11-04 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 채택 결정 아님**. 색인은 [기능 카탈로그](README.md). 세션·음성 제공자는 [ONLINE_VOICE.md](ONLINE_VOICE.md)에 따로 둔다.
+기준일 2026-11-04 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 채택 결정 아님**. 색인은 [기능 카탈로그](README.md). 세션·음성 제공자는 [ONLINE_VOICE.md](ONLINE_VOICE.md)에 따로 둔다. 프로젝트 상태 서술(GameMode 기반 클래스·재접속)은 2026-11-10 코드 대조로 정정했다.
 
 근거 표시: `소스` = 로컬 5.8.4의 헤더·`.uplugin`·`.Build.cs`·`BaseEngine.ini`를 이번에 직접 열어 확인(경로는 `Engine/...`). `문서` = Epic 공식 문서를 이번에 열어 확인. `미확인` = 알려진 사실이나 이번에 확인 못 함. 프로젝트 사용 여부는 C++ 소스 grep과 ini 읽기 결과다.
 
@@ -8,7 +8,7 @@
 - **레거시 복제 + 프로퍼티 복제(ReplicatedUsing/OnRep, `COND_OwnerOnly`)가 이미 프로젝트 기본선이다.** 지갑(`COND_OwnerOnly`)·엘리베이터·할당량이 이 방식이며, [네트워크 권위](../NETWORK_AUTHORITY.md) 규칙과 맞다.
 - **Iris는 Beta(`.uplugin`)인데 공식 문서는 Experimental이라 부른다.** 켜는 방법은 있으나(플러그인+CVar+NetDriver 설정) 프로젝트의 `SteamSocketsNetDriver`와의 호환은 미확인이다. 채택 전 별도 검증 대상이다.
 - **Replication Graph는 Beta이며 현재 미채택이다.** 접속 인원만으로 필요성을 단정하지 않고 복제 액터 수·서버 CPU 측정으로 판단한다. 휴면·거리 컬링·`NetUpdateFrequency`도 비교 대상이다.
-- **재접속은 `AGameMode`에만 비활성 PlayerState 기능이 있다.** 프로젝트는 `AGameModeBase`라 이 기능이 없다. `FindInactivePlayer`는 데스크톱에서 UniqueId가 유효하면 그 값을 비교한다(소스). 이름·IP 대조는 UniqueId가 무효일 때의 폴백이다.
+- **재접속은 `AGameMode`에만 비활성 PlayerState 기능이 있다.** 프로젝트의 게임 GameMode(`ADigetherGameplayGameMode`)는 `AGameMode`를 상속하고 `AddInactivePlayer`·`FindInactivePlayer`를 재정의해 쓴다(조사 당시 프로토타입은 `AGameModeBase`였다. 아래 [재접속](#재접속-비활성-playerstate) 절). `FindInactivePlayer`는 데스크톱에서 UniqueId가 유효하면 그 값을 비교한다(소스). 이름·IP 대조는 UniqueId가 무효일 때의 폴백이다.
 - **프로젝트는 대기실→게임 이동을 Seamless `ServerTravel`로 한다(2026-11-06 사용자 결정).** 비Seamless는 Steam에서 실패했다: `USteamSocketsNetDriver::Shutdown`이 이전 대기 소켓을 `MarkForDeletion`으로 다음 Tick에 닫아, 같은 프레임의 새 맵 `InitListen`이 같은 P2P 포트(7777)를 열지 못한다(`NetDriverListenFailure`, 2026-11-06 두 PC 로그·엔진 소스). 전환 맵은 비워 엔진 빈 맵을 쓴다.
 - **`NetUpdateFrequency` 등의 public 멤버 직접 접근은 5.5부터 deprecated**다. `SetNetUpdateFrequency()`·`SetNetCullDistanceSquared()`를 써야 한다(프로젝트는 이미 Setter 사용).
 
@@ -17,7 +17,7 @@
 |---|---|
 | S01 세션·재접속 | 세션 생성·검색·참가는 `UDigetherSessionSubsystem`(Steam 로비, 최대 4인). 접속 거절 규칙은 `DigetherJoinRules`가 `PreLogin`에서 판정. 신규 참가는 정상 거점 준비 상태에서만 받고 출발 게이지 완료~결과 크레딧 동안 막으며, 게이지 전 수락·완료 뒤 확정은 빈자리가 있으면 관전 합류(시스템 작업리스트 1.1.0 S01. 문 닫힘 중 참가 잠금은 구현(실행 검증 일부). 게임 오버 중 잠금·관전 합류·로비 이탈자의 탐사 중 관전 복귀·참가 실패 6종(사유 키 전달)은 구현(자동 테스트 통과, M2 미검증)). 거점 퇴장·끊김은 캐릭터 제거·자리 반환(소지 장비 바닥 유지는 인벤토리 미구현), 탐사 출발 후 끊김은 캐릭터·자리 유지. 같은 ID 교체와 비활성 PlayerState 재접속은 구현(자동 테스트 통과, M2 미검증, [SYSTEM_DESIGN](../../SYSTEM_DESIGN.md) 재접속 기술 계약) |
 | 네트워크 권위 | 복제 프로퍼티·Server/Client Reliable RPC를 `Game/` 아래에서 사용 중(지갑, 엘리베이터, 레버, 할당량, 컨트롤러) |
-| 굴착 지형 복제 | `ADigetherExcavationTerrain`: `bAlwaysRelevant=true`, `SetNetUpdateFrequency(10)` ([굴착 구현](../../design/EXCAVATION_IMPLEMENTATION.md)) |
+| 굴착 지형 복제 | 프로토타입 `ADigetherExcavationTerrain`: `bAlwaysRelevant=true`, `SetNetUpdateFrequency(10)` ([굴착 구현](../../design/EXCAVATION_IMPLEMENTATION.md)). `Game/Excavation/Dain/`의 굴착 Actor `ADigetherDiggableSoil`에는 복제 설정·복제 프로퍼티가 아직 없다 |
 | 맵 이동 | 로비 GameMode `bUseSeamlessTravel=true`. 호스트가 `World->ServerTravel(GameMap + "?listen", true)`. 게임 GameMode `HandleSeamlessTravelPlayer`가 PC·PS를 게임 클래스로 교체하고 로그인 목록을 보충(PreLogin·Login·PostLogin 미경유), 시작 저장·캐릭터 생성은 `StartPlay`·`HandleStartingNewPlayer` |
 | NetDriver | `DefaultEngine.ini`가 `GameNetDriver`를 `SteamSocketsNetDriver`(폴백 IpNetDriver)로 교체. SteamAuth 패킷 핸들러 사용 |
 | 휴면 | 명시적 휴면 설정은 C++에서 발견하지 못했다. `UDigetherMonsterHealthComponent`가 체력 변경 전에 `FlushNetDormancy()`, 변경 뒤 `ForceNetUpdate()`를 호출한다 |
@@ -43,7 +43,7 @@
 | Replication Graph | `Plugins/Runtime/ReplicationGraph`(Runtime, **Beta**) | 대량 액터·접속용 그래프 기반 복제 드라이버 | 복제 액터 수·서버 CPU 측정 후 필요성 판단 | 미사용 | 소스 `.uplugin`; 문서 |
 | 맵 이동 (`UWorld::ServerTravel`, `APlayerController::ClientTravel`, `UEngine::Browse`) | Engine | 서버 주도 맵 변경, 클라 따라 이동 | 대기실→탐사 | `ServerTravel` Seamless 사용 | 소스 `Engine/Source/Runtime/Engine/Private/World.cpp`, `PlayerController.cpp`, `UnrealEngine.cpp`; 문서 |
 | Seamless Travel (`bUseSeamlessTravel`, `TransitionMap`, `GetSeamlessTravelActorList`, `PlayerState::CopyProperties`) | Engine / EngineSettings | 연결을 끊지 않고 전환 맵 경유 이동 | 거점↔탐사 반복 이동 시 재접속 부담 감소 후보 | 대기실→게임 사용(2026-11-06) | 소스 `GameModeBase.h`, `PlayerState.h`, `GameMapsSettings.h`; 문서 |
-| 비활성 PlayerState (`AddInactivePlayer`/`FindInactivePlayer`/`OverridePlayerState`) | Engine (`AGameMode` 전용) | 이탈 PlayerState를 복제본으로 보관, 재입장 시 재연결 | 같은 ID 재접속 복원 후보 | `AGameModeBase`라 **없음** | 소스 `Classes/GameFramework/GameMode.h`, `Private/GameMode.cpp` |
+| 비활성 PlayerState (`AddInactivePlayer`/`FindInactivePlayer`/`OverridePlayerState`) | Engine (`AGameMode` 전용) | 이탈 PlayerState를 복제본으로 보관, 재입장 시 재연결 | 같은 ID 재접속 복원 | 사용. `ADigetherGameplayGameMode`(`AGameMode` 상속)가 `AddInactivePlayer`·`FindInactivePlayer`를 재정의해 복제본 대신 원본을 보존 | 소스 `Classes/GameFramework/GameMode.h`, `Private/GameMode.cpp` |
 | 접속 승인 (`PreLogin`, `PreLoginAsync`, `AGameSession::ApproveLogin`, `KickPlayer`, `BanPlayer`) | Engine | 접속 전 거절·강제 퇴장 | 신규 참가 차단 구간 거절. 같은 ID는 이전 접속 종료 후 새 접속 수락(사용자 결정 2026-11-05, 기획 답변 C2. `PreLoginAsync`로 구현, 자동 테스트 통과, M2 미검증). `KickPlayer`는 Pawn을 먼저 파괴하므로 교체에 그대로 쓰지 않음(아래 재접속 절) | `PreLogin`·`PreLoginAsync` 사용 | 소스 `GameModeBase.h`, `GameSession.h`, `GameSession.cpp` |
 | 캐릭터 이동 예측 (CharacterMovement, `ServerMovePacked`) | Engine | 클라 예측·서버 보정이 기본 내장 | 1인칭 이동은 별도 복제부터 만들지 않는다 | `ACharacter` 기반 | 소스 `Classes/GameFramework/CharacterMovementComponent.h` |
 | Network Prediction 플러그인 | `Plugins/Runtime/NetworkPrediction`(Runtime, **Beta**) | 롤백형 예측 프레임워크 | 특수 이동·물리 상호작용 필요 시 | 미사용 | 소스 `.uplugin`, `readme.txt` |
@@ -119,7 +119,12 @@
 - `AddInactivePlayer`는 PlayerState를 `Duplicate()`해 `SetReplicates(false)`, `SetLifeSpan(InactivePlayerStateLifeSpan)`으로 보관한다. 같은 UniqueId의 이전 항목은 파괴하고, 최대 수를 넘으면 오래된 것부터 제거한다. 관전자·이전 레벨 PlayerState는 저장하지 않는다. (소스)
 - `FindInactivePlayer`는 데스크톱에서 UniqueId가 유효하면 UniqueId로 비교하고, 무효면 저장된 네트워크 주소+이름으로 비교한다. 찾으면 기존 PlayerState를 새 PC에 붙이고 `OverridePlayerState`→`DispatchOverrideWith`를 부른다. (소스)
 - `APlayerState`는 `bIsInactive` 복제, `OnDeactivated`/`OnReactivated`, `CopyProperties`/`OverrideWith`를 제공한다. (소스 `PlayerState.h`)
-- **프로젝트는 `AGameModeBase`**라 위 기능이 없다. 또 이 기능은 **PlayerState만 보관**하며 Pawn은 컨트롤러 정리 때 따라 정리될 수 있어, 끊긴 캐릭터를 남겨 두는 요구(SYSTEM_DESIGN 재접속 기술 계약)를 자동 충족하지 않는다. `AGameMode`로 바꾸는 것은 MatchState 흐름 도입을 뜻하므로 영향이 크다. 대안: ① `AGameMode` 전환 ② 직접 구현한 재접속 레지스트리(세션 수명, UniqueId 키). 선택은 사용자 결정이다.
+- **프로젝트 현황(2026-11-10 코드 대조)**: 조사 당시 프로토타입은 `AGameModeBase`라 위 기능이 없었고, 대안으로 ① `AGameMode` 전환 ② 직접 구현한 재접속 레지스트리를 비교 대상으로 적었다. 이후 `Game/`의 `ADigetherGameplayGameMode`는 `AGameMode`를 상속해 ①의 경로를 재정의해서 쓴다(`Game/Framework/DigetherGameplayReconnect.cpp`). 엔진 기본과 다른 점은 다음과 같다.
+  - 탐사 중 이탈만 비활성 PlayerState로 보존한다. 엔진 기본처럼 `Duplicate()`하지 않고 원본을 `InactivePlayerArray`에 넣어(`SetReplicates(false)`, 수명·개수 제한 없음: `InactivePlayerStateLifeSpan=0`, `MaxInactivePlayers=MAX_int32`) 런 참가자 목록과 남은 Pawn이 같은 객체를 가리키게 한다.
+  - 이 기능은 **PlayerState만 보관**하므로 끊긴 캐릭터를 남기는 요구는 Controller의 `PawnLeavingGame` 재정의가 따로 맡는다.
+  - 탐사 밖(거점) 이탈은 비활성으로 보관하지 않는다. 자리를 반환하고 PlayerState·Pawn을 제거한 뒤 장부만 저장 명단 값 레코드로 남긴다.
+  - `FindInactivePlayer` 재정의는 UniqueId만 비교한다(이름·IP 폴백 없음).
+  - 복제를 끈 비활성 PlayerState가 다른 클라이언트 화면에서 어떻게 보이는지(남은 몸의 이름·생존 상태 표시)와 MatchState 흐름의 영향은 실행으로 확인하지 않았다.
 - `PreLogin`/`PreLoginAsync`로 접속 전 거절(신규 참가 차단 구간, 정원 초과 등)을 한다. 프로젝트는 `PlayerArray`만 비교하므로 동시에 대기 중인 연결은 못 잡는다는 한계를 코드 주석에 이미 적었다.
 - **같은 ID 교체**: 같은 계정이 다시 들어오면 이전 접속을 끊고 새 접속을 받는다([사용자 결정 2026-11-05](../../planning/DECISIONS.md#사용자-결정-2026-11-05) 2, 기획 답변 C2). 시스템 작업리스트 1.1.0 S01의 '이미 연결된 ID는 거절'은 기획이 다음 버전에서 고칠 항목이라 따르지 않는다. 구현(자동 테스트 통과, M2 미검증): `PreLoginAsync`에서 같은 ID의 이전 연결을 끊고 정리될 때까지 기다린 뒤 새 접속을 수락한다. 교체 대기 제한 5초는 임시값(`DigetherJoinRules.h`)이며, 여러 교체 요청이 겹쳐도 콜백을 모두 처리한다(`Online.JoinRules.ReplacementQueueKeepsEveryCallback`). 대기실은 `KickPlayer`, 게임 맵은 남긴 Pawn 재접속 계약을 지키려고 `UNetConnection::Close`를 쓴다. 주의:
   - 엔진 `AGameSession::KickPlayer`는 대상 PC의 Pawn을 먼저 `Destroy()`한 뒤 `ClientWasKicked`·PC `Destroy()`를 부른다(소스 `Engine/Source/Runtime/Engine/Private/GameSession.cpp` 369~371행). 그대로 쓰면 끊긴 캐릭터를 남기고 비활성 PlayerState로 재접속하는 계약을 깬다. 교체 경로는 Pawn을 남기고 이전 연결만 닫는 별도 처리가 필요하다.

@@ -20,7 +20,7 @@
 - 추가: 같은 폴더의 `DigetherSoilActorTests.cpp`
 - 기존 `DainLab` 흙벽·캐릭터 및 모든 맵·Blueprint 에셋은 수정하지 않았다.
 - `BP_DiggableSoil`의 부모 C++ 동작은 변경된다. 기존 `SoilMesh` 이름은 보존했지만 이전 `SoilSize` 대신 GridCells/CellSpacing을 사용한다. 새 표면의 원점은 격자 모서리이며 기본 표면 범위는 각 축 약 25~375cm다. 기존 박스 크기·피벗과 동일하다고 가정하지 않는다. 에셋 재저장·배치 이동·수동 렌더 검증은 미수행이다.
-- `L_DainExcavation`의 `Dain_DiggableSoil`은 기존 DainLab 구현이다. 이번 코드가 그 액터에 자동 교체된 것은 아니다.
+- `L_DainExcavation`의 `Dain_DiggableSoil`은 기존 DainLab 구현이다. 이번 코드가 그 액터에 자동 교체된 것은 아니다. 이후 [맵 시험](DAIN_EXCAVATION_MAP_TEST.md)에서 해당 액터를 `ADigetherDiggableSoil`로 교체했다.
 
 ## 검증 방법과 한계
 
