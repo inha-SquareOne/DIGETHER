@@ -50,6 +50,9 @@ public:
 	EDigetherMonsterSpawnResult SpawnMonsterAt(UDigetherMonsterDefinition* Definition, const FTransform& Transform,
 		FName DungeonId, ADigetherMonsterCharacter** OutMonster = nullptr);
 
+	// 서버, 몬스터가 만든 탐사 수명 Actor(둥지 등) 등록, 탐사 종료 때 파괴
+	void RegisterRunActor(AActor* Actor);
+
 	// 개발 치트: 종 지정 생성(허용되는 지점 우선, 없으면 Fallback 위치)
 	EDigetherMonsterSpawnResult DevSpawn(UDigetherMonsterDefinition* Definition, const FTransform& FallbackTransform);
 	// 개발 치트: 스폰 타이머를 앞당김
@@ -133,4 +136,5 @@ private:
 	int32 NextPendingId = 1;
 	TMap<int32, FPendingSpawn> PendingSpawns;
 	TArray<TWeakObjectPtr<ADigetherMonsterCharacter>> LiveMonsters;
+	TArray<TWeakObjectPtr<AActor>> RunActors;
 };

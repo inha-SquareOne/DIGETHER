@@ -170,8 +170,26 @@ void UDigetherMonsterDirectorSubsystem::EndRun(const FGuid& RunId)
 			Monster->RemoveFromRun(EDigetherMonsterRemovalReason::RunEnded);
 		}
 	}
-	UE_LOG(LogDigetherMonster, Log, TEXT("몬스터 런 종료: 정리 %d"), ToRemove.Num());
+	TArray<TWeakObjectPtr<AActor>> ToDestroy = RunActors;
+	for (const TWeakObjectPtr<AActor>& Weak : ToDestroy)
+	{
+		if (AActor* Actor = Weak.Get())
+		{
+			Actor->Destroy();
+		}
+	}
+	UE_LOG(LogDigetherMonster, Log, TEXT("몬스터 런 종료: 몬스터 %d, 부속 %d 정리"), ToRemove.Num(), ToDestroy.Num());
 	ClearRunState();
+}
+
+void UDigetherMonsterDirectorSubsystem::RegisterRunActor(AActor* Actor)
+{
+	if (!bActive || !CurrentRunId.IsValid() || !IsValid(Actor))
+	{
+		return;
+	}
+	RunActors.RemoveAll([](const TWeakObjectPtr<AActor>& Weak) { return !Weak.IsValid(); });
+	RunActors.AddUnique(Actor);
 }
 
 void UDigetherMonsterDirectorSubsystem::ClearRunState()
@@ -188,6 +206,7 @@ void UDigetherMonsterDirectorSubsystem::ClearRunState()
 	}
 	PendingSpawns.Reset();
 	LiveMonsters.Reset();
+	RunActors.Reset();
 	Ledger.Reset();
 	Table = nullptr;
 	DungeonPowerLimit = 0;
