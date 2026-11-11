@@ -223,7 +223,25 @@ public:
 	void Server_DevSetQuotaProgress(int32 DepositedCredits);
 
 #if !UE_BUILD_SHIPPING
-	virtual bool ProcessConsoleExec(const TCHAR* Cmd, FOutputDevice& Ar, UObject* Executor) override;
+	// --- 개발 명령 진입점 (Dev.cpp) ---
+	// 콘솔·웹 명령 등록은 DIGETHERDevTools 모듈, 여기는 이 컨트롤러가 보낼 요청만 담당
+	// 인자는 공백으로 이은 문자열, 서버 판정은 각 Server_Dev* RPC와 GameMode
+	void DigetherLever(const FString& Arguments);
+	void DigetherRunSmoke();
+	void DigetherGrantCredits(const FString& AmountInput);
+	// 붓기 입력 에셋 없이 시험: 가장 가까운(또는 지정한) 정산기에 <초> 동안 붓기
+	void DigetherPour(const FString& Arguments);
+	void DigetherPourStop();
+	void DigetherSetQuotaProgress(const FString& AmountInput);
+	// 크레딧 빨리감기 시험용: 1|0, 호스트가 아니면 서버 거절
+	void DigetherCreditFastForward(const FString& Arguments);
+	// 다인 시험용: 이 프로세스가 받은 복제 상태(런·목표·엘리베이터·플레이어별 지갑·생존·바닥 금화) 로그
+	void DigetherDumpState();
+	void DigetherTeleportOut();
+	void DigetherTeleportToDeposit(const FString& StationInput);
+	void DigetherHubTeleport(const FString& FacilityInput);
+	// <FacilityId> <EDigetherHubAction 이름> [OptionId]
+	void DigetherHubAction(const FString& Arguments);
 #endif
 
 private:
@@ -315,21 +333,8 @@ private:
 	// 흡입 대기 때문에 더한 이동 입력 잠금만 정확히 한 번 해제
 	bool bGameOverInputLocked = false;
 
-	// --- 개발 명령 (Dev.cpp) ---
+	// --- 개발 명령 내부 (Dev.cpp) ---
 #if !UE_BUILD_SHIPPING
-	void DigetherLever(const FString& Arguments);
-	void DigetherRunSmoke();
-	void DigetherGrantCredits(const FString& AmountInput);
-	// 붓기 입력 에셋 없이 시험: 가장 가까운(또는 지정한) 정산기에 <초> 동안 붓기
-	void DigetherPour(const FString& Arguments);
-	void DigetherPourStop();
-	void DigetherSetQuotaProgress(const FString& AmountInput);
-	// 크레딧 빨리감기 시험용: DigetherCreditFastForward 1|0, 호스트가 아니면 서버 거절
-	void DigetherCreditFastForward(const FString& Arguments);
-	// 다인 시험용: 이 프로세스가 받은 복제 상태(런·목표·엘리베이터·플레이어별 지갑·생존·바닥 금화) 로그
-	void DigetherDumpState();
-	void DigetherTeleportOut();
-	void DigetherTeleportToDeposit(const FString& StationInput);
 	// 명령줄 -DigetherAutoCmds="초:명령|초:명령"을 이 Controller의 BeginPlay 기준으로 예약 실행
 	void ScheduleAutoCommands();
 	// 개발 서버 RPC는 호스트 본인 또는 서버가 -DigetherDevRpc로 켠 경우만 수락

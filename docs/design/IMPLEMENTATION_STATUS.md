@@ -34,7 +34,7 @@
 | 굴착(다인 계열) | `Game/Excavation/Dain`·`DainLab` | Dain 6 | 담당 문서의 1인 확인([통합 설계](DAIN_EXCAVATION_INTEGRATION.md)) | 복제·다인 미구현, 기준 계열·지형 위상·동기화 방식 결정 대기 |
 | 인벤토리·장비 | 없음 | 0 | — | 미구현. 거점 소지품은 `Game/Hub`의 이름+수량 목록으로만 있다 |
 | 던전 진입·미로·폐교 | `Prototype/World`(시험용 포탈) | — | 프로토타입 패키지 1인·로컬 4인(10-29) | 정식 구현 없음 |
-| 정의 데이터·개발 지원 | `Game/Data`, `Game/Core`, `Game/Dev` | Data 3, Dev 2 | DataValidation(정의 자산), 로그 분류·치트 틀 자동 테스트 | 튜닝 요청 R01~R14 충족 여부는 [튜닝 환경 현황](TUNING_ENVIRONMENT_STATUS.md) |
+| 정의 데이터·개발 지원 | `Game/Data`, `Game/Core`, `Game/Dev`, 개발 치트툴 모듈 `DIGETHERDevTools`(Shipping 미빌드) | Data 3, Dev 3(`DIGETHER.Dev.*`) | DataValidation(정의 자산). 치트툴 기반(11-11): 격리 사본 Editor 빌드·`DIGETHER.` 204개 실패 0, `-game` 단독 실행에서 웹 화면·API(헤더 없는 요청 403·명령 실행·상태 반영) 확인, Shipping 실행 파일에 명령 문자열 없음 | 치트툴 P0 이후 명령, 리슨 호스트+참가자(M2)에서 웹 실행 결과 반영, 패키지 빌드. 튜닝 요청 R01~R14 충족 여부는 [튜닝 환경 현황](TUNING_ENVIRONMENT_STATUS.md) |
 
 ## 실행 맵
 

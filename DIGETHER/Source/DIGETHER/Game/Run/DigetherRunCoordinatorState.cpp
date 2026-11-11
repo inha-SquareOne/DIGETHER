@@ -139,6 +139,12 @@ FDigetherRunAdvanceResult FDigetherRunCoordinatorRules::UpdateTime(
 		return Result;
 	}
 	FDigetherRunCoordinatorState Candidate = State;
+#if !UE_BUILD_SHIPPING
+	if (Candidate.bDevClockPaused)
+	{
+		DevHoldClock(Candidate, ServerSeconds);
+	}
+#endif
 	Result = AdvanceCandidate(Candidate, ServerSeconds);
 	if (Result.Result == EDigetherRunResult::Success)
 	{
@@ -174,3 +180,55 @@ FDigetherRunPublicState FDigetherRunCoordinatorRules::MakePublicState(
 	Public.bPaymentDeadline = bPaymentDeadline;
 	return Public;
 }
+
+#if !UE_BUILD_SHIPPING
+double FDigetherRunCoordinatorRules::DevGetMaxRemainingSeconds(const FDigetherRunCoordinatorState& State)
+{
+	const double PenaltySeconds = static_cast<double>(FMath::Max(0, State.ConfirmedAscentCount))
+		* FMath::Max(0.0, static_cast<double>(State.Tuning.AscentPenaltySeconds));
+	return FMath::Max(0.0, static_cast<double>(State.Tuning.RunSeconds) - PenaltySeconds);
+}
+
+FDigetherRunAdvanceResult FDigetherRunCoordinatorRules::DevSetRemainingSeconds(FDigetherRunCoordinatorState& State,
+	const double RemainingSeconds, const double ServerSeconds)
+{
+	FDigetherRunAdvanceResult Result;
+	Result.Result = CheckInProgress(State);
+	if (Result.Result != EDigetherRunResult::Success)
+	{
+		return Result;
+	}
+	const double MaxRemainingSeconds = DevGetMaxRemainingSeconds(State);
+	if (!State.bClockStarted || State.bTimeExpiredNotified || !FMath::IsFinite(RemainingSeconds)
+		|| RemainingSeconds < 0.0 || RemainingSeconds > MaxRemainingSeconds
+		|| !FMath::IsFinite(ServerSeconds) || ServerSeconds < State.LastUpdatedAtSeconds)
+	{
+		return FDigetherRunAdvanceResult();
+	}
+	// 남은 시간 = 최대 - 경과, 0은 부동소수 오차로 양수가 남지 않게 탐사 시간 전체를 넘겨 확실히 만료
+	constexpr double ExpireMarginSeconds = 1.0;
+	const double ElapsedSeconds = RemainingSeconds <= 0.0
+		? static_cast<double>(State.Tuning.RunSeconds) + ExpireMarginSeconds
+		: MaxRemainingSeconds - RemainingSeconds;
+	FDigetherRunCoordinatorState Candidate = State;
+	Candidate.StartedAtSeconds = ServerSeconds - ElapsedSeconds;
+	Result = AdvanceCandidate(Candidate, ServerSeconds);
+	if (Result.Result == EDigetherRunResult::Success)
+	{
+		State = Candidate;
+	}
+	return Result;
+}
+
+void FDigetherRunCoordinatorRules::DevHoldClock(FDigetherRunCoordinatorState& State, const double ServerSeconds)
+{
+	if (!State.bClockStarted || !FMath::IsFinite(ServerSeconds) || ServerSeconds <= State.LastUpdatedAtSeconds)
+	{
+		return;
+	}
+	const double PausedSeconds = ServerSeconds - State.LastUpdatedAtSeconds;
+	// 부동소수 오차로 기준 시각이 ServerSeconds를 넘어 단조성 검사에 막히지 않게 상한 고정
+	State.StartedAtSeconds = FMath::Min(State.StartedAtSeconds + PausedSeconds, ServerSeconds);
+	State.LastUpdatedAtSeconds = ServerSeconds;
+}
+#endif

@@ -20,7 +20,8 @@ namespace
 	constexpr int32 MaxStepsPerFrame = 3;
 	constexpr float DefaultAspectRatio = 16.f / 9.f;
 
-	bool IsGameWorld(const UWorld* World)
+	// 유니티 빌드에서 Director의 같은 이름 익명 함수와 충돌하지 않도록 고유 이름
+	bool IsSenseGameWorld(const UWorld* World)
 	{
 		return World && (World->WorldType == EWorldType::Game || World->WorldType == EWorldType::PIE);
 	}
@@ -28,7 +29,7 @@ namespace
 
 bool UDigetherMonsterSenseSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
-	return Super::ShouldCreateSubsystem(Outer) && IsGameWorld(Cast<UWorld>(Outer));
+	return Super::ShouldCreateSubsystem(Outer) && IsSenseGameWorld(Cast<UWorld>(Outer));
 }
 
 void UDigetherMonsterSenseSubsystem::OnWorldBeginPlay(UWorld& InWorld)

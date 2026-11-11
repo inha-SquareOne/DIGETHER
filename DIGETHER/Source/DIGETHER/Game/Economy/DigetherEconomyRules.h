@@ -52,6 +52,10 @@ public:
 	// 달성 시 다음 목표·누적 0·기간 1일차·세대+1(전체 일차 유지), 세대가 최댓값이면 재사용 방지로 거절
 	static FDigetherPourTickResult CalculatePourTick(const FDigetherWalletState& WalletState,
 		const FDigetherQuotaState& QuotaState, const FDigetherEconomyTuning& Tuning, bool bDepositClosed);
+	// 목표 달성 직후 새 기간 상태: 다음 목표·누적 0·기간 1일차·세대+1, 전체 일차 유지
+	// 붓기 달성과 개발 즉시 달성 공용, 잘못된 입력·세대 최댓값이면 false·OutState 보존
+	static bool TryMakeCompletedQuotaState(const FDigetherQuotaState& QuotaState, const FDigetherEconomyTuning& Tuning,
+		FDigetherQuotaState& OutState);
 	// 바닥 금화 생성 실패 시 사용, F를 지갑에 되돌려 차감을 N으로 줄이고 F는 0(돈 소멸 방지)
 	static FDigetherPourTickResult ReclaimFloorCredits(const FDigetherPourTickResult& Result);
 	// 탐사 종료 확정 1회당 호출, 기간 일차·전체 일차 각각 +1(정상 종료·전멸 공통)

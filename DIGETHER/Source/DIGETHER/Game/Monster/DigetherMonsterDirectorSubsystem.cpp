@@ -206,6 +206,7 @@ void UDigetherMonsterDirectorSubsystem::ClearRunState()
 	}
 	PendingSpawns.Reset();
 	LiveMonsters.Reset();
+	ChargedPowerByMonster.Reset();
 	RunActors.Reset();
 	Ledger.Reset();
 	Table = nullptr;
@@ -253,6 +254,14 @@ void UDigetherMonsterDirectorSubsystem::RunPeriodicEvaluation(const FGuid RunId)
 	{
 		return;
 	}
+#if !UE_BUILD_SHIPPING
+	// 개발 자동 생성 정지, 타이머 경과는 그대로 흐름
+	if (bDevAutoSpawnPaused)
+	{
+		UE_LOG(LogDigetherMonster, Verbose, TEXT("자동 생성 정지 중, 스폰 판정 건너뜀 t=%.1f"), GetSpawnTimerSeconds());
+		return;
+	}
+#endif
 	const float Chance = GetCurrentChance();
 	// 갱도·던전은 같은 곡선을 쓰되 각각 판정(기획: 갱도·던전 각각)
 	const float MineRoll = Random.FRand();
@@ -371,6 +380,14 @@ void UDigetherMonsterDirectorSubsystem::PlaceHabitats(const bool bIgnoreChance)
 	{
 		return;
 	}
+#if !UE_BUILD_SHIPPING
+	// 맵 준비 통지는 런당 1회라 정지 중 건너뛴 배치는 재개해도 다시 하지 않음
+	if (bDevAutoSpawnPaused)
+	{
+		UE_LOG(LogDigetherMonster, Log, TEXT("자동 생성 정지 중, 서식지 배치 건너뜀"));
+		return;
+	}
+#endif
 	TSet<const ADigetherMonsterSpawnPoint*> Used;
 	for (const FDigetherMonsterHabitatEntry& Entry : Table->MineHabitatEntries)
 	{
@@ -448,6 +465,116 @@ EDigetherMonsterSpawnResult UDigetherMonsterDirectorSubsystem::DevSpawn(UDigethe
 	return SpawnMonsterAt(Definition, FallbackTransform, DungeonId);
 }
 
+#if !UE_BUILD_SHIPPING
+EDigetherMonsterSpawnResult UDigetherMonsterDirectorSubsystem::DevSpawnWithOptions(UDigetherMonsterDefinition* Definition,
+	const FTransform& Transform, const FDevSpawnOptions& Options, ADigetherMonsterCharacter** OutMonster)
+{
+	if (OutMonster)
+	{
+		*OutMonster = nullptr;
+	}
+	if (!bActive)
+	{
+		return EDigetherMonsterSpawnResult::NotAuthority;
+	}
+	if (!IsValid(Definition))
+	{
+		return EDigetherMonsterSpawnResult::InvalidDefinition;
+	}
+	if (!CurrentRunId.IsValid())
+	{
+		// DevSpawn과 같은 시험 맵 직접 실행용 임시 런
+		BeginRun(nullptr, FGuid::NewGuid(), 0, 0);
+	}
+	FTransform SpawnTransform = Transform;
+	FName DungeonId;
+	ADigetherMonsterSpawnPoint* Point = Options.bForceTransform ? nullptr : PickPoint(Definition, NAME_None);
+	if (Point)
+	{
+		SpawnTransform = Point->GetActorTransform();
+		Point->GetZone(&DungeonId);
+	}
+	else if (Definition->Zone == EDigetherMonsterZone::Dungeon)
+	{
+		ADigetherZoneVolume::GetZoneKindAt(GetWorld(), SpawnTransform.GetLocation(), &DungeonId);
+	}
+	if (Options.DungeonId.IsSet())
+	{
+		DungeonId = Options.DungeonId.GetValue();
+	}
+	const int32 ChargedPower = Options.bChargePower ? Definition->PowerLevel : 0;
+	return SpawnMonsterCharged(Definition, SpawnTransform, DungeonId, ChargedPower, OutMonster);
+}
+
+int32 UDigetherMonsterDirectorSubsystem::CancelPendingSpawnsForDev()
+{
+	UWorld* World = GetWorld();
+	int32 Cancelled = 0;
+	for (TPair<int32, FPendingSpawn>& Entry : PendingSpawns)
+	{
+		FPendingSpawn& Pending = Entry.Value;
+		if (World)
+		{
+			World->GetTimerManager().ClearTimer(Pending.Timer);
+		}
+		// 이전 런 예약은 새 런 장부에 없으므로 현재 런 것만 반환
+		const UDigetherMonsterDefinition* Definition = Pending.Definition.Get();
+		if (Pending.RunId == CurrentRunId && Definition)
+		{
+			Ledger.RecordCancelledSpawn(GetSpeciesId(Definition), Pending.DungeonId, Pending.ChargedPower);
+		}
+		++Cancelled;
+	}
+	PendingSpawns.Reset();
+	return Cancelled;
+}
+
+int32 UDigetherMonsterDirectorSubsystem::DevClearMonsters(int32* OutCancelledPending)
+{
+	const int32 Cancelled = bActive ? CancelPendingSpawnsForDev() : 0;
+	if (OutCancelledPending)
+	{
+		*OutCancelledPending = Cancelled;
+	}
+	if (!bActive)
+	{
+		return 0;
+	}
+	// 제거 통지가 LiveMonsters를 바꾸므로 사본 순회
+	const TArray<TWeakObjectPtr<ADigetherMonsterCharacter>> ToRemove = LiveMonsters;
+	int32 Removed = 0;
+	for (const TWeakObjectPtr<ADigetherMonsterCharacter>& Weak : ToRemove)
+	{
+		ADigetherMonsterCharacter* Monster = Weak.Get();
+		if (Monster && !Monster->IsRemoved())
+		{
+			Monster->RemoveFromRun(EDigetherMonsterRemovalReason::Despawned);
+			++Removed;
+		}
+	}
+	UE_LOG(LogDigetherMonster, Log, TEXT("개발 전부 제거: 몬스터 %d, 대기 예고 %d 취소"), Removed, Cancelled);
+	return Removed;
+}
+
+int32 UDigetherMonsterDirectorSubsystem::DevSetAutoSpawnPaused(const bool bPaused)
+{
+	bDevAutoSpawnPaused = bPaused;
+	const int32 Cancelled = bPaused && bActive ? CancelPendingSpawnsForDev() : 0;
+	UE_LOG(LogDigetherMonster, Log, TEXT("개발 자동 생성 %s, 대기 예고 %d 취소"), bPaused ? TEXT("정지") : TEXT("재개"), Cancelled);
+	return Cancelled;
+}
+
+void UDigetherMonsterDirectorSubsystem::GetDungeonIdsForDev(TArray<FName>& OutDungeonIds) const
+{
+	CollectDungeonIds(OutDungeonIds);
+	for (const TPair<FName, int32>& Used : Ledger.DungeonPowerUsed)
+	{
+		OutDungeonIds.AddUnique(Used.Key);
+	}
+	OutDungeonIds.Sort(FNameLexicalLess());
+}
+#endif
+
 bool UDigetherMonsterDirectorSubsystem::ScheduleSpawn(UDigetherMonsterDefinition* Definition, ADigetherMonsterSpawnPoint* Point, const FName DungeonId)
 {
 	if (!Definition || !Point)
@@ -468,6 +595,7 @@ bool UDigetherMonsterDirectorSubsystem::ScheduleSpawn(UDigetherMonsterDefinition
 	Pending.Definition = Definition;
 	Pending.Point = Point;
 	Pending.DungeonId = DungeonId;
+	Pending.ChargedPower = Definition->PowerLevel;
 	Point->MulticastSpawnTelegraph(Telegraph);
 	GetWorld()->GetTimerManager().SetTimer(Pending.Timer,
 		FTimerDelegate::CreateUObject(this, &UDigetherMonsterDirectorSubsystem::FinishPendingSpawn, PendingId), Telegraph, false);
@@ -488,6 +616,15 @@ void UDigetherMonsterDirectorSubsystem::FinishPendingSpawn(const int32 PendingId
 		return;
 	}
 	const FName Species = GetSpeciesId(Definition);
+#if !UE_BUILD_SHIPPING
+	// 정지를 켤 때 대기 예고는 모두 취소되지만 같은 프레임 순서 차이 대비
+	if (bDevAutoSpawnPaused)
+	{
+		Ledger.RecordCancelledSpawn(Species, Pending.DungeonId, Pending.ChargedPower);
+		UE_LOG(LogDigetherMonster, Log, TEXT("자동 생성 정지 중, 예고된 %s 생성 취소"), *Species.ToString());
+		return;
+	}
+#endif
 	EDigetherMonsterSpawnResult Result = EDigetherMonsterSpawnResult::NoSpawnPoint;
 	ADigetherMonsterCharacter* Monster = nullptr;
 	if (const ADigetherMonsterSpawnPoint* Point = Pending.Point.Get())
@@ -496,15 +633,21 @@ void UDigetherMonsterDirectorSubsystem::FinishPendingSpawn(const int32 PendingId
 	}
 	if (!Monster)
 	{
-		Ledger.RecordCancelledSpawn(Species, Pending.DungeonId, Definition->PowerLevel);
+		Ledger.RecordCancelledSpawn(Species, Pending.DungeonId, Pending.ChargedPower);
 		UE_LOG(LogDigetherMonster, Warning, TEXT("예고 후 %s 생성 실패(%s), 예약 반환"), *Species.ToString(), *UEnum::GetValueAsString(Result));
 		return;
 	}
-	TrackMonster(Monster);
+	TrackMonster(Monster, Pending.ChargedPower);
 }
 
 EDigetherMonsterSpawnResult UDigetherMonsterDirectorSubsystem::SpawnMonsterAt(UDigetherMonsterDefinition* Definition,
 	const FTransform& Transform, const FName DungeonId, ADigetherMonsterCharacter** OutMonster)
+{
+	return SpawnMonsterCharged(Definition, Transform, DungeonId, IsValid(Definition) ? Definition->PowerLevel : 0, OutMonster);
+}
+
+EDigetherMonsterSpawnResult UDigetherMonsterDirectorSubsystem::SpawnMonsterCharged(UDigetherMonsterDefinition* Definition,
+	const FTransform& Transform, const FName DungeonId, const int32 ChargedPower, ADigetherMonsterCharacter** OutMonster)
 {
 	if (OutMonster)
 	{
@@ -524,8 +667,8 @@ EDigetherMonsterSpawnResult UDigetherMonsterDirectorSubsystem::SpawnMonsterAt(UD
 	{
 		return Result;
 	}
-	Ledger.RecordSpawn(GetSpeciesId(Definition), DungeonId, Definition->PowerLevel);
-	TrackMonster(Monster);
+	Ledger.RecordSpawn(GetSpeciesId(Definition), DungeonId, ChargedPower);
+	TrackMonster(Monster, ChargedPower);
 	if (OutMonster)
 	{
 		*OutMonster = Monster;
@@ -577,22 +720,25 @@ ADigetherMonsterCharacter* UDigetherMonsterDirectorSubsystem::SpawnActorFor(UDig
 	return Monster;
 }
 
-void UDigetherMonsterDirectorSubsystem::TrackMonster(ADigetherMonsterCharacter* Monster)
+void UDigetherMonsterDirectorSubsystem::TrackMonster(ADigetherMonsterCharacter* Monster, const int32 ChargedPower)
 {
 	LiveMonsters.Add(Monster);
+	ChargedPowerByMonster.Add(Monster, ChargedPower);
 	Monster->OnRemoved.AddUObject(this, &UDigetherMonsterDirectorSubsystem::HandleMonsterRemoved);
 }
 
 void UDigetherMonsterDirectorSubsystem::HandleMonsterRemoved(ADigetherMonsterCharacter* Monster, const EDigetherMonsterRemovalReason Reason)
 {
 	const int32 Removed = LiveMonsters.RemoveAll([Monster](const TWeakObjectPtr<ADigetherMonsterCharacter>& Weak) { return Weak.Get() == Monster; });
+	int32 ChargedPower = 0;
+	ChargedPowerByMonster.RemoveAndCopyValue(Monster, ChargedPower);
 	if (Removed == 0 || !Monster || Monster->GetRunId() != CurrentRunId)
 	{
 		return;
 	}
 	const UDigetherMonsterDefinition* Definition = Monster->GetDefinition();
-	// 처치·도주 소멸 시 파워 반환(기획), 탐사 종료 정리는 장부를 곧 비움
-	Ledger.RecordRemoval(GetSpeciesId(Definition), Monster->GetDungeonId(), Definition ? Definition->PowerLevel : 0);
+	// 처치·도주 소멸 시 생성 때 실제 부과한 파워 반환(기획), 탐사 종료 정리는 장부를 곧 비움
+	Ledger.RecordRemoval(GetSpeciesId(Definition), Monster->GetDungeonId(), ChargedPower);
 	UE_LOG(LogDigetherMonster, Log, TEXT("몬스터 제거: %s (%s)"), *GetNameSafe(Monster), *UEnum::GetValueAsString(Reason));
 }
 

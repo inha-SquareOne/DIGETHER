@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "UObject/ObjectKey.h"
 #include "Game/Monster/DigetherMonsterSpawnRules.h"
 #include "Game/Monster/DigetherMonsterTypes.h"
 #include "DigetherMonsterDirectorSubsystem.generated.h"
@@ -62,6 +63,29 @@ public:
 	// 개발 치트·테스트: 다음 판정을 즉시 실행
 	void DevRunEvaluationNow();
 
+#if !UE_BUILD_SHIPPING
+	struct FDevSpawnOptions
+	{
+		// 참이면 Transform 위치 강제, 거짓이면 DevSpawn처럼 허용 스폰 지점 우선
+		bool bForceTransform = false;
+		// 거짓이면 던전 파워 사용량에 넣지 않음, 제거 때도 반환 안 함
+		bool bChargePower = true;
+		// 비우면 생성 위치의 던전 구역에서 찾음, 시험용 지정
+		TOptional<FName> DungeonId;
+	};
+	// 개발 치트(F-01): 옵션 지정 생성, 자동 생성 정지 중에도 동작
+	EDigetherMonsterSpawnResult DevSpawnWithOptions(UDigetherMonsterDefinition* Definition, const FTransform& Transform,
+		const FDevSpawnOptions& Options, ADigetherMonsterCharacter** OutMonster = nullptr);
+	// 개발 치트(F-02): 대기 예고 취소(장부 반환) 후 살아 있는 몬스터 전부 RemoveFromRun, 제거 수 반환
+	int32 DevClearMonsters(int32* OutCancelledPending = nullptr);
+	// 개발 치트(F-02): 주기 판정·대기 예고·서식지 배치 정지, 켤 때 대기 예고 취소, 런이 바뀌어도 유지
+	int32 DevSetAutoSpawnPaused(bool bPaused);
+	bool IsAutoSpawnPausedForDev() const { return bDevAutoSpawnPaused; }
+	int32 GetPendingSpawnCountForDev() const { return PendingSpawns.Num(); }
+	// 개발 표시(V-02): 맵의 던전 구역 ID와 장부에 기록된 던전 ID 합집합
+	void GetDungeonIdsForDev(TArray<FName>& OutDungeonIds) const;
+#endif
+
 	bool HasActiveRun() const { return CurrentRunId.IsValid(); }
 	const FGuid& GetCurrentRunId() const { return CurrentRunId; }
 	bool IsSpawnTimerRunning() const { return bSpawnTimerRunning; }
@@ -86,6 +110,8 @@ private:
 		TWeakObjectPtr<UDigetherMonsterDefinition> Definition;
 		TWeakObjectPtr<ADigetherMonsterSpawnPoint> Point;
 		FName DungeonId;
+		// 예약 때 장부에 넣은 파워, 생성 성공 시 개체 기록으로 넘기고 취소 시 같은 값 반환
+		int32 ChargedPower = 0;
 		FTimerHandle Timer;
 	};
 
@@ -104,10 +130,13 @@ private:
 	void CollectDungeonIds(TArray<FName>& OutDungeonIds) const;
 	const UDigetherMonsterSpawnPolicy* GetPolicy(EDigetherMonsterSpawnKind Kind) const;
 
+	// SpawnMonsterAt 본체, ChargedPower를 장부와 개체 기록에 같은 값으로 사용
+	EDigetherMonsterSpawnResult SpawnMonsterCharged(UDigetherMonsterDefinition* Definition, const FTransform& Transform,
+		FName DungeonId, int32 ChargedPower, ADigetherMonsterCharacter** OutMonster);
 	// 장부 기록 없이 개체만 생성
 	ADigetherMonsterCharacter* SpawnActorFor(UDigetherMonsterDefinition* Definition, const FTransform& Transform, FName DungeonId,
 		EDigetherMonsterSpawnResult& OutResult);
-	void TrackMonster(ADigetherMonsterCharacter* Monster);
+	void TrackMonster(ADigetherMonsterCharacter* Monster, int32 ChargedPower);
 	void HandleMonsterRemoved(ADigetherMonsterCharacter* Monster, EDigetherMonsterRemovalReason Reason);
 	void ClearRunState();
 
@@ -136,5 +165,13 @@ private:
 	int32 NextPendingId = 1;
 	TMap<int32, FPendingSpawn> PendingSpawns;
 	TArray<TWeakObjectPtr<ADigetherMonsterCharacter>> LiveMonsters;
+	// 개체별 실제 부과 파워, 제거 때 정의의 PowerLevel 대신 이 값 반환
+	TMap<TObjectKey<ADigetherMonsterCharacter>, int32> ChargedPowerByMonster;
 	TArray<TWeakObjectPtr<AActor>> RunActors;
+
+#if !UE_BUILD_SHIPPING
+	// 대기 예고를 취소하고 예약 장부 반환, 취소 수 반환
+	int32 CancelPendingSpawnsForDev();
+	bool bDevAutoSpawnPaused = false;
+#endif
 };

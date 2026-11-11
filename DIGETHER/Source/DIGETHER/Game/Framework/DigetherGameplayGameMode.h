@@ -91,6 +91,8 @@ public:
 	void CycleSpectateTarget(ADigetherGameplayPlayerController* Requester, bool bNext);
 	bool StartRunSmoke(ADigetherGameplayPlayerController* Requester);
 	bool GrantCredits(ADigetherGameplayPlayerController* Requester, int32 Amount);
+	// 개발 빌드: 호스트 로컬 컨트롤러에 엔진 치트 매니저 생성(slomo·ToggleDebugCamera 등), Shipping은 엔진 기본
+	virtual bool AllowCheats(APlayerController* P) override;
 
 	// 기획 S24 동시 붓기: 우클릭 누르면 시작, 떼면 종료, 실제 차감은 Tick의 ProcessPourTicks가 주기마다
 	// 시작 조건(접수 열림·생존·거리·입구 방향·가림·잔고) 선확인, 첫 차감은 PAY_TICK_INTERVAL 뒤
@@ -100,6 +102,39 @@ public:
 	FDigetherDepositResponse PickupFloorCoin(ADigetherGameplayPlayerController* Requester, ADigetherFloorCoinActor* Coin);
 	// 개발 시험용: 현재 목표의 공동 인정액 지정(목표 미만만), Shipping은 false
 	bool SetQuotaProgressForDev(ADigetherGameplayPlayerController* Requester, int32 DepositedCredits);
+
+#if !UE_BUILD_SHIPPING
+	// --- 개발 치트 진입점 (Dev.cpp), 호스트 치트 처리기 전용 ---
+	// 모두 서버 권한·게임 준비·허용 단계를 스스로 검사, 실패 시 false와 사용자 안내 문장
+	// 게임 오버 거절은 등록부 공통 검사 + 각 함수 재확인
+
+	// A-01: 거점 대기(엘리베이터 HubWaiting, 런 진행 아님)에서만, 목표·인정액·세대 유지
+	bool DevSetDay(int32 TotalDay, int32 PeriodDay, FString& OutMessage);
+	// A-02: 현재 인정액보다 큰 목표만, 신호기 단계는 새 목표로 재계산
+	bool DevSetQuotaTarget(int32 TargetCredits, FString& OutMessage);
+	// A-02: 붓기 달성과 같은 두 단계(TryMakeCompletedQuotaState → CommitQuotaCompletion), 납부 접수 중에만
+	bool DevCompleteQuota(FString& OutMessage);
+	// B-01: 시계 시작 뒤에만, 0이면 실제 시간 종료 경로
+	bool DevSetRunRemainingSeconds(double RemainingSeconds, FString& OutMessage);
+	bool DevAdvanceRunTime(double Seconds, FString& OutMessage);
+	bool DevSetRunTimePaused(bool bPaused, FString& OutMessage);
+	// A-03 Timeout: 남은 시간 0(B-01 경로)
+	bool DevEndRunTimeout(FString& OutMessage);
+	// A-03 Survive: 갱도 바닥 대기에서만, 생존자를 엘리베이터 안으로 옮기고 스모크 자동 운전으로 정상 상승
+	// 귀환 처리 직접 호출 없음, 운전자는 Preferred 우선·없으면 생존·탈출한 다른 참가자
+	bool DevEndRunSurvive(ADigetherGameplayPlayerController* Preferred, FString& OutMessage);
+	// D-01: 지갑 잔고 절대값, 다른 지갑 통계 유지
+	bool DevSetBalance(ADigetherGameplayPlayerState* Player, int32 BalanceCredits, FString& OutMessage);
+	// C-03: 탐사 중 참가자만 사망(Killed), 손실·드롭·시체 없음(사망 조율 함수 미구현)
+	bool DevKillPlayer(ADigetherGameplayPlayerState* Player, FString& OutMessage);
+	// C-03: 사망자만 부활, 관전 해제·자기 몸 시점 복귀
+	bool DevRevivePlayer(ADigetherGameplayPlayerState* Player, FString& OutMessage);
+	// C-02: 서버 이동 + 소유 클라이언트 위치 전달(임시 Pawn은 서버가 클라이언트 이동을 받지 않음)
+	bool DevTeleportPlayer(ADigetherGameplayPlayerState* Player, const FVector& Location, const FRotator& Rotation,
+		FString& OutMessage);
+	// C-02·A-03: 탑승 영역 안 빈 자리로 이동, 이미 안에 있는 사람은 유지
+	bool DevMovePlayersIntoElevator(const TArray<ADigetherGameplayPlayerState*>& Players, FString& OutMessage);
+#endif
 
 	// 바닥 금화 Actor 클래스, 비우면 C++ 기본 클래스, 금화 메시 교체용 BP 지정
 	UPROPERTY(EditDefaultsOnly, Category="Digether|Deposit")
@@ -122,6 +157,7 @@ private:
 	friend class FDigetherHubSpawnTestAccess;
 	friend class FDigetherHubWorldTestAccess;
 	friend class FDigetherPourIntegrationAccess;
+	friend class FDigetherDevCheatTestAccess;
 #endif
 
 	// --- 접속 승인·같은 계정 교체 (Login.cpp) ---
@@ -270,6 +306,9 @@ private:
 	void ProcessPourTicks(float DeltaSeconds);
 	// 한 주기 처리, 목표 달성이면 true·같은 처리 시점 남은 주기 미처리
 	bool ProcessPourTick(const FDigetherPourDueTick& Tick);
+	// 목표 달성 서버 확정 뒤 후속 처리(붓기·개발 즉시 달성 공용), 새 기간 상태는 호출자가 bNotify=false로 적용한 뒤
+	// 순서: 달성 연출 카운터 → NotifyCommitted(상태 통지) → 붓기 전체 종료 → 자동 저장 → 단계 로그
+	void CommitQuotaCompletion(UDigetherQuotaStateComponent& Quota, TFunctionRef<void()> NotifyCommitted);
 	void StopPour(const FString& PlayerKey, EDigetherPourStopReason Reason);
 	void StopAllPours(EDigetherPourStopReason Reason);
 	void StopPourForController(ADigetherGameplayPlayerController* Controller, EDigetherPourStopReason Reason);
@@ -288,6 +327,10 @@ private:
 	// --- 개발 스모크 (Dev.cpp) ---
 #if !UE_BUILD_SHIPPING
 	void AdvanceSmoke();
+	// 개발 치트 공통: 서버·게임 준비·게임 오버 아님, 실패 시 OutMessage
+	bool CheckDevCheatReady(FString& OutMessage) const;
+	// 개발 치트 대상: 이 GameMode 월드의 초기화된 참가자
+	bool IsDevTargetPlayer(const ADigetherGameplayPlayerState* Player) const;
 	TWeakObjectPtr<ADigetherGameplayPlayerController> SmokeController;
 	bool bSmokeActive = false;
 #endif

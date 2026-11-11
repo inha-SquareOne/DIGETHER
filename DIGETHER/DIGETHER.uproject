@@ -13,6 +13,17 @@
 				"AIModule",
 				"UMG"
 			]
+		},
+		{
+			"Name": "DIGETHERDevTools",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"TargetConfigurationDenyList": [
+				"Shipping"
+			],
+			"AdditionalDependencies": [
+				"DIGETHER"
+			]
 		}
 	],
 	"Plugins": [

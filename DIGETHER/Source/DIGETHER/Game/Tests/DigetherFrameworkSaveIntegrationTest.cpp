@@ -15,8 +15,6 @@
 #include "Game/Elevator/DigetherElevatorLeverActor.h"
 #include "Game/Elevator/DigetherElevatorLeverComponent.h"
 #include "Game/Elevator/DigetherElevatorRules.h"
-#include "Game/Dev/DigetherCheatManager.h"
-#include "Game/Dev/DigetherDevCommands.h"
 #include "Game/Framework/DigetherFrameworkDefaults.h"
 #include "Game/Framework/DigetherFrameworkLog.h"
 #include "Game/Framework/DigetherGameplayGameMode.h"
@@ -1432,23 +1430,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkSaveCommandContractTest,
 
 bool FDigetherFrameworkSaveCommandContractTest::RunTest(const FString& Parameters)
 {
-	const TConstArrayView<DigetherDev::FCommandInfo> Commands = DigetherDev::GetPlannedCommands();
-	TestEqual(TEXT("저장 명령을 포함한 예정 명령 수"), Commands.Num(), 11);
-	const TArray<FName> SaveCommands = { TEXT("DigetherSave"), TEXT("DigetherLoad"), TEXT("DigetherNewGame") };
-	for (const FName Name : SaveCommands)
-	{
-		int32 Count = 0;
-		for (const DigetherDev::FCommandInfo& Command : Commands)
-		{
-			Count += Command.Name == Name ? 1 : 0;
-		}
-		TestEqual(FString::Printf(TEXT("%s 예약은 한 번"), *Name.ToString()), Count, 1);
-		const UFunction* Function = UDigetherCheatManager::StaticClass()->FindFunctionByName(Name);
-		if (TestNotNull(FString::Printf(TEXT("%s 함수 등록"), *Name.ToString()), Function))
-		{
-			TestTrue(FString::Printf(TEXT("%s 콘솔 Exec 선언"), *Name.ToString()), Function->HasAllFunctionFlags(FUNC_Exec));
-		}
-	}
+	// 저장 명령 이름·콘솔 등록은 DIGETHERDevTools의 DIGETHER.Dev.Registry 테스트가 확인, 여기서는 요청 RPC 계약만
 	const TArray<FName> ServerRequests = { TEXT("Server_ManualSave"), TEXT("Server_LoadGame"), TEXT("Server_NewGame") };
 	for (const FName Name : ServerRequests)
 	{
