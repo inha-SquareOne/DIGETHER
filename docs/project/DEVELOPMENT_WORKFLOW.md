@@ -44,13 +44,13 @@ Android File Server의 개인 SecurityToken은 공유 DefaultEngine.ini에 넣�
 
 ### Git과 SVN 전환 절차
 
-2026-11-06 기준 1단계를 로컬 적용했으며, 사용자 후속 지시로 2단계 전에 Git 전환 변경을 로컬 커밋했다. SVN 첫 등록·content.rev와 팀원 전환·푸시는 미실행이다(ADR-004의 로컬 커밋 순서 예외).
+2026-11-06 기준 1단계를 로컬 적용했으며, 사용자 후속 지시로 2단계 전에 Git 전환 변경을 로컬 커밋했다. 2단계 SVN 첫 등록은 2026-11-10에 실행했고, 같은 날 작업 사본을 프로젝트 폴더 하나로 바꿨다(`content.rev` 7). 팀원 전환(4단계)은 확인하지 않았다(ADR-004의 로컬 커밋 순서 예외).
 
 1. **Git 설정(로컬 커밋):** `.gitattributes`에서 LFS 제거, `.gitignore` Content 분리 규칙 추가, SVN 쪽 파일 `git rm --cached`.
 2. **SVN 첫 등록:** 최신 Content를 가진 PC에 SVN 명령줄 도구(TortoiseSVN의 command line client tools)를 설치하고 `.\scripts\svn\Initialize-SvnAssets.ps1 -RepoUrl <저장소 주소> -DryRun`으로 명령을 확인한 뒤 `-DryRun` 없이 실행한다. 끝나면 `content.rev`가 생긴다.
 3. **Git 커밋:** `git add --renormalize DIGETHER/Content`로 Git 폴더 에셋을 LFS 포인터에서 실제 파일로 바꾸고, `.gitattributes`·`.gitignore`·`content.rev`와 추적 제거를 한 커밋으로 만든다. 아직 푸시하지 않는다.
-4. **팀원 준비:** 각 팀원은 Unreal 에디터를 닫고 작업 중인 에셋을 백업한다. 폴더를 옮기지 말고 그 자리에서 SVN 작업 사본으로 만든다: `svn checkout <주소>/trunk/Content DIGETHER/Content --force`(SourceArt도 동일). Git 폴더는 `svn:ignore`로 제외된다. `svn status`에 `M`으로 보이는 파일은 서버와 다른 로컬 변경이므로 백업과 대조해 커밋하거나 `svn revert`한다.
-5. **푸시와 pull:** 전원이 4단계를 마친 뒤 3단계 커밋을 푸시한다. pull하면 Git이 추적에서 빠진 아트·맵 파일을 디스크에서 지운다. **pull 직후 `svn update DIGETHER/Content DIGETHER/SourceArt`를 실행해 SVN에서 복원한다.**
+4. **팀원 준비:** 각 팀원은 Unreal 에디터를 닫고 작업 중인 에셋을 백업한다. 폴더를 옮기지 말고 프로젝트 폴더를 그 자리에서 SVN 작업 사본으로 만든다: `svn checkout <주소>/trunk DIGETHER --force`(TortoiseSVN은 `DIGETHER/DIGETHER` 폴더 우클릭 → SVN Checkout, 주소 끝은 반드시 `/trunk`). `Content`·`SourceArt` 밖의 파일과 Git 폴더는 `svn:ignore`로 제외된다. `svn status`에 `M`으로 보이는 파일은 서버와 다른 로컬 변경이므로 백업과 대조해 커밋하거나 `svn revert`한다.
+5. **푸시와 pull:** 전원이 4단계를 마친 뒤 3단계 커밋을 푸시한다. pull하면 Git이 추적에서 빠진 아트·맵 파일을 디스크에서 지운다. **pull 직후 `svn update DIGETHER`를 실행해 SVN에서 복원한다.**
 6. **확인:** 에디터에서 맵·BP가 열리는지, `git status`·`svn status`에 의도하지 않은 변경이 없는지 확인한다.
 
 **브랜치 전환 주의:** 전환 전 커밋(아트를 Git이 추적하던 시점)과 전환 후 커밋 사이를 checkout하면 Git이 SVN 쪽 파일을 덮어쓰거나 지운다. 전환 뒤에는 이전 브랜치를 checkout하지 않고, 했다면 돌아온 뒤 `svn revert -R`·`svn update`로 복원한다. 팀원의 다른 feature 브랜치는 전환 커밋을 merge한 뒤 사용한다.

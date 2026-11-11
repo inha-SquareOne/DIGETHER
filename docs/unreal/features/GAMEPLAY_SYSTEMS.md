@@ -21,7 +21,7 @@
 | 서비스(세션) | S01 | **사용 중**: `UDigetherSessionSubsystem : UGameInstanceSubsystem` |
 | 상태 컴포넌트 | S10, S15~24 | **사용 중**: Life·Wallet·Quota·Run·Elevator 등 `UActorComponent` 기반 |
 | 이벤트 통지 | 공통 | **사용 중**: Life 컴포넌트 `DECLARE_MULTICAST_DELEGATE_*`, 몬스터 컴포넌트 `DECLARE_DYNAMIC_MULTICAST_DELEGATE_*`. 델리게이트 규칙은 [개발 패턴](../ENGINEERING_PATTERNS.md) |
-| 치트 | 개발용 | `Game/Dev/DigetherCheatManager` 사용 중. 상세는 [DEBUG_TEST.md](DEBUG_TEST.md) |
+| 치트 | 개발용 | 개발 모듈 `DIGETHERDevTools` 등록부(2026-11-11), `Game/Dev/DigetherCheatManager`는 엔진 기본 치트용 빈 클래스. 상세는 [DEBUG_TEST.md](DEBUG_TEST.md) |
 | GAS·GameFeatures·ModularGameplay | — | 게임 모듈 직접 의존 **없음**(`DIGETHER.Build.cs` 확인). `.uproject` 직접 목록에도 없음. 툴셋의 전이 의존 존재, 실제 로드 미확인 |
 | 상호작용 | S04 | 프로젝트 자체 `UInterface` 방식 계획([개발 시스템 설계](../../design/DEVELOPMENT_SYSTEM_DESIGN.md) 구현 규칙). 엔진 플러그인 미사용 |
 

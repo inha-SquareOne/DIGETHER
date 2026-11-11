@@ -23,6 +23,8 @@
 #include "Game/Life/DigetherLifeRules.h"
 #include "Game/Life/DigetherLifeStateComponent.h"
 #include "Game/Hub/DigetherHubStateActor.h"
+#include "Game/Monster/DigetherMonsterDirectorSubsystem.h"
+#include "Game/Monster/DigetherMonsterSenseSubsystem.h"
 #include "Game/Run/DigetherGameOverFlowComponent.h"
 #include "Game/Run/DigetherRunCoordinatorComponent.h"
 #include "Game/Run/DigetherRunPublicStateComponent.h"
@@ -789,6 +791,11 @@ void ADigetherGameplayGameMode::Tick(const float DeltaSeconds)
 		// 기획: 제한 시간은 최초 하강 후 갱도 도착 순간부터(첫 사람이 나갈 때까지 대기 안 함)
 		RunCoordinatorComponent->StartClock(GetWorld()->GetTimeSeconds());
 		LogRunStep(TEXT("RunClockStarted"));
+		// 기획: 스폰 타이머는 같은 도착 순간 기준 10초 뒤 시작, 런 제한 시간과 별개
+		if (UDigetherMonsterDirectorSubsystem* Director = GetWorld()->GetSubsystem<UDigetherMonsterDirectorSubsystem>())
+		{
+			Director->NotifyMineArrival(CurrentRunId);
+		}
 	}
 	if (bDoorClosedPending)
 	{
@@ -1041,6 +1048,7 @@ void ADigetherGameplayGameMode::ProcessDeparture()
 	}
 	// 제한 시간은 최초 하강 후 갱도 도착 때 StartClock으로 시작
 	RunCoordinatorComponent->StartRun(RunTuning, FixedRunRuleTuning, GetWorld()->GetTimeSeconds(), false);
+	BeginMonsterRun(Hub);
 	Elevator->DepartHub();
 	for (const TWeakObjectPtr<ADigetherElevatorLeverActor>& Lever : LeverActors)
 	{
@@ -1403,6 +1411,11 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 		ensureMsgf(bPublished, TEXT("Committed run result could not be published."));
 	}
 	LogRunStep(Plan.bGameOver ? TEXT("BaseReturned.GameOver") : TEXT("BaseReturned"));
+	if (UDigetherMonsterDirectorSubsystem* Director = GetWorld()->GetSubsystem<UDigetherMonsterDirectorSubsystem>())
+	{
+		// 종료 확정 뒤 몬스터 정리, 런 ID를 바꾸기 전에 호출해야 이전 런 예약이 폐기됨
+		Director->EndRun(CurrentRunId);
+	}
 	CurrentRunId = FGuid::NewGuid();
 	DepartureBaseline.Reset();
 	for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
@@ -1468,4 +1481,34 @@ void ADigetherGameplayGameMode::LogRunStep(const TCHAR* Step) const
 	// 기획 S24: 정확한 공동 인정액 비공개, 호스트 개발 로그도 기본 표시 제외·Verbose만
 	UE_LOG(LogDigetherFramework, Verbose, TEXT("Step=%s RemainingQuota=%d"), Step,
 		FMath::Max(0, Quota.TargetCredits - Quota.DepositedCredits));
+}
+
+void ADigetherGameplayGameMode::BeginMonsterRun(const ADigetherHubStateActor* Hub)
+{
+	UWorld* World = GetWorld();
+	UDigetherMonsterDirectorSubsystem* Director = World ? World->GetSubsystem<UDigetherMonsterDirectorSubsystem>() : nullptr;
+	if (!Director)
+	{
+		return;
+	}
+	if (UDigetherMonsterSenseSubsystem* Sense = World->GetSubsystem<UDigetherMonsterSenseSubsystem>())
+	{
+		// 몬스터 감지 결과도 런 도메인과 같은 플레이어 키 사용
+		Sense->SetPlayerKeyResolver([](const APlayerState* PlayerState)
+		{
+			const ADigetherGameplayPlayerState* Gameplay = Cast<ADigetherGameplayPlayerState>(PlayerState);
+			return Gameplay ? Gameplay->GetGameplayPlayerKey() : FString();
+		});
+	}
+	const FName StageId = IsValid(Hub) ? Hub->GetSelectedStageId() : NAME_None;
+	// 목표 달성 수 연결 전: 0(파워 한도 증가 방식은 경제 담당 결정 전 시험값)
+	Director->BeginRunForStage(StageId, CurrentRunId, 0);
+	// 현재 갱도는 거점과 같은 월드에 항상 로드(L_Mine), 미리 만든 갱도 맵 선택 로드가 생기면 로드 완료 시점으로 옮김
+	TOptional<FVector> ArrivalLocation;
+	FTransform StageTransform;
+	if (IsValid(Hub) && Hub->GetSelectedStageTransform(StageTransform))
+	{
+		ArrivalLocation = StageTransform.GetLocation();
+	}
+	Director->NotifyMapReady(CurrentRunId, ArrivalLocation);
 }

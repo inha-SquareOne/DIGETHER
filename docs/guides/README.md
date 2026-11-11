@@ -11,7 +11,7 @@
 
 **확정된 기준:** 기획은 Notion, 프로젝트 파일은 GitHub, 엔진은 UE 5.8.4다. 기획자는 브라우저에서 기획과 요청을 작성할 수 있으며 저장소 복제가 필수는 아니다.
 
-**준비 중인 항목:** Unreal 프로젝트가 추가됐고 에셋은 Git(로직 폴더)과 SVN(아트·맵·제작 원본)으로 나누기로 했다([ADR-004](../decisions/ADR-004-git-code-svn-assets.md), SVN 첫 등록 미실행). Notion 페이지 주소·SVN 계정·원격 브랜치 규칙·리뷰/통합 담당은 아직 준비 중이다. 아래 안내의 브랜치·Issue·PR 전달 절차는 초기 운영안이다. 팀 담당이 [프로필](../project/PROJECT_PROFILE.md)과 [작업 경계](../project/PROJECT_BOUNDARIES.md)에 확정값을 등록한 후 적용한다. 문서만으로 계정 권한·잠금·자동 동기화가 생기지는 않는다.
+**준비 중인 항목:** Unreal 프로젝트가 추가됐고 에셋은 Git(로직 폴더)과 SVN(아트·맵·제작 원본)으로 나누기로 했다([ADR-004](../decisions/ADR-004-git-code-svn-assets.md), SVN 첫 등록은 2026-11-10 완료). Notion 페이지 주소·SVN 계정·원격 브랜치 규칙·리뷰/통합 담당은 아직 준비 중이다. 아래 안내의 브랜치·Issue·PR 전달 절차는 초기 운영안이다. 팀 담당이 [프로필](../project/PROJECT_PROFILE.md)과 [작업 경계](../project/PROJECT_BOUNDARIES.md)에 확정값을 등록한 후 적용한다. 문서만으로 계정 권한·잠금·자동 동기화가 생기지는 않는다.
 
 기획과 파일 사이의 연결 기준은 [문서 운영](../project/DOCUMENTATION.md), 작업 기록과 인수인계는 [인수인계 기준](../ai/SESSION_HANDOFF.md)을 따른다. 역할이 겹치면 관련 안내를 함께 읽되 같은 게임 규칙을 여러 문서에서 별도로 고치지 않는다.
 

@@ -7,7 +7,7 @@
 1. 팀이 부여한 GitHub 저장소 읽기/쓰기 권한을 확인하고 저장소를 복제한다. 이미 복제되어 있으면 새 복제 없이 작업 트리 상태를 확인한다.
 2. README → 프로젝트 문서 지도 → Notion 기획 원본/이관 전 초안 → 작업 경계를 읽는다.
 3. Unreal Engine 5.8.4와 Windows C++ 컴파일 도구를 준비한다. 팀 배포 방식·SDK 기준은 프로필의 미결 상태를 확인한다. 다른 버전에서 프로젝트를 열어 자동 변환하지 않는다.
-4. 에셋 관리 방식([ADR-004](decisions/ADR-004-git-code-svn-assets.md): 로직 폴더는 Git, 아트·맵·제작 원본은 SVN)을 확인하고 SVN 클라이언트(TortoiseSVN)를 설치해 `DIGETHER/Content`·`DIGETHER/SourceArt`를 checkout한다. 절차는 [개발 흐름](project/DEVELOPMENT_WORKFLOW.md#git과-svn-전환-절차)을 따른다. 2026-11-06 기준 SVN 첫 등록은 미실행이다.
+4. 에셋 관리 방식([ADR-004](decisions/ADR-004-git-code-svn-assets.md): 로직 폴더는 Git, 아트·맵·제작 원본은 SVN)을 확인하고 SVN 클라이언트(TortoiseSVN)를 설치해 프로젝트 폴더 `DIGETHER/DIGETHER`에 `<주소>/trunk`를 checkout한다(`Content`·`SourceArt`만 받아진다). 절차는 [개발 흐름](project/DEVELOPMENT_WORKFLOW.md#git과-svn-전환-절차)을 따른다. SVN 첫 등록은 2026-11-10에 끝났다. 저장소 주소와 계정은 관리자에게 받는다.
 
 아래는 소스 확보 절차이며 이번 작업에서 실행한 clone은 아니다.
 

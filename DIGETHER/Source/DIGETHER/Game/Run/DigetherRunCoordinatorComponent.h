@@ -55,6 +55,17 @@ public:
 	int32 GetConfirmedAscentCount() const;
 	FDigetherRunPublicState CapturePublicState() const;
 
+#if !UE_BUILD_SHIPPING
+	// 개발 시간 조작, 판정은 조율자 규칙의 개발 함수 재사용
+	// 0으로 맞추면 일반 갱신과 같은 OnTimeExpired 통지
+	EDigetherRunResult DevSetRemainingSeconds(double RemainingSeconds, double ServerSeconds);
+	// ServerSeconds까지 갱신한 뒤 정지 전환, 정지 중에도 상승 확정·만료 판정은 같은 규칙
+	EDigetherRunResult DevSetClockPaused(bool bPaused, double ServerSeconds);
+	bool IsDevClockPaused() const;
+	double DevGetMaxRemainingSeconds() const;
+	bool HasTimeExpired() const { return ServerState.bTimeExpiredNotified; }
+#endif
+
 	FOnDigetherRunStarted OnRunStarted;
 	FOnDigetherRunTimeExpired OnTimeExpired;
 	FOnDigetherRunEnded OnRunEnded;

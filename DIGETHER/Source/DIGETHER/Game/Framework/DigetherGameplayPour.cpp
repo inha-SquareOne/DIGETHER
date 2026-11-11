@@ -448,36 +448,44 @@ bool ADigetherGameplayGameMode::ProcessPourTick(const FDigetherPourDueTick& Tick
 		return false;
 	}
 	PourSessions.AdvanceAfterTick(Tick, RunTuning.DepositIntervalSeconds);
+	const auto NotifyTickCommitted = [&]()
+	{
+		Wallet->NotifyStateChanged();
+		Quota->NotifyStateChanged();
+		FDigetherDepositResponse Response;
+		Response.Result = EDigetherEconomyResult::Success;
+		Response.StationId = Session.StationId;
+		Response.PeriodGeneration = Session.PeriodGeneration;
+		Response.AcceptedCredits = Result.SpentCredits;
+		Response.CreditedCredits = Result.CreditedCredits;
+		Controller->Client_DepositResult(EDigetherDepositOperation::Submit, Response);
+	};
 	if (Result.bTargetCompleted)
 	{
-		// 달성 연출 카운터를 먼저 올려 서버 표시가 "달성 → 새 사이클 색" 순서가 되게 한다.
-		Quota->MarkQuotaCompleted();
-	}
-	Wallet->NotifyStateChanged();
-	Quota->NotifyStateChanged();
-	FDigetherDepositResponse Response;
-	Response.Result = EDigetherEconomyResult::Success;
-	Response.StationId = Session.StationId;
-	Response.PeriodGeneration = Session.PeriodGeneration;
-	Response.AcceptedCredits = Result.SpentCredits;
-	Response.CreditedCredits = Result.CreditedCredits;
-	Controller->Client_DepositResult(EDigetherDepositOperation::Submit, Response);
-	if (Result.bTargetCompleted)
-	{
-		// 기획 S24 ④: 목표를 채운 순간 진행 중인 모든 붓기를 끊는다. 새 목표에 내려면 다시 눌러야 한다.
-		StopAllPours(EDigetherPourStopReason::PeriodChanged);
-		// 기획 S30 ②: 할당량 달성 시 관련 납부와 새 목표·1일차 전환을 한 번에 자동 저장한다.
-		// 실패하면 알리고 자동 재시도하며 납부·출발을 막지 않는다.
-		RequestAutosave(TEXT("QuotaCompleted"));
-		LogRunStep(TEXT("QuotaCompleted"));
+		CommitQuotaCompletion(*Quota, NotifyTickCommitted);
 		return true;
 	}
+	NotifyTickCommitted();
 	if (Result.WalletState.BalanceCredits <= 0)
 	{
 		// 잔고가 바닥나면 본인 붓기만 멈춘다(S24 입력/조건).
 		StopPour(Session.PlayerKey, EDigetherPourStopReason::InsufficientFunds);
 	}
 	return false;
+}
+
+void ADigetherGameplayGameMode::CommitQuotaCompletion(UDigetherQuotaStateComponent& Quota,
+	const TFunctionRef<void()> NotifyCommitted)
+{
+	// 달성 연출 카운터를 먼저 올려 서버 표시가 "달성 → 새 사이클 색" 순서가 되게 한다.
+	Quota.MarkQuotaCompleted();
+	NotifyCommitted();
+	// 기획 S24 ④: 목표를 채운 순간 진행 중인 모든 붓기를 끊는다. 새 목표에 내려면 다시 눌러야 한다.
+	StopAllPours(EDigetherPourStopReason::PeriodChanged);
+	// 기획 S30 ②: 할당량 달성 시 관련 납부와 새 목표·1일차 전환을 한 번에 자동 저장한다.
+	// 실패하면 알리고 자동 재시도하며 납부·출발을 막지 않는다.
+	RequestAutosave(TEXT("QuotaCompleted"));
+	LogRunStep(TEXT("QuotaCompleted"));
 }
 
 ADigetherFloorCoinActor* ADigetherGameplayGameMode::FindFloorCoin(const FName StationId) const

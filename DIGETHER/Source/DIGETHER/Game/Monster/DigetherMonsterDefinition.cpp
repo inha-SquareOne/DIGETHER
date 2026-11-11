@@ -29,6 +29,60 @@ bool UDigetherMonsterDefinition::CollectProblems(TArray<FText>& OutProblems) con
 	return OutProblems.Num() == Before;
 }
 
+bool UDigetherMonsterDefinition::CollectSpawnProblems(TArray<FText>& OutProblems) const
+{
+	const int32 Before = OutProblems.Num();
+	CollectProblems(OutProblems);
+	CollectSpawnOnlyProblems(OutProblems);
+	return OutProblems.Num() == Before;
+}
+
+void UDigetherMonsterDefinition::CollectSpawnOnlyProblems(TArray<FText>& OutProblems) const
+{
+	if (Zone == EDigetherMonsterZone::None)
+	{
+		OutProblems.Add(LOCTEXT("ZoneRequired", "Zone(갱도·던전)을 지정해야 합니다."));
+	}
+	if (SpawnKind == EDigetherMonsterSpawnKind::PeriodicPower)
+	{
+		if (Zone != EDigetherMonsterZone::Dungeon)
+		{
+			OutProblems.Add(LOCTEXT("PowerRequiresDungeon", "주기+파워형은 던전 몬스터만 사용합니다."));
+		}
+		if (PowerLevel < 1 || PowerLevel > 3)
+		{
+			OutProblems.Add(LOCTEXT("PowerLevelRange", "주기+파워형의 PowerLevel은 1~3이어야 합니다."));
+		}
+	}
+	else if (Zone == EDigetherMonsterZone::Dungeon)
+	{
+		OutProblems.Add(LOCTEXT("DungeonRequiresPower", "던전 몬스터는 주기+파워형이어야 합니다."));
+	}
+	if (!FMath::IsFinite(SpawnTelegraphSeconds) || SpawnTelegraphSeconds < 0.f
+		|| !FMath::IsFinite(MinPlayerDistance) || MinPlayerDistance < 0.f)
+	{
+		OutProblems.Add(LOCTEXT("InvalidSpawnTiming", "예고 시간과 최소 거리는 유한한 0 이상의 값이어야 합니다."));
+	}
+	if (MonsterClass.IsNull())
+	{
+		OutProblems.Add(LOCTEXT("MonsterClassRequired", "MonsterClass를 지정해야 합니다."));
+	}
+	if (BehaviorTree.IsNull())
+	{
+		OutProblems.Add(LOCTEXT("BehaviorTreeRequired", "BehaviorTree를 지정해야 합니다."));
+	}
+	if (Movement.CapsuleRadius <= 0.f || Movement.CapsuleHalfHeight < Movement.CapsuleRadius
+		|| Movement.MaxStepHeight < 0.f || Movement.WalkSpeed < 0.f)
+	{
+		OutProblems.Add(LOCTEXT("InvalidMovement", "캡슐 반지름은 양수, 반높이는 반지름 이상, 단차·속도는 0 이상이어야 합니다."));
+	}
+	// 종 구조체 자체 검사, 종 컴포넌트와의 타입 일치는 캐릭터 초기화 때 확인
+	if (const FDigetherMonsterSpeciesParams* Params = SpeciesParams.GetPtr<FDigetherMonsterSpeciesParams>())
+	{
+		Params->CollectProblems(OutProblems);
+	}
+}
+
 #if WITH_EDITOR
 EDataValidationResult UDigetherMonsterDefinition::IsDataValid(FDataValidationContext& Context) const
 {
@@ -41,6 +95,13 @@ EDataValidationResult UDigetherMonsterDefinition::IsDataValid(FDataValidationCon
 			Context.AddError(Problem);
 		}
 		return EDataValidationResult::Invalid;
+	}
+	// 스폰 데이터는 BP·BT 제작 전 단계에서 비어 있을 수 있어 경고, 디렉터가 생성 시 거절
+	TArray<FText> SpawnProblems;
+	CollectSpawnOnlyProblems(SpawnProblems);
+	for (const FText& Problem : SpawnProblems)
+	{
+		Context.AddWarning(Problem);
 	}
 	return Result == EDataValidationResult::Invalid ? Result : EDataValidationResult::Valid;
 }
