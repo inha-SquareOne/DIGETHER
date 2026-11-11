@@ -2,6 +2,8 @@
 
 기준일 2026-11-04 · UE 5.8.4 (CL 58902052) · 상태: **조사 자료, 채택 결정 아님**. 색인은 [기능 카탈로그](README.md).
 
+S05·DG-007 요구 정정(2026-11-11, 런 플로우 v1.0.1 6.1): 탐사마다 사전 제작 갱도 맵 여러 개 중 하나를 선택해 불러오며 갱도 형태를 매번 새로 만들지 않는다. 던전·물품 배치는 기존 규칙을 따른다. 아래 엔진 지원 조사와 조사 당시 구현 관찰은 보존하며, PCG·던전 조립 후보의 채택을 뜻하지 않는다. 최신 구현은 [구현 현황](../../design/IMPLEMENTATION_STATUS.md)을 따른다.
+
 ## 요약
 - **프로젝트에는 아직 절차 던전 조립·스트리밍·레벨 인스턴스 사용 코드를 확인하지 못했다.** 제품·프로토타입 맵은 `L_MainMenu`, `L_Lobby`, `L_GameTest`, `L_Prototype`이고 템플릿·에디터 맵도 별도로 있다. 현재 이동은 `OpenLevel`/`ServerTravel`(비심리스)이다. 던전 조립 방식·무로딩 여부(PQ-03)는 미결정이다.
 - **던전 조립 후보는 크게 셋**: ① 모듈 방 액터를 서버가 시드로 스폰 ② `ULevelStreamingDynamic::LoadLevelInstance`로 방 레벨을 위치·회전 지정해 로드 ③ PCG 그래프로 배치. 어느 쪽이든 "서버가 생성 명세(시드·방 목록)를 정하고 클라이언트는 같은 결과를 만들거나 복제로 받는다"는 규칙이 먼저다.
@@ -13,12 +15,12 @@
 ## DIGETHER에서 쓰이는 곳
 | 기능 | 관련 | 프로젝트 상태 |
 |---|---|---|
-| 절차 생성 갱도·던전 배치(S05, DG-007) | 탐사/귀환 연결 그래프, 실패 재생성 한도 | 미사용. PCG 의존 없음 |
+| 사전 제작 갱도 맵 선택·로드와 던전·물품 배치(S05, DG-007) | 탐사별 맵 선택·준비, 연결·귀환 가능성, 배치·준비 실패 처리 | 조사 당시 PCG 미사용·의존 없음. 갱도 형태의 런타임 생성은 요구가 아님 |
 | 폐교·피라미드 던전·구역 전환(DG-008, PQ-03) | 무로딩 요구와 로딩 필요 여부 충돌 | 결정 대기. 맵 하나(`L_GameTest`)로 시험 |
 | 거점→탐사 이동 | 대기실→게임 맵 | `DigetherSessionSubsystem`이 `ServerTravel(GameMap+"?listen", true)` 호출, `DigetherLobbyGameMode`는 `bUseSeamlessTravel=false`. PlayerController·PlayerState 클래스가 달라 비심리스로 재접속 |
 | 월드 인계 | 런 상태·정산·PlayerState | 맵 분리를 하기로 정하면 별도 설계([코드 구조 계획](../../design/CODE_STRUCTURE_PLAN.md): "월드 이동은 이 계획 범위 밖") |
 | 런타임 내비메시 | 굴착 영역 | 레벨 스트리밍 시 내비 데이터 소유가 걸린다 → [AI_NAVIGATION.md](AI_NAVIGATION.md) |
-| 시드 | 갱도·던전 생성 | 시드 정책 미결정(추정으로 확정하지 않음). `FRandomStream`은 프로토타입 코드에서만 쓰임(`DigetherPrototypeWorld.cpp` 시험 시드, `DigetherPrototypeMineScene.cpp` 고정 시드). 방 코드 생성에 `FMath::RandRange`(`DigetherRoomProtocol.cpp`) |
+| 시드 | 던전·물품 배치 후보 | 시드 정책 미결정(추정으로 확정하지 않음). `FRandomStream`은 프로토타입 코드에서만 쓰임(`DigetherPrototypeWorld.cpp` 시험 시드, `DigetherPrototypeMineScene.cpp` 고정 시드). 방 코드 생성에 `FMath::RandRange`(`DigetherRoomProtocol.cpp`) |
 
 ## 기능 목록
 | 기능 | 모듈·플러그인 (타입, 안정성) | 하는 일 | DIGETHER 쓸모 | 프로젝트 상태 | 근거 |
