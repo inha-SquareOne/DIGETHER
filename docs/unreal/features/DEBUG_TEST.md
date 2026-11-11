@@ -18,7 +18,7 @@
 | 자동 테스트 | 사용 중. `Source/DIGETHER`에 `IMPLEMENT_SIMPLE_AUTOMATION_TEST` 57개(`DIGETHER.Game.*` 54, `DIGETHER.Prototype.*` 3, 전부 `EditorContext\|EngineFilter`), `DevelopmentWorkbench` 58, `DigetherWorkbench` 6. `WITH_DEV_AUTOMATION_TESTS` 참조는 `DIGETHER/Source/DIGETHER`에서 34줄 |
 | 명령줄 실행 | 사용 중. `Invoke-UnrealChecks.ps1`이 `-ExecCmds=Automation RunTests Workbench.`, `-TestExit=Automation Test Queue Empty`, `-ReportExportPath`를 사용 |
 | 로그 | `LogDigetherDev`·`LogDigetherEconomy` 등 도메인별 카테고리 8종 이상(`Game/*/Digether*Log.h`). `UE_LOG(..., TEXT())` 91곳 |
-| 치트 | `UDigetherCheatManager`(Exec 5개) + `DigetherDev::Register` 처리기 틀. `DigetherGameplayPlayerController`가 `CheatClass`로 연결. 프로토타입 컨트롤러는 미연결 |
+| 치트 | 2026-11-11부터 개발 모듈 `DIGETHERDevTools`(Shipping 미빌드)의 `DigetherDev::Register` 등록부가 콘솔 명령(`IConsoleManager`)·같은 PC 웹 화면(엔진 `HTTPServer`)·화면 표시 콘솔 변수를 함께 제공한다. `UDigetherCheatManager`는 Exec 함수 없는 빈 클래스로 `CheatClass`에 남아 엔진 기본 치트만 제공하고, Gameplay GameMode의 `AllowCheats`가 개발 빌드 호스트 로컬 컨트롤러를 허용한다. 프로토타입 컨트롤러는 미연결 |
 | 콘솔 명령·CVar | 코드로 등록한 것 없음(`FAutoConsole*` 0). `[ConsoleVariables]`(DefaultGame.ini)에 CommonUI 3개 |
 | Visual Logger·Gameplay Debugger·Draw Debug | 코드 사용 없음 |
 | Rewind Debugger | `GameplayInsights` 활성(`TargetAllowList=[Editor]`). 실제 기록·재생 성공은 미검증([도구 안내](../../tools/DEVELOPER_TOOLS.md)) |
@@ -129,7 +129,7 @@
 - `Engine/Source/Runtime/Engine/Classes/GameFramework/CheatManager.h`: `UCheatManager`(`Within=PlayerController`), 내장 Exec 치트 다수, `FOnCheatManagerCreated`. `APlayerController::CheatClass`/`CheatManager`(`PlayerController.h`): Shipping에서는 항상 비활성, 에디터는 항상 활성, 그 외는 싱글플레이 기본 활성이며 `EnableCheats` 콘솔로 강제 가능. 변경은 `APlayerController::EnableCheats` 또는 `AGameModeBase::AllowCheats` 재정의.
 - **deprecated(5.8)**: `UCheatManager::DebugCameraControllerRef`("`FDebugCameraManager` 사용").
 - `UCheatManagerExtension`(`Within=CheatManager`, `AddedToCheatManager`/`RemovedFromCheatManager`)로 시스템별 치트를 모듈식으로 추가한다. `UGameFeatureAction_AddCheats`(GameFeatures 플러그인, **Beta**)가 이를 Game Feature에 연결한다.
-- 프로젝트 틀: [DigetherDevCommands.h](../../../DIGETHER/Source/DIGETHER/Game/Dev/DigetherDevCommands.h)의 `Register/Execute`가 처리기를 모으고 `UDigetherCheatManager`의 Exec 함수가 호출한다. 명령 추가는 예약 목록과 Exec 함수를 함께 늘린다. 로그·명령 응답 규칙은 이미 [로그 분류](../../design/LOG_CATEGORIES.md)에 있으므로 반복하지 않는다.
+- 프로젝트 틀(2026-11-11 변경): [DigetherDevRegistry.h](../../../DIGETHER/Source/DIGETHERDevTools/Public/DigetherDevRegistry.h)의 `Register/Execute`가 명령 설명(분류·인자·요청 ID·실행 범위)과 처리기를 모으고 같은 이름의 콘솔 명령을 자동 등록한다. 등록된 콘솔 명령은 뷰포트 경로에서 컨트롤러의 `ProcessConsoleExec`보다 먼저 처리된다(`LocalPlayer.cpp`의 `ViewportClient->Exec` 뒤 `UPlayer::Exec`). 이전의 예약 목록·Exec 함수 방식은 없앴다. 로그·명령 응답 규칙은 이미 [로그 분류](../../design/LOG_CATEGORIES.md)에 있으므로 반복하지 않는다.
 - 리슨 서버 고려: 치트 매니저는 해당 `PlayerController` 안에 있다. 서버 권한 상태(정산·시간)를 바꾸는 치트가 클라이언트에서 호출될 때 서버로 전달되는 경로는 이번에 확인하지 않았다 → 처리기 구현 시 서버 RPC/권한 검사를 별도 설계해야 한다(미확인).
 
 ### 콘솔 명령·CVar·Exec

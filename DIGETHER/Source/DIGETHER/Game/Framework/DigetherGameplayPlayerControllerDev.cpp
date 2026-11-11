@@ -216,102 +216,39 @@ void ADigetherGameplayPlayerController::Server_DevSetQuotaProgress_Implementatio
 }
 
 #if !UE_BUILD_SHIPPING
-bool ADigetherGameplayPlayerController::ProcessConsoleExec(const TCHAR* Cmd, FOutputDevice& Ar, UObject* Executor)
+void ADigetherGameplayPlayerController::DigetherHubTeleport(const FString& FacilityInput)
 {
-	const TCHAR* Command = Cmd;
-	if (FParse::Command(&Command, TEXT("DigetherHubTeleport")))
+	if (IsLocalController())
 	{
-		Server_DevTeleportToHubFacility(FName(*FString(Command).TrimStartAndEnd()));
-		return true;
+		Server_DevTeleportToHubFacility(FName(*FacilityInput.TrimStartAndEnd()));
 	}
-	if (FParse::Command(&Command, TEXT("DigetherHubAction")))
+}
+
+void ADigetherGameplayPlayerController::DigetherHubAction(const FString& Arguments)
+{
+	TArray<FString> Args;
+	Arguments.ParseIntoArrayWS(Args);
+	if (!IsLocalController() || Args.Num() < 2 || Args.Num() > 3)
 	{
-		TArray<FString> Args;
-		FString(Command).ParseIntoArrayWS(Args);
-		if (Args.Num() >= 2 && Args.Num() <= 3)
+		UE_LOG(LogDigetherFramework, Warning, TEXT("사용법: DigetherHubAction <FacilityId> <Action> [OptionId]"));
+		return;
+	}
+	const int64 ActionValue = StaticEnum<EDigetherHubAction>()->GetValueByNameString(Args[1]);
+	ADigetherHubFacilityActor* Match = nullptr;
+	bool bDuplicate = false;
+	for (TActorIterator<ADigetherHubFacilityActor> It(GetWorld()); It; ++It)
+	{
+		if (It->FacilityId == FName(*Args[0]))
 		{
-			const int64 ActionValue = StaticEnum<EDigetherHubAction>()->GetValueByNameString(Args[1]);
-			ADigetherHubFacilityActor* Match = nullptr;
-			bool bDuplicate = false;
-			for (TActorIterator<ADigetherHubFacilityActor> It(GetWorld()); It; ++It)
-			{
-				if (It->FacilityId == FName(*Args[0]))
-				{
-					bDuplicate |= Match != nullptr;
-					Match = *It;
-				}
-			}
-			if (IsValid(Match) && !bDuplicate && ActionValue != INDEX_NONE)
-			{
-				Server_HubFacilityRequest(Match, static_cast<EDigetherHubAction>(ActionValue),
-					Args.Num() == 3 ? FName(*Args[2]) : NAME_None, FGuid::NewGuid());
-			}
+			bDuplicate |= Match != nullptr;
+			Match = *It;
 		}
-		return true;
 	}
-	if (FParse::Command(&Command, TEXT("DigetherShowRunResult")))
+	if (IsValid(Match) && !bDuplicate && ActionValue != INDEX_NONE)
 	{
-		ShowLastRunResult();
-		return true;
+		Server_HubFacilityRequest(Match, static_cast<EDigetherHubAction>(ActionValue),
+			Args.Num() == 3 ? FName(*Args[2]) : NAME_None, FGuid::NewGuid());
 	}
-	if (FParse::Command(&Command, TEXT("DigetherPour")))
-	{
-		DigetherPour(FString(Command));
-		return true;
-	}
-	if (FParse::Command(&Command, TEXT("DigetherPourStop")))
-	{
-		DigetherPourStop();
-		return true;
-	}
-	if (FParse::Command(&Command, TEXT("DigetherSetQuotaProgress")))
-	{
-		DigetherSetQuotaProgress(FString(Command));
-		return true;
-	}
-	if (FParse::Command(&Command, TEXT("DigetherCreditFastForward")))
-	{
-		DigetherCreditFastForward(FString(Command));
-		return true;
-	}
-	if (FParse::Command(&Command, TEXT("DigetherLever")))
-	{
-		DigetherLever(FString(Command));
-		return true;
-	}
-	if (FParse::Command(&Command, TEXT("DigetherRunSmoke")))
-	{
-		if (FString(Command).TrimStartAndEnd().IsEmpty())
-		{
-			DigetherRunSmoke();
-		}
-		else
-		{
-			UE_LOG(LogDigetherFramework, Warning, TEXT("사용법: DigetherRunSmoke"));
-		}
-		return true;
-	}
-	if (FParse::Command(&Command, TEXT("DigetherGrantCredits")))
-	{
-		DigetherGrantCredits(FString(Command));
-		return true;
-	}
-	if (FParse::Command(&Command, TEXT("DigetherDumpState")))
-	{
-		DigetherDumpState();
-		return true;
-	}
-	if (FParse::Command(&Command, TEXT("DigetherTeleportOut")))
-	{
-		DigetherTeleportOut();
-		return true;
-	}
-	if (FParse::Command(&Command, TEXT("DigetherTeleportToDeposit")))
-	{
-		DigetherTeleportToDeposit(FString(Command));
-		return true;
-	}
-	return Super::ProcessConsoleExec(Cmd, Ar, Executor);
 }
 
 void ADigetherGameplayPlayerController::DigetherLever(const FString& Arguments)

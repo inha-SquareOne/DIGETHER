@@ -774,6 +774,98 @@ void ADigetherHubStateActor::ReturnElevatorToHub()
 	LockDestination(false);
 }
 
+#if !UE_BUILD_SHIPPING
+bool ADigetherHubStateActor::IsDevStageChangeAllowed() const
+{
+	if (!HasAuthority() || !bProgressInitialized || !IsValid(Catalog) || !Catalog->IsCatalogValid() || Find(GetWorld()) != this)
+	{
+		return false;
+	}
+	const ADigetherGameplayGameState* State = GetWorld()->GetGameState<ADigetherGameplayGameState>();
+	if (!IsValid(State) || !IsValid(State->GetRunPublicStateComponent()))
+	{
+		return false;
+	}
+	const FDigetherRunPublicState Run = State->GetRunPublicStateComponent()->CaptureState();
+	if (Run.Phase == EDigetherRunPhase::InProgress || Run.bGameOver)
+	{
+		return false;
+	}
+	for (TActorIterator<ADigetherElevatorActor> It(GetWorld()); It; ++It)
+	{
+		if (!IsValid(It->GetElevatorComponent())
+			|| It->GetElevatorComponent()->GetPublicState().Phase != EDigetherElevatorPhase::HubWaiting)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+EDigetherHubResult ADigetherHubStateActor::DevSelectStage(const FName StageId)
+{
+	if (!IsDevStageChangeAllowed())
+	{
+		return EDigetherHubResult::InvalidState;
+	}
+	const FDigetherHubStage* Stage = Catalog->FindStage(StageId);
+	if (Stage == nullptr || !IsValid(FindStageAnchor(GetWorld(), StageId)))
+	{
+		return EDigetherHubResult::InvalidState;
+	}
+	// 거래와 같은 규칙 함수 재사용, 비용만 0인 사본과 임시 지갑으로 차감 없음
+	FDigetherHubProgress Candidate = CaptureProgress();
+	FDigetherWalletState FreeWallet;
+	FDigetherHubStage FreeStage = *Stage;
+	FreeStage.UnlockCostCredits = 0;
+	const EDigetherHubResult Unlock = DigetherHubRules::UnlockStage(Candidate, FreeWallet, FreeStage, bDestinationLocked);
+	if (Unlock != EDigetherHubResult::Success && Unlock != EDigetherHubResult::AlreadyUnlocked)
+	{
+		return Unlock;
+	}
+	const EDigetherHubResult Select = DigetherHubRules::SelectStage(Candidate, StageId, bDestinationLocked);
+	if (Select != EDigetherHubResult::Success)
+	{
+		return Select;
+	}
+	UnlockedStageIds = MoveTemp(Candidate.UnlockedStageIds);
+	SelectedStageId = Candidate.SelectedStageId;
+	ForceNetUpdate();
+	return EDigetherHubResult::Success;
+}
+
+EDigetherHubResult ADigetherHubStateActor::DevUnlockAllStages(int32& OutNewlyUnlocked)
+{
+	OutNewlyUnlocked = 0;
+	if (!IsDevStageChangeAllowed())
+	{
+		return EDigetherHubResult::InvalidState;
+	}
+	FDigetherHubProgress Candidate = CaptureProgress();
+	FDigetherWalletState FreeWallet;
+	int32 Newly = 0;
+	for (const FDigetherHubStage& Stage : Catalog->Stages)
+	{
+		FDigetherHubStage FreeStage = Stage;
+		FreeStage.UnlockCostCredits = 0;
+		const EDigetherHubResult Unlock = DigetherHubRules::UnlockStage(Candidate, FreeWallet, FreeStage, bDestinationLocked);
+		if (Unlock == EDigetherHubResult::Success)
+		{
+			++Newly;
+		}
+		else if (Unlock != EDigetherHubResult::AlreadyUnlocked)
+		{
+			// 해금 상한·목적지 고정 등은 일부만 반영하지 않고 전체 거절
+			return Unlock;
+		}
+	}
+	UnlockedStageIds = MoveTemp(Candidate.UnlockedStageIds);
+	ForceNetUpdate();
+	OutNewlyUnlocked = Newly;
+	return EDigetherHubResult::Success;
+}
+#endif
+
 void ADigetherHubStateActor::OnRep_OfferingPulseCounter()
 {
 	if (!IsValid(OfferingLight) || !IsValid(OfferingLight->GetLightComponent()) || !IsValid(Catalog))

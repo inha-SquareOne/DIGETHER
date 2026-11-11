@@ -41,6 +41,14 @@ public:
 	void EndRest(ADigetherGameplayPlayerController* Requester);
 	void EndAllRest();
 
+#if !UE_BUILD_SHIPPING
+	// 개발 B-02: 해금·비용 무시 목적지 선택, 출발 판정이 해금 목록을 요구해 미해금이면 비용 없이 해금도 함께
+	// 거점 대기·출발 준비 전(목적지 고정 아님)·정차 위치 있는 목적지만
+	EDigetherHubResult DevSelectStage(FName StageId);
+	// 개발 B-03: 카탈로그 목적지 전체를 비용 없이 해금, 해금 상한은 기존 규칙 유지
+	EDigetherHubResult DevUnlockAllStages(int32& OutNewlyUnlocked);
+#endif
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Digether|Hub")
 	TObjectPtr<UDigetherHubCatalog> Catalog;
 
@@ -76,6 +84,10 @@ private:
 	UFUNCTION()
 	void OnRep_OfferingPulseCounter();
 	void RestoreOfferingLight();
+#if !UE_BUILD_SHIPPING
+	// 개발 목적지 변경 공통: 서버·초기화·거점 대기(런 진행·게임 오버 아님, 엘리베이터 HubWaiting)
+	bool IsDevStageChangeAllowed() const;
+#endif
 
 	// 휴식 종료 시 기존 Pawn과 원래 위치 복원
 	struct FRestRecord

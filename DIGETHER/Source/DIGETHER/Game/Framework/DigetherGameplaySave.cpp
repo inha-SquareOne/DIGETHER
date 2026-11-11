@@ -17,6 +17,7 @@
 #include "Game/Framework/DigetherGameplayPlayerState.h"
 #include "Game/Life/DigetherLifeRules.h"
 #include "Game/Life/DigetherLifeStateComponent.h"
+#include "Game/Monster/DigetherMonsterDirectorSubsystem.h"
 #include "Game/Run/DigetherRunCoordinatorComponent.h"
 #include "Game/Run/DigetherRunPublicStateComponent.h"
 #include "Game/Save/DigetherSaveRules.h"
@@ -874,9 +875,15 @@ bool ADigetherGameplayGameMode::RecoverFromCommonLoadingFailure()
 	// 기획 S02·S30: 디스크 저장을 읽거나 쓰지 않는다. 문 닫힘 완료 순간의 확정된 준비(구매·납부·해금·배치)와
 	// 게이지 완료 때 기록한 4일차 마감을 그대로 두고, 일차를 소비하지 않은 같은 일차 거점으로 돌아간다.
 	const FDigetherSaveSnapshot Baseline = DepartureBaseline.GetValue();
+	const FGuid AbandonedRunId = CurrentRunId;
 	const bool bSucceeded = RestoreProgress(Baseline);
 	if (bSucceeded)
 	{
+		// 출발 확정 때 시작한 몬스터 런(서식지 배치·예고 예약)을 거점 복귀와 함께 정리
+		if (UDigetherMonsterDirectorSubsystem* Director = GetWorld()->GetSubsystem<UDigetherMonsterDirectorSubsystem>())
+		{
+			Director->EndRun(AbandonedRunId);
+		}
 		for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
 		{
 			APlayerController* Controller = Iterator->Get();
