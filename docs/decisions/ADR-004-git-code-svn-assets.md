@@ -23,13 +23,21 @@
 
 | Git (GitHub, LFS 없음) | SVN (팀 PC) |
 |---|---|
-| `Source`, `Config`, `.uproject`, `Plugins`, `Build`, 문서·스크립트 | `Content`의 나머지 전부: `Characters`, `Game/Environment`(시설 외형 BP 포함), `Game/Maps`, `Frontend/Maps`, `Frontend/Textures`, `Prototype`, `ThirdPerson`, `Variant_*`, `LevelPrototyping`, `Splash`, `Collections`, `Developers`, `__ExternalActors__`, `__ExternalObjects__` |
+| `Source`, `Config`, `.uproject`, `Plugins`(`Plugins/Marketplace` 제외), `Build`, 문서·스크립트 | `Content`의 나머지 전부: `Characters`, `Game/Environment`(시설 외형 BP 포함), `Game/Maps`, `Frontend/Maps`, `Frontend/Textures`, `Prototype`, `ThirdPerson`, `Variant_*`, `LevelPrototyping`, `Splash`, `Collections`, `Developers`, `__ExternalActors__`, `__ExternalObjects__` |
 | `Content/Game/Blueprints`, `Content/Game/UI`, `Content/Game/Input`, `Content/Data`, `Content/Input`, `Content/Editor`, `Content/Frontend/UI`, `Content/Frontend/Localization` | `DIGETHER/SourceArt`(제작 원본) |
 
 - 새 게임 로직 BP·WBP·DataAsset·입력 에셋은 Git 폴더에 만든다. 아트 교체 슬롯인 `Game/Environment/Hub/Blueprints`의 외형 BP는 아트팀이 고치므로 SVN에 둔다.
 - 템플릿·프로토타입 폴더(`Variant_*`, `ThirdPerson`, `Prototype`, `LevelPrototyping`)의 BP는 SVN에 남는다. 게임 로직으로 쓰게 되면 Git 폴더로 옮긴다.
 - 에디터에서 에셋을 Git 폴더와 SVN 폴더 사이로 옮기면 소속 저장소가 바뀐다. 옮긴 뒤 리디렉터 정리까지 양쪽에 커밋한다.
 - 맵은 SVN에 두어 잠금(`svn:needs-lock`)으로 동시 편집을 막는다. Git 쪽 에셋은 잠금이 없으므로 편집 예약으로 관리한다.
+
+## 유료 플러그인 예외 (2026-11-11 사용자 결정)
+
+- 유료(Fab·마켓플레이스) 플러그인은 `DIGETHER/Plugins/Marketplace/<플러그인>/`에 두고 SVN으로 관리한다. Git은 루트 `.gitignore`의 `/DIGETHER/Plugins/Marketplace/` 한 줄로 제외한다. 무료·자체 플러그인은 `Plugins/` 바로 아래에 두고 Git으로 관리한다.
+- SVN 쪽은 `Plugins` 폴더 자체만 등록하고 `svn:ignore = *`로 그 밖의 하위 폴더를 무시한다. `Plugins/Marketplace`에는 `svn:global-ignores`로 `Intermediate`와 `*.pdb`를 둔다. 따라서 무료 플러그인 추가 시 SVN 작업이 없고, 유료 플러그인 추가 시 `Marketplace`에 넣어 SVN 커밋만 하면 된다.
+- 컴파일러 없는 PC에서도 열리도록 유료 플러그인의 `Binaries/Win64`(`.dll`, `UnrealEditor.modules`)는 SVN에 포함한다. 디버그용 `.pdb`는 제외한다.
+- 첫 대상은 Blockout Tools 1.52(`Plugins/Marketplace/Blockoute60d8e1bd542V15`)다. 코드·에셋 참조가 마운트 경로 `/BlockoutToolsPlugin/`과 `IPluginManager::FindPlugin()` 기준이라 하위 폴더 이동에 의존하지 않음을 소스로 확인했다. 2026-11-11 SVN r20으로 등록했고(`.pdb`·`Intermediate` 제외), 사용자가 에디터 플러그인 활성화와 `I_School_Map` 참조 유지를 확인했다.
+- `I_School_Map` 등 SVN 맵이 이 플러그인 에셋을 참조하므로 플러그인 SVN 커밋을 해당 맵 커밋보다 먼저 또는 함께 한다.
 
 ## 버전 짝 맞추기
 

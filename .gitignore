@@ -58,4 +58,8 @@ _bmad/gds/config.user.yaml
 !/DIGETHER/Content/Frontend/UI/
 !/DIGETHER/Content/Frontend/Localization/
 /DIGETHER/SourceArt/
+
+# 유료(Fab/마켓플레이스) 플러그인은 Plugins/Marketplace/ 아래에 두고 SVN으로 관리한다.
+# 무료·자체 플러그인은 Plugins/ 바로 아래에 두고 Git으로 관리한다.
+/DIGETHER/Plugins/Marketplace/
 .svn/
