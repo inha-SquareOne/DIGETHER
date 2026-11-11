@@ -241,6 +241,8 @@ private:
 	void ProcessAscent();
 	void ProcessPendingRunEnd();
 	void FinishRunAndReturn(EDigetherRunTerminationTrigger Trigger);
+	// 출발 확정 직후 몬스터 런 시작·서식지 배치(Hub 없으면 기본 테이블)
+	void BeginMonsterRun(const class ADigetherHubStateActor* Hub);
 	void LogRunStep(const TCHAR* Step) const;
 	void HandleDepartureConfirmed(const FDigetherElevatorDepartureConfirmed& Confirmation);
 	void HandleAscentLeverConfirmed(const FDigetherElevatorAscentConfirmed& Confirmation);

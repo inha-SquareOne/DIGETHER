@@ -11,6 +11,8 @@ class UDigetherMonsterDefinition;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDigetherMonsterDamaged, float, PreviousHealth, float, CurrentHealth);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDigetherMonsterDied);
+// 서버 전용, 피격 감지·공격자 판정용(클라이언트는 공격자를 받지 않음)
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnDigetherMonsterDamagedByServer, AController* /*InstigatedBy*/, AActor* /*DamageCauser*/);
 
 // 체력 판정과 공개 상태만 담당, 파괴·드롭·래그돌·AI 정지는 통지 수신자 책임
 UCLASS(ClassGroup=(Digether), meta=(BlueprintSpawnableComponent))
@@ -34,6 +36,12 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category="Digether|Monster")
 	FOnDigetherMonsterDied OnDied;
+
+	// 피해가 실제 적용됐을 때만, OnDamaged보다 먼저 방송
+	FOnDigetherMonsterDamagedByServer OnDamagedByServer;
+
+	// 생성자가 고른 정의로 교체, BeginPlay 전 1회만 허용(복제 정의의 HP가 BP 기본값에 덮이지 않게)
+	bool InitializeDefinition(UDigetherMonsterDefinition* InDefinition);
 
 	UFUNCTION(BlueprintPure, Category="Digether|Monster")
 	bool IsKillable() const;
@@ -70,6 +78,8 @@ private:
 
 	// 스트리밍 등으로 다시 BeginPlay해도 체력 재충전·부활 방지
 	bool bHasInitializedHealth = false;
+
+	bool bDefinitionInjected = false;
 
 	// 로컬 통지 이력, 생명 상태 원본은 HealthState.Life
 	// EndPlay에서 초기화하지 않음, 중복 수신·재진입에도 사망 재통지 방지

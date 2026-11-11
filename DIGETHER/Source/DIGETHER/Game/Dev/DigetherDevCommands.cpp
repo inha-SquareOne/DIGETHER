@@ -14,6 +14,10 @@ namespace DigetherDev
 			{ FName(TEXT("DigetherSave")), TEXT("P6 저장·재접속"), TEXT("현재 진행을 수동 저장한다") },
 			{ FName(TEXT("DigetherLoad")), TEXT("P6 저장·재접속"), TEXT("저장한 진행을 불러온다") },
 			{ FName(TEXT("DigetherNewGame")), TEXT("P6 저장·재접속"), TEXT("새 게임 진행을 시작한다") },
+			{ FName(TEXT("DigetherMonsterSpawn")), TEXT("몬스터"), TEXT("정의 에셋 이름으로 몬스터를 생성한다") },
+			{ FName(TEXT("DigetherMonsterForceHabitat")), TEXT("몬스터"), TEXT("서식지 확률을 무시하고 둥지 몬스터를 배치한다") },
+			{ FName(TEXT("DigetherMonsterAdvanceSpawnTimer")), TEXT("몬스터"), TEXT("스폰 타이머를 초 단위로 앞당긴다") },
+			{ FName(TEXT("DigetherMonsterEvaluate")), TEXT("몬스터"), TEXT("스폰 판정을 즉시 한 번 실행한다") },
 		};
 
 		TMap<FName, FCommandHandler>& Handlers()

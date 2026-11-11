@@ -3,6 +3,7 @@
 #include "Game/Dev/DigetherDevCommands.h"
 #include "Game/Dev/DigetherDevLog.h"
 #include "Game/Framework/DigetherGameplayPlayerController.h"
+#include "Game/Monster/DigetherMonsterDevCommands.h"
 #include "UObject/UObjectGlobals.h"
 
 #if !UE_BUILD_SHIPPING
@@ -46,6 +47,7 @@ void UDigetherCheatManager::InitCheatManager()
 	RegisterSaveCommand(TEXT("DigetherSave"), &ADigetherGameplayPlayerController::RequestManualSave);
 	RegisterSaveCommand(TEXT("DigetherLoad"), &ADigetherGameplayPlayerController::RequestLoadGame);
 	RegisterSaveCommand(TEXT("DigetherNewGame"), &ADigetherGameplayPlayerController::RequestNewGame);
+	DigetherMonsterDev::RegisterCommands();
 #endif
 }
 
@@ -91,4 +93,28 @@ void UDigetherCheatManager::DigetherLoad()
 void UDigetherCheatManager::DigetherNewGame()
 {
 	DigetherDev::Execute(TEXT("DigetherNewGame"), MakeControllerArgs(GetOuterAPlayerController()));
+}
+
+void UDigetherCheatManager::DigetherMonsterSpawn(const FString& DefinitionName)
+{
+	TArray<FString> Args = MakeControllerArgs(GetOuterAPlayerController());
+	Args.Add(DefinitionName);
+	DigetherDev::Execute(TEXT("DigetherMonsterSpawn"), Args);
+}
+
+void UDigetherCheatManager::DigetherMonsterForceHabitat()
+{
+	DigetherDev::Execute(TEXT("DigetherMonsterForceHabitat"), MakeControllerArgs(GetOuterAPlayerController()));
+}
+
+void UDigetherCheatManager::DigetherMonsterAdvanceSpawnTimer(const FString& Seconds)
+{
+	TArray<FString> Args = MakeControllerArgs(GetOuterAPlayerController());
+	Args.Add(Seconds);
+	DigetherDev::Execute(TEXT("DigetherMonsterAdvanceSpawnTimer"), Args);
+}
+
+void UDigetherCheatManager::DigetherMonsterEvaluate()
+{
+	DigetherDev::Execute(TEXT("DigetherMonsterEvaluate"), MakeControllerArgs(GetOuterAPlayerController()));
 }

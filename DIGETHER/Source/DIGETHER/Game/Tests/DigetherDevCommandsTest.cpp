@@ -24,7 +24,7 @@ bool FDigetherDevCommandsTest::RunTest(const FString& Parameters)
 		TestNotNull(FString::Printf(TEXT("%s Exec 함수"), *Info.Name.ToString()),
 			UDigetherCheatManager::StaticClass()->FindFunctionByName(Info.Name));
 	}
-	TestEqual(TEXT("예약 명령 개수"), Seen.Num(), 7);
+	TestEqual(TEXT("예약 명령 개수"), Seen.Num(), 11);
 
 	const FName Advance(TEXT("DigetherAdvanceTime"));
 	TestFalse(TEXT("처음엔 연결 안 됨"), DigetherDev::IsConnected(Advance));

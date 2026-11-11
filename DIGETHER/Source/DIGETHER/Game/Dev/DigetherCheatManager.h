@@ -38,4 +38,16 @@ public:
 
 	UFUNCTION(Exec)
 	void DigetherNewGame();
+
+	UFUNCTION(Exec)
+	void DigetherMonsterSpawn(const FString& DefinitionName);
+
+	UFUNCTION(Exec)
+	void DigetherMonsterForceHabitat();
+
+	UFUNCTION(Exec)
+	void DigetherMonsterAdvanceSpawnTimer(const FString& Seconds);
+
+	UFUNCTION(Exec)
+	void DigetherMonsterEvaluate();
 };

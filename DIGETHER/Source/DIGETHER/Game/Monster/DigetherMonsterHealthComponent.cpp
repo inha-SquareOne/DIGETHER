@@ -17,6 +17,18 @@ void UDigetherMonsterHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetim
 	DOREPLIFETIME_CONDITION(UDigetherMonsterHealthComponent, HealthState, COND_None);
 }
 
+bool UDigetherMonsterHealthComponent::InitializeDefinition(UDigetherMonsterDefinition* InDefinition)
+{
+	if (!IsValid(InDefinition) || HasBegunPlay() || bHasInitializedHealth || bDefinitionInjected)
+	{
+		UE_LOG(LogDigetherMonster, Warning, TEXT("%s: 몬스터 정의 주입 거절(이미 시작했거나 주입됨, 또는 정의 없음)."), *GetNameSafe(GetOwner()));
+		return false;
+	}
+	Definition = InDefinition;
+	bDefinitionInjected = true;
+	return true;
+}
+
 void UDigetherMonsterHealthComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -119,6 +131,8 @@ void UDigetherMonsterHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, 
 	Owner->FlushNetDormancy();
 	HealthState = NextState;
 	Owner->ForceNetUpdate();
+
+	OnDamagedByServer.Broadcast(InstigatedBy, DamageCauser);
 
 	// 서버 C++ 대입은 OnRep 미호출, 리슨 호스트도 같은 통지 경로를 직접 호출
 	NotifyHealthState(PreviousHealth);

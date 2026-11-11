@@ -24,6 +24,7 @@ class UDigetherHubInteractionComponent;
 class UDigetherPauseMenuWidget;
 class UDigetherPlayerScreenComponent;
 class UDigetherVoiceComponent;
+class UDigetherMonsterCameraSampleComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDigetherDepositResult,
 	EDigetherDepositOperation, Operation, FDigetherDepositResponse, Response);
@@ -291,6 +292,10 @@ private:
 	// --- 음성: 마이크 모드·재생 설정·관전 청취 위치 (로컬 전용) ---
 	UPROPERTY(VisibleAnywhere, Category="Digether|Voice")
 	TObjectPtr<UDigetherVoiceComponent> VoiceComponent;
+
+	// --- 몬스터 시선 판정: 로컬 카메라 표본을 서버에 전송 ---
+	UPROPERTY(VisibleAnywhere, Category="Digether|Monster")
+	TObjectPtr<UDigetherMonsterCameraSampleComponent> MonsterCameraSampleComponent;
 
 	UPROPERTY(EditDefaultsOnly, Category="Digether|UI")
 	TSubclassOf<UDigetherRunHudWidget> HudWidgetClass;
