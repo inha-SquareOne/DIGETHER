@@ -1,5 +1,5 @@
-#include "DigetherDainVerification.h"
-#include "DigetherDainCharacter.h"
+#include "DigetherExcavationLabVerification.h"
+#include "DigetherExcavationLabCharacter.h"
 #include "Game/Excavation/Dain/DigetherDiggableSoil.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
@@ -28,12 +28,12 @@ namespace
 } // namespace
 #endif
 
-ADigetherDainVerification::ADigetherDainVerification()
+ADigetherExcavationLabVerification::ADigetherExcavationLabVerification()
 {
 	PrimaryActorTick.bCanEverTick = !UE_BUILD_SHIPPING;
 }
 
-void ADigetherDainVerification::Finish(bool bPassed, const FString& Reason)
+void ADigetherExcavationLabVerification::Finish(bool bPassed, const FString& Reason)
 {
 #if !UE_BUILD_SHIPPING
 	const FVector Position = Character.IsValid() ? Character->GetActorLocation() : FVector::ZeroVector;
@@ -54,7 +54,7 @@ void ADigetherDainVerification::Finish(bool bPassed, const FString& Reason)
 #endif
 }
 
-void ADigetherDainVerification::Tick(float DeltaSeconds)
+void ADigetherExcavationLabVerification::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 #if !UE_BUILD_SHIPPING
@@ -67,7 +67,7 @@ void ADigetherDainVerification::Tick(float DeltaSeconds)
 	}
 	if (!Character.IsValid())
 	{
-		Character = Cast<ADigetherDainCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0));
+		Character = Cast<ADigetherExcavationLabCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0));
 	}
 	if (!Wall.IsValid())
 	{

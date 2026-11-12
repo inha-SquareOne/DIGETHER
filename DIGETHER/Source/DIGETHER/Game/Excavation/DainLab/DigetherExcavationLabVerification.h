@@ -1,17 +1,17 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "DigetherDainVerification.generated.h"
-class ADigetherDainCharacter;
+#include "DigetherExcavationLabVerification.generated.h"
+class ADigetherExcavationLabCharacter;
 class ADigetherDiggableSoil;
 
 // 개인 맵 자동 검증 전용, 수동 조작과 동일한 이동·굴착 진입점 사용
 UCLASS()
-class ADigetherDainVerification : public AActor
+class ADigetherExcavationLabVerification : public AActor
 {
 	GENERATED_BODY()
 public:
-	ADigetherDainVerification();
+	ADigetherExcavationLabVerification();
 	virtual void Tick(float DeltaSeconds) override;
 
 private:
@@ -28,7 +28,7 @@ private:
 	bool bProtectedRejected = false;
 	// 월드 소유 시험 Actor의 약한 참조, Tick에서 유효성 재확인
 	UPROPERTY()
-	TWeakObjectPtr<ADigetherDainCharacter> Character;
+	TWeakObjectPtr<ADigetherExcavationLabCharacter> Character;
 	UPROPERTY()
 	TWeakObjectPtr<ADigetherDiggableSoil> Wall;
 };

@@ -1,13 +1,13 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
-#include "DigetherDainGameMode.generated.h"
+#include "DigetherExcavationLabGameMode.generated.h"
 // 개인 시험 Pawn·HUD 지정, 공용 GameMode와 분리
 UCLASS()
-class ADigetherDainGameMode : public AGameModeBase
+class ADigetherExcavationLabGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
 public:
-	ADigetherDainGameMode();
+	ADigetherExcavationLabGameMode();
 	virtual void BeginPlay() override;
 };

@@ -1,7 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "DigetherDainCharacter.generated.h"
+#include "DigetherExcavationLabCharacter.generated.h"
 class UCameraComponent;
 
 // 개인 시험 선택값, 정식 아이템 식별자와 분리
@@ -14,11 +14,11 @@ enum class EDigetherLabTool : uint8
 
 // 개인 맵 입력 어댑터, 공용 Character·정식 장비 연결과 분리
 UCLASS()
-class ADigetherDainCharacter : public ACharacter
+class ADigetherExcavationLabCharacter : public ACharacter
 {
 	GENERATED_BODY()
 public:
-	ADigetherDainCharacter();
+	ADigetherExcavationLabCharacter();
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* Input) override;
 	// 카메라 첫 흙 타격으로 요청, 지형 Applied만 true, 실패한 시도도 간격 소비

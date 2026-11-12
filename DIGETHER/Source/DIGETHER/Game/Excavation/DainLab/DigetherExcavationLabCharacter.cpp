@@ -1,4 +1,4 @@
-#include "DigetherDainCharacter.h"
+#include "DigetherExcavationLabCharacter.h"
 #include "Game/Excavation/Dain/DigetherDiggableSoil.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -8,7 +8,7 @@
 #include "Engine/World.h"
 #include "InputCoreTypes.h"
 
-ADigetherDainCharacter::ADigetherDainCharacter()
+ADigetherExcavationLabCharacter::ADigetherExcavationLabCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	// 개인 이동 시험 규격(cm), 팀 캐릭터 최종 규격과 분리
@@ -22,35 +22,35 @@ ADigetherDainCharacter::ADigetherDainCharacter()
 	Camera->bUsePawnControlRotation = true;
 }
 
-void ADigetherDainCharacter::SetupPlayerInputComponent(UInputComponent* Input)
+void ADigetherExcavationLabCharacter::SetupPlayerInputComponent(UInputComponent* Input)
 {
 	Super::SetupPlayerInputComponent(Input);
-	Input->BindAxisKey(EKeys::MouseX, this, &ADigetherDainCharacter::LookYaw);
-	Input->BindAxisKey(EKeys::MouseY, this, &ADigetherDainCharacter::LookPitch);
-	Input->BindKey(EKeys::One, IE_Pressed, this, &ADigetherDainCharacter::SelectPickaxe);
-	Input->BindKey(EKeys::Two, IE_Pressed, this, &ADigetherDainCharacter::SelectShovel);
-	Input->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &ADigetherDainCharacter::StartDig);
-	Input->BindKey(EKeys::LeftMouseButton, IE_Released, this, &ADigetherDainCharacter::StopDig);
+	Input->BindAxisKey(EKeys::MouseX, this, &ADigetherExcavationLabCharacter::LookYaw);
+	Input->BindAxisKey(EKeys::MouseY, this, &ADigetherExcavationLabCharacter::LookPitch);
+	Input->BindKey(EKeys::One, IE_Pressed, this, &ADigetherExcavationLabCharacter::SelectPickaxe);
+	Input->BindKey(EKeys::Two, IE_Pressed, this, &ADigetherExcavationLabCharacter::SelectShovel);
+	Input->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &ADigetherExcavationLabCharacter::StartDig);
+	Input->BindKey(EKeys::LeftMouseButton, IE_Released, this, &ADigetherExcavationLabCharacter::StopDig);
 }
-void ADigetherDainCharacter::LookYaw(float Value)
+void ADigetherExcavationLabCharacter::LookYaw(float Value)
 {
 	AddControllerYawInput(Value);
 }
-void ADigetherDainCharacter::LookPitch(float Value)
+void ADigetherExcavationLabCharacter::LookPitch(float Value)
 {
 	AddControllerPitchInput(-Value);
 }
-void ADigetherDainCharacter::StartDig()
+void ADigetherExcavationLabCharacter::StartDig()
 {
 	bDigHeld = true;
 	DigOnce();
 }
-void ADigetherDainCharacter::StopDig()
+void ADigetherExcavationLabCharacter::StopDig()
 {
 	bDigHeld = false;
 }
 
-void ADigetherDainCharacter::Tick(float DeltaSeconds)
+void ADigetherExcavationLabCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	APlayerController* PlayerController = Cast<APlayerController>(Controller);
@@ -71,7 +71,7 @@ void ADigetherDainCharacter::Tick(float DeltaSeconds)
 	}
 }
 
-bool ADigetherDainCharacter::TraceTool(FHitResult& OutHit) const
+bool ADigetherExcavationLabCharacter::TraceTool(FHitResult& OutHit) const
 {
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(LabTool), true, this);
 	const FVector Start = Camera->GetComponentLocation();
@@ -79,24 +79,24 @@ bool ADigetherDainCharacter::TraceTool(FHitResult& OutHit) const
 												ECC_Visibility, Params);
 }
 
-void ADigetherDainCharacter::SelectPickaxe()
+void ADigetherExcavationLabCharacter::SelectPickaxe()
 {
 	SelectedTool = EDigetherLabTool::Pickaxe;
 }
-void ADigetherDainCharacter::SelectShovel()
+void ADigetherExcavationLabCharacter::SelectShovel()
 {
 	SelectedTool = EDigetherLabTool::Shovel;
 }
-float ADigetherDainCharacter::GetSelectedRadiusCm() const
+float ADigetherExcavationLabCharacter::GetSelectedRadiusCm() const
 {
 	return SelectedTool == EDigetherLabTool::Pickaxe ? PickaxeRadiusCm : SoilBrushRadius;
 }
-float ADigetherDainCharacter::GetSelectedIntervalSeconds() const
+float ADigetherExcavationLabCharacter::GetSelectedIntervalSeconds() const
 {
 	return SelectedTool == EDigetherLabTool::Pickaxe ? PickaxeIntervalSeconds : HitInterval;
 }
 
-bool ADigetherDainCharacter::DigOnce()
+bool ADigetherExcavationLabCharacter::DigOnce()
 {
 	const float RadiusCm = GetSelectedRadiusCm();
 	const float IntervalSeconds = GetSelectedIntervalSeconds();

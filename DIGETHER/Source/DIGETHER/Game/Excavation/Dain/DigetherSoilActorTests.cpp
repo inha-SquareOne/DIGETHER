@@ -1,6 +1,6 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "DigetherDiggableSoil.h"
-#include "Game/Excavation/DainLab/DigetherDainCharacter.h"
+#include "Game/Excavation/DainLab/DigetherExcavationLabCharacter.h"
 #include "Camera/CameraComponent.h"
 #include "Misc/AutomationTest.h"
 #include "DigetherSoilProfiling.h"
@@ -809,7 +809,7 @@ bool FDigetherLabToolsTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("eight-cell lab wall"), Soil->SetComparisonChunkCells(8));
 		FActorSpawnParameters Spawn;
 		Spawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		ADigetherDainCharacter* Character = TestWorld.World->SpawnActor<ADigetherDainCharacter>(
+		ADigetherExcavationLabCharacter* Character = TestWorld.World->SpawnActor<ADigetherExcavationLabCharacter>(
 			FVector(0, 0, 95), FRotator::ZeroRotator, Spawn);
 		Character->GetCharacterMovement()->bRunPhysicsWithNoController = true;
 		Character->GetCharacterMovement()->SetMovementMode(MOVE_Falling);

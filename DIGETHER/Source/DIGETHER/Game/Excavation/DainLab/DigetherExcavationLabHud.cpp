@@ -1,9 +1,9 @@
-#include "DigetherDainHud.h"
+#include "DigetherExcavationLabHud.h"
 #include "Engine/Canvas.h"
-#include "DigetherDainCharacter.h"
+#include "DigetherExcavationLabCharacter.h"
 #include "GameFramework/PlayerController.h"
 // Canvas가 준비된 프레임에만 개인 시험 안내 출력
-void ADigetherDainHud::DrawHUD()
+void ADigetherExcavationLabHud::DrawHUD()
 {
 	Super::DrawHUD();
 	if (!IsValid(Canvas))
@@ -21,7 +21,7 @@ void ADigetherDainHud::DrawHUD()
 					   "Dig repeatedly and aim around the rim (including feet) to widen the opening. Reach EXIT.")
 				 .ToString(),
 			 FLinearColor::Yellow, 20, 45);
-	const ADigetherDainCharacter* Character = PlayerOwner ? Cast<ADigetherDainCharacter>(PlayerOwner->GetPawn()) : nullptr;
+	const ADigetherExcavationLabCharacter* Character = PlayerOwner ? Cast<ADigetherExcavationLabCharacter>(PlayerOwner->GetPawn()) : nullptr;
 	if (IsValid(Character))
 	{
 		const FText ToolName = Character->GetSelectedTool() == EDigetherLabTool::Pickaxe

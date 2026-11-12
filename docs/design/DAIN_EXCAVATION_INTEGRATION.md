@@ -18,10 +18,10 @@
 | Dain/DigetherDiggableSoil.h/.cpp | 밀도 보관, 좌표 변환, 후보 지형/충돌 준비와 교체 |
 | Dain/DigetherSoilFieldTests.cpp | 계산·경계·와인딩·보호·입력·노멀 검증 |
 | Dain/DigetherSoilActorTests.cpp | 실제 엔진 충돌·상태 보존·캐릭터 이동 검증 |
-| DainLab/DigetherDainCharacter.h/.cpp | 개인 시험 카메라 Trace·입력 연결 |
-| DainLab/DigetherDainGameMode.h/.cpp | 개인 시험 Pawn/HUD와 검증기 선택 |
-| DainLab/DigetherDainHud.h/.cpp | 시험 조작 안내·조준점 |
-| DainLab/DigetherDainVerification.h/.cpp | 실제 맵에서 굴착·보호·왕복 검증 |
+| DainLab/DigetherExcavationLabCharacter.h/.cpp | 개인 시험 카메라 Trace·입력 연결 |
+| DainLab/DigetherExcavationLabGameMode.h/.cpp | 개인 시험 Pawn/HUD와 검증기 선택 |
+| DainLab/DigetherExcavationLabHud.h/.cpp | 시험 조작 안내·조준점 |
+| DainLab/DigetherExcavationLabVerification.h/.cpp | 실제 맵에서 굴착·보호·왕복 검증 |
 
 총 C++16개다(청크 구현·계측 헤더 포함). 헤더/소스 한 쌍이 보통 한 클래스이며 파일 개수와 시스템 개수는 다르다. 구형 DigetherDainField/SoilWall 네 파일과 호환 분기는 제거했다. 계산 출처는 기존 prototype/DainField의 표면 추출 방식이며 관련 코드 주석은 보존한다. Prototype 자체는 변경하지 않는다.
 
