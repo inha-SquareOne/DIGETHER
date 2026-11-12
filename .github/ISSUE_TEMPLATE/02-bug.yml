@@ -1,50 +1,67 @@
-name: 버그
-description: 재현 가능한 결함 보고
+name: 버그 신고
+description: 이상하게 동작했거나 게임이 멈춘 상황을 알려 주세요.
 title: "[버그] "
 body:
-  - type: dropdown
-    id: severity
+  - type: markdown
     attributes:
-      label: 심각도
-      options:
-        - 치명 — 진행 불가 / 크래시 / 데이터 손실
-        - 높음 — 핵심 기능 오동작
-        - 보통 — 우회 가능
-        - 낮음 — 시각적 문제
-    validations:
-      required: true
+      value: |
+        필수 질문 두 개만 짧게 적어도 됩니다. 한 번만 생긴 문제도 알려 주세요.
+        선택 항목은 아는 내용만 적고, 원인을 추측했다면 관찰한 사실과 구분해 주세요.
+        [작성 안내](https://github.com/inha-SquareOne/DIGETHER/blob/develop/docs/guides/ISSUE_WORKFLOW.md)
   - type: textarea
-    id: environment
+    id: actual
     attributes:
-      label: 발생 환경
-      description: UE 버전(프로젝트 기준 5.8.4), Git 커밋·SVN 리비전, 맵, PIE/패키지, 인원·호스트/클라이언트, Steam/LAN 등을 적어 주세요.
+      label: 어떤 문제가 생겼나요?
+      description: 직접 본 현상을 적어 주세요.
+      placeholder: 친구가 다시 접속한 뒤 친구 목소리가 들리지 않았어요.
     validations:
       required: true
   - type: textarea
     id: repro
     attributes:
-      label: 재현 순서와 발생 빈도
+      label: 문제가 생기기 전에 무엇을 했나요?
+      description: 기억나는 순서만 적어 주세요. 기억나지 않으면 '기억나지 않아요'라고 적어도 됩니다.
       placeholder: |
-        1. 호스트 1명과 클라이언트 1명으로 접속
-        2. 같은 회수품을 동시에 회수
-        3. 두 명 모두 지급됨 (시도 10회 중 2회)
+        1. 두 명이 함께 플레이했어요.
+        2. 친구가 나갔다가 같은 방에 다시 들어왔어요.
+        3. 그 뒤부터 목소리가 들리지 않았어요.
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: 기대 동작과 기준
-      description: 승인 기획·요구 ID 또는 기존 정상 동작 근거를 적어 주세요.
-    validations:
-      required: true
-  - type: textarea
-    id: actual
+      label: 원래 어떻게 되어야 하나요? (선택)
+      description: 기대한 결과나 전에는 잘 되던 모습을 적어 주세요.
+      placeholder: 다시 접속한 뒤에도 서로 목소리가 들려야 해요.
+  - type: dropdown
+    id: frequency
     attributes:
-      label: 실제 동작
-    validations:
-      required: true
+      label: 얼마나 자주 생기나요? (선택)
+      options:
+        - 잘 모르겠어요
+        - 한 번 봤어요
+        - 가끔 생겨요
+        - 같은 행동을 하면 매번 생겨요
+  - type: dropdown
+    id: impact
+    attributes:
+      label: 플레이에 어떤 영향이 있나요? (선택)
+      description: 직접 겪은 영향을 골라 주세요. 처리 우선순위는 확인 후 정합니다.
+      options:
+        - 잘 모르겠어요
+        - 게임이 꺼지거나 더 진행할 수 없어요
+        - 저장 내용이나 아이템이 사라졌어요
+        - 중요한 기능을 쓸 수 없어요
+        - 불편하지만 다른 방법으로 계속할 수 있어요
+        - 화면이나 소리가 이상해요
+  - type: textarea
+    id: environment
+    attributes:
+      label: 어떤 환경에서 생겼나요? (선택)
+      description: 아는 내용만 적어 주세요. 빌드 이름·Git 커밋/SVN 리비전, 맵, 에디터/실행 파일, 인원·방장/참가자, Steam/LAN, PC·UE 버전 등이 도움이 됩니다.
+      placeholder: 오늘 전달받은 빌드 / 갱도 / 실행 파일 / 2명 / 저는 방장 / Steam
   - type: textarea
     id: evidence
     attributes:
-      label: 로그·화면·저장 데이터 영향
-      description: Output Log·크래시·영상 등 근거를 첨부하고 토큰·개인 정보는 제거해 주세요. 추측한 원인은 관찰 사실과 구분해 주세요.
+      label: 화면·영상·로그가 있나요? (선택)
+      description: 여기에 붙이거나 파일을 첨부해 주세요. 비밀번호·토큰·개인 정보는 가려 주세요.
