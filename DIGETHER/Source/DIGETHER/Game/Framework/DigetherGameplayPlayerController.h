@@ -49,6 +49,8 @@ public:
 	virtual void OnPossess(APawn* InPawn) override;
 	// 서버 기본 음성 허용 뒤 개인 마이크 모드(항상 켜짐·누르고 말하기) 적용
 	virtual void ClientEnableNetworkVoice_Implementation(bool bEnable) override;
+	// 리슨 호스트는 서버/로컬 MuteList를 공유하므로 원래 차단 사유에 generic Muted를 덧붙이지 않음
+	virtual void ClientMutePlayer_Implementation(FUniqueNetIdRepl PlayerId) override;
 
 	void RequestManualSave();
 	void RequestLoadGame();

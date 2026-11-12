@@ -1,6 +1,7 @@
 #include "Game/Framework/DigetherGameplayPlayerState.h"
 
 #include "Engine/World.h"
+#include "Game/Core/DigetherMonsterTargetInterface.h"
 #include "Game/Economy/DigetherEconomyRules.h"
 #include "Game/Economy/DigetherWalletComponent.h"
 #include "Game/Framework/DigetherFrameworkLog.h"
@@ -20,6 +21,26 @@ void ADigetherGameplayPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimePr
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME_CONDITION(ADigetherGameplayPlayerState, LastRunResult, COND_OwnerOnly);
+	DOREPLIFETIME(ADigetherGameplayPlayerState, bVoiceBuried);
+}
+
+void ADigetherGameplayPlayerState::RefreshVoiceEnvironment()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+	const APawn* Pawn = GetGameplayPawn();
+	const FDigetherLifePublicState Life = LifeComponent->CaptureState().PublicState;
+	const IDigetherMonsterTargetInterface* Target = IsValid(Pawn)
+		? Cast<IDigetherMonsterTargetInterface>(Pawn) : nullptr;
+	const bool bBuried = !IsInactive() && Life.Life == EDigetherLifeState::Active && !Life.bSpectating
+		&& IsValid(Pawn) && Pawn->GetWorld() == GetWorld() && Target != nullptr && Target->IsBuriedForMonster();
+	if (bVoiceBuried != bBuried)
+	{
+		bVoiceBuried = bBuried;
+		ForceNetUpdate();
+	}
 }
 
 void ADigetherGameplayPlayerState::CopyProperties(APlayerState* PlayerState)
@@ -81,6 +102,7 @@ void ADigetherGameplayPlayerState::OnDeactivated()
 	if (HasAuthority() && IsInactive() && World != nullptr && !World->bIsTearingDown)
 	{
 		// GameMode의 inactive 배열이 세션 수명을 소유한다. 끊긴 동안에도 같은 컴포넌트를 갱신한다.
+		RefreshVoiceEnvironment();
 		return;
 	}
 	Super::OnDeactivated();
@@ -92,6 +114,7 @@ void ADigetherGameplayPlayerState::OnReactivated()
 	if (HasAuthority())
 	{
 		SetIsInactive(false);
+		RefreshVoiceEnvironment();
 		ForceNetUpdate();
 	}
 }

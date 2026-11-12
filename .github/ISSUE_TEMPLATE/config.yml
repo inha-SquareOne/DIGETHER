@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: 이슈 작성 방법과 예시
+    url: https://github.com/inha-SquareOne/DIGETHER/blob/develop/docs/guides/ISSUE_WORKFLOW.md
+    about: 어떤 양식을 고를지, 얼마나 적으면 되는지 확인해 주세요.
   - name: DIGETHER 프로젝트 문서
     url: https://github.com/inha-SquareOne/DIGETHER/tree/develop/docs
-    about: 요청 전에 프로젝트 기준과 기존 문서를 확인해 주세요.
+    about: 관련 기획·개발 기준이 필요할 때 참고해 주세요.

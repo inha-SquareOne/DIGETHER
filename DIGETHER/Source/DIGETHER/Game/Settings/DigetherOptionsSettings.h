@@ -38,4 +38,8 @@ public:
 	// 음성 컴포넌트에 누르고 말하기 액션 에셋이 없을 때 쓰는 고정 키(2026-11-06 임시값 V), 키 재설정 대상 아님
 	UPROPERTY(Config, EditAnywhere, Category = "Voice")
 	FKey FallbackPushToTalkKey = EKeys::V;
+
+	// 매몰 목소리의 저역통과 시험값, 실제 Steam 음성 청취 후 조정
+	UPROPERTY(Config, EditAnywhere, Category = "Voice", meta = (ClampMin = "20.0", ClampMax = "20000.0", Units = "Hz"))
+	float BuriedVoiceLowPassHz = 1500.f;
 };

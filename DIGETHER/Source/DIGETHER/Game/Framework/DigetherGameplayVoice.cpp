@@ -3,16 +3,20 @@
 
 #include "Game/Framework/DigetherGameplayPlayerState.h"
 #include "Game/Life/DigetherLifeStateComponent.h"
+#include "Game/Monster/DigetherZoneVolume.h"
+#include "GameFramework/Pawn.h"
 #include "Game/Run/DigetherGameOverFlowComponent.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
 
 namespace
 {
-	// 갱도·던전 구역 구분은 아직 없음, 구현 전까지 모든 참가자 같은 구역
+	// 기획은 갱도↔던전 두 구역만 구분, 던전별 추가 차단은 적용하지 않음
 	int32 ResolveVoiceZone(const ADigetherGameplayPlayerState* Player)
 	{
-		return 0;
+		const APawn* Pawn = IsValid(Player) ? Player->GetGameplayPawn() : nullptr;
+		return IsValid(Pawn) && ADigetherZoneVolume::GetZoneKindAt(Pawn->GetWorld(), Pawn->GetActorLocation())
+			== EDigetherMonsterZone::Dungeon ? 1 : 0;
 	}
 }
 
@@ -31,6 +35,10 @@ void ADigetherGameplayGameMode::CollectVoiceParticipants(TArray<FDigetherVoiceRo
 	{
 		ADigetherGameplayPlayerState* Player = Cast<ADigetherGameplayPlayerState>(Entry);
 		APlayerController* Controller = IsValid(Player) ? Cast<APlayerController>(Player->GetOwner()) : nullptr;
+		if (IsValid(Player))
+		{
+			Player->RefreshVoiceEnvironment();
+		}
 		if (!IsValid(Player) || Player->IsInactive() || !IsValid(Controller) || !Player->GetUniqueId().IsValid())
 		{
 			continue;

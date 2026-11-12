@@ -1,41 +1,48 @@
-name: 작업
-description: 개발·아트·문서 작업 요청
+name: 작업·개선 요청
+description: 새 기능, 개선, 아트·레벨·문서 작업을 요청해요.
 title: "[작업] "
 body:
-  - type: input
-    id: part
+  - type: markdown
     attributes:
-      label: 담당 파트·작업 경로
-      description: 확정된 담당만 적고 미정이면 미정으로 남겨 주세요.
-    validations:
-      required: true
+      value: |
+        필수 질문 두 개만 짧게 적어도 됩니다. 선택 항목은 아는 내용이 있을 때만 채워 주세요.
+        [어떤 양식을 골라야 할지 모르겠다면 작성 안내를 확인해 주세요.](https://github.com/inha-SquareOne/DIGETHER/blob/develop/docs/guides/ISSUE_WORKFLOW.md)
   - type: textarea
     id: what
     attributes:
-      label: 목적과 변경 범위
-      description: 원하는 동작과 포함할 코드·에셋·맵 경로를 적어 주세요.
-    validations:
-      required: true
-  - type: textarea
-    id: requirements
-    attributes:
-      label: 기획·요구 근거
-      description: 요구 ID, Notion 원본 URL·승인 개정 또는 스냅샷 시점과 미결 사항을 적어 주세요. 해당 없으면 해당 없음으로 적어 주세요.
+      label: 무엇을 하면 되나요?
+      description: 필요한 작업이나 해결하고 싶은 문제를 적어 주세요.
+      placeholder: 설정을 바꿨는데 적용됐는지 알기 어려워요. 적용됐다는 안내가 있으면 좋겠어요.
     validations:
       required: true
   - type: textarea
     id: done
     attributes:
-      label: 완료 조건과 검증 방법
-      description: 관찰 가능한 결과와 정상·실패 경로, 필요한 빌드·다인 검증을 적어 주세요. 검증 M0~M3와 제작 마일스톤은 별도입니다.
-      placeholder: |
-        - 두 명이 동시에 회수해도 한 명에게만 지급된다.
-        - 다른 플레이어에게 비공개 금액이 복제되지 않는다.
-        - 네트워크 변경은 L1~L3와 M2, 플랫폼·음성은 M3로 확인한다.
+      label: 어떻게 되면 완료인가요?
+      description: 화면이나 게임에서 확인할 수 있는 결과를 적어 주세요.
+      placeholder: 적용 버튼을 누르면 설정이 반영되고 완료 안내가 보여요.
     validations:
       required: true
-  - type: textarea
-    id: dependencies
+  - type: dropdown
+    id: part
     attributes:
-      label: 선행 작업·에셋 예약·SVN 의존성
-      description: 공유 맵·패키지 편집 예약/잠금, SVN 리비전, 결정 대기 사항을 적어 주세요.
+      label: 어떤 작업인가요? (선택)
+      options:
+        - 잘 모르겠어요
+        - 게임 기능 추가·개선
+        - 아트·레벨 제작
+        - UI·사운드
+        - 개발 환경·코드 정리·조사
+        - 문서
+        - 기타
+  - type: textarea
+    id: references
+    attributes:
+      label: 참고할 자료가 있나요? (선택)
+      description: 관련 기획·Notion·이슈 링크나 이미지를 붙여 주세요. 기획 승인 정보는 착수 전에 확인합니다.
+  - type: textarea
+    id: notes
+    attributes:
+      label: 추가로 알려줄 내용이 있나요? (선택)
+      description: 이번에 하지 않을 일, 먼저 필요한 작업, 아는 담당자·파일 경로가 있으면 적어 주세요.
+      placeholder: 안내 문구만 추가해요. 버튼 디자인 변경은 이번 작업에서 제외해요.

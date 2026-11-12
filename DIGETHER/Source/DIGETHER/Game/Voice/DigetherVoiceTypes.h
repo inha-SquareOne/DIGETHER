@@ -12,6 +12,8 @@ namespace DigetherVoiceDefaults
 	inline constexpr float RangeFullCm = 300.f;
 	// 최대 거리(VOICE_RANGE_MAX), 밖은 무음
 	inline constexpr float RangeMaxCm = 2500.f;
+	// 매몰 발화자는 최대 거리만 절반, 원음 구간은 유지
+	inline constexpr float BuriedRangeRatio = 0.5f;
 	// 서버 수신 제한·클라 재생 설정 갱신 간격
 	inline constexpr float RefreshSeconds = 0.25f;
 	// 플레이어별 음량 최대 배율(작게 들리는 동료 키움), 시험값
