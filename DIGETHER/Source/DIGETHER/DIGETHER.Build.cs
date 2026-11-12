@@ -21,7 +21,7 @@ public class DIGETHER : ModuleRules
 			"Slate"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "Json", "CoreOnline", "NetCore", "OnlineSubsystem", "OnlineSubsystemUtils", "ProceduralMeshComponent", "SlateCore", "ApplicationCore", "DeveloperSettings", "CommonUI", "CommonInput", "GameplayTags", "Voice", "NavigationSystem" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Json", "CoreOnline", "NetCore", "OnlineSubsystem", "OnlineSubsystemUtils", "ProceduralMeshComponent", "SlateCore", "ApplicationCore", "DeveloperSettings", "CommonUI", "CommonInput", "GameplayTags", "Voice", "NavigationSystem", "AudioMixer" });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"DIGETHER",
