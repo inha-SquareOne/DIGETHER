@@ -20,7 +20,8 @@ GitHub 사용과 Gitflow 전략은 확정이다. 한국어 커밋·공동 작성
 
 | 대상 | 관리 |
 |---|---|
-| `.uproject`, Source, Config, Plugins, Build, 텍스트 문서·스크립트 | Git |
+| `.uproject`, Source, Config, Plugins(`Plugins/Marketplace` 제외), Build, 텍스트 문서·스크립트 | Git |
+| `Plugins/Marketplace/`(유료 Fab·마켓플레이스 플러그인, 필수 `Binaries/Win64` 포함) | SVN. 새 유료 플러그인은 이 폴더에 넣고 SVN 커밋 |
 | `Content/Game/Blueprints`, `Content/Game/UI`, `Content/Game/Input`, `Content/Data`, `Content/Input`, `Content/Editor`, `Content/Frontend/UI`, `Content/Frontend/Localization` | Git(바이너리, 잠금 없음 → 편집 예약) |
 | 그 밖의 `Content` 전부(맵·메시·텍스처·머티리얼·애니메이션·사운드·VFX·외형 BP·템플릿) | SVN, 바이너리는 `svn:needs-lock` |
 | `DIGETHER/SourceArt` 등 제작 원본 | SVN |
