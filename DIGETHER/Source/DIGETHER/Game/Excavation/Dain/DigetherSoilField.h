@@ -50,9 +50,9 @@ namespace DigetherSoil
 	// 전체 밀도·[CellMin, CellMax) 입력 → 표면 분류와 OutSurface, 실패 시 출력 보존
 	// 전역 좌표 사용, 내부 청크 경계에 인공 공기층 추가 금지
 	EDigetherSoilRangeState BuildSurfaceRange(
-		const FDigetherSoilGrid& Grid, 
+		const FDigetherSoilGrid& Grid,
 		const TArray<uint8>& Density,
-		const FIntVector& CellMin, 
+		const FIntVector& CellMin,
 		const FIntVector& CellMax,
 		FDigetherSoilSurface& OutSurface);
 
@@ -65,11 +65,11 @@ namespace DigetherSoil
 	// 로컬 보호 영역에 한 셀 여유 적용
 	// OutChangedBounds는 이웃 표면을 포함한 변경 범위이며 붕괴 구역 판정이 아님
 	EDigetherSoilCarveResult Carve(
-		const FDigetherSoilGrid& Grid, 
-		TArray<uint8>& Density, 
+		const FDigetherSoilGrid& Grid,
+		TArray<uint8>& Density,
 		const FVector& LocalPoint,
-		double Radius, 
-		const TArray<FBox>& ProtectedBoxes, 
+		double Radius,
+		const TArray<FBox>& ProtectedBoxes,
 		FBox& OutChangedBounds);
 	// Transform·월드점 입력 → OutLocal(cm), 유효 변환일 때만 true
 	// 이동·회전만 허용, 크기는 Actor 스케일 대신 격자로 지정
