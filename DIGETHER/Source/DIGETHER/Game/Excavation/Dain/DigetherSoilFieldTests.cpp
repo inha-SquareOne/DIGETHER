@@ -199,8 +199,8 @@ bool FDigetherSoilValidationTest::RunTest(const FString& Parameters)
 													  EDigetherSoilCarveResult::InvalidInput);
 	TestTrue(TEXT("rejection preserves data"), Density == Before);
 	FVector Local(7);
-	TestFalse(TEXT("scaled actor rejected"),
-			  WorldToLocal(FTransform(FQuat::Identity, FVector::ZeroVector, FVector(2, 1, 1)), FVector(200), Local));
+	TestFalse(TEXT("zero scale rejected"),
+			  WorldToLocal(FTransform(FQuat::Identity, FVector::ZeroVector, FVector(0, 1, 1)), FVector(200), Local));
 	TestTrue(TEXT("failed conversion preserves output"), Local == FVector(7));
 	Density.Pop();
 	FDigetherSoilSurface Surface;
@@ -506,6 +506,43 @@ bool FDigetherSoilSnapshotTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("write exact comparison evidence"),
 		FFileHelper::SaveArrayToFile(Bytes, *(Directory / TEXT("surface-snapshot.bin"))));
 	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilScaledBrushTest, "DIGETHER.Excavation.SoilCore.ScaledBrush",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FDigetherSoilScaledBrushTest::RunTest(const FString& Parameters)
+{
+    FDigetherSoilGrid Grid;
+    Grid.Cells = FIntVector(16, 16, 16);
+    Grid.SpacingCm = 25;
+    const FVector Center(200);
+    for (const FVector Scale : {FVector(2, 1, 1), FVector(.5, 2, 1), FVector(1, 1, 1)})
+    {
+        TArray<uint8> Density;
+        Initialize(Grid, Density);
+        const TArray<uint8> Before = Density;
+        const FTransform Transform(FRotator(30, 65, 15), FVector(900, -300, 120), Scale);
+        FVector Local;
+        TestTrue(TEXT("translated rotated scaled point accepted"), WorldToLocal(Transform, Transform.TransformPosition(Center), Local));
+        TestTrue(TEXT("world to local round trip"), Local.Equals(Center, 1.e-6));
+        FBox Changed;
+        TestTrue(TEXT("scaled brush applied"), Carve(Grid, Density, Local, 75, {}, Changed, Scale) == EDigetherSoilCarveResult::Changed);
+        for (int32 Z = 1; Z < Grid.Cells.Z; ++Z)
+            for (int32 Y = 1; Y < Grid.Cells.Y; ++Y)
+                for (int32 X = 1; X < Grid.Cells.X; ++X)
+                {
+                    const int32 Index = Grid.GetSampleIndex(X, Y, Z);
+                    if (Before[Index] <= 128) continue;
+                    const double Distance = FVector::Distance(Transform.TransformPosition(Grid.GetSamplePosition(X,Y,Z)), Transform.TransformPosition(Center));
+                    if (Distance < 73) TestTrue(TEXT("inside world radius is air"), Density[Index] <= 128);
+                    if (Distance > 77) TestTrue(TEXT("outside world radius remains solid"), Density[Index] > 128);
+                }
+        Density = Before;
+        TestTrue(TEXT("scaled protection unchanged"), Carve(Grid, Density, Center, 75,
+            {FBox(FVector::ZeroVector, FVector(400))}, Changed, Scale) == EDigetherSoilCarveResult::NoChange);
+        TestTrue(TEXT("protected density preserved"), Density == Before);
+    }
+    return true;
 }
 
 #endif

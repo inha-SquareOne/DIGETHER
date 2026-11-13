@@ -126,12 +126,14 @@ namespace
 	};
 } // namespace
 // 비교 모드 입력 → 동일 이동·충돌 시나리오 실행, 검사 문구·임계값 유지
-static bool VerifyWalk(FAutomationTestBase& Test, int32 ChunkCells)
+static bool VerifyWalk(FAutomationTestBase& Test, int32 ChunkCells, float ThicknessScale = 1.f)
 {
 	FDigetherSoilTestWorld TestWorld;
 	TestWorld.CreateFloor();
 	ADigetherDiggableSoil* Soil =
 		TestWorld.World->SpawnActor<ADigetherDiggableSoil>(FVector(200, -200, -25), FRotator::ZeroRotator);
+	Soil->SetActorScale3D(FVector(ThicknessScale, 1, 1));
+	const float FarX = 200.f + 400.f * ThicknessScale + 200.f;
 	if (ChunkCells != 0)
 	{
 		Test.TestTrue(TEXT("chunk initialization"), Soil->SetComparisonChunkCells(ChunkCells));
@@ -146,30 +148,30 @@ static bool VerifyWalk(FAutomationTestBase& Test, int32 ChunkCells)
 		return false;
 	}
 	FHitResult Hit;
-	TestWorld.TraceVisibility(FVector(0, 0, 100), FVector(800, 0, 100), Hit);
+	TestWorld.TraceVisibility(FVector(0, 0, 100), FVector(FarX, 0, 100), Hit);
 	Test.TestTrue(TEXT("first surface dig"), Soil->TryExcavate(Hit.ImpactPoint, 100) == EDigetherSoilEditResult::Applied);
 	Test.TestTrue(TEXT("one hit leaves soil"),
-			 TestWorld.TraceVisibility(FVector(0, 0, 100), FVector(800, 0, 100), Hit) && Hit.GetActor() == Soil);
-	for (int32 Pass = 0; Pass < 10; ++Pass)
+			 TestWorld.TraceVisibility(FVector(0, 0, 100), FVector(FarX, 0, 100), Hit) && Hit.GetActor() == Soil);
+	for (int32 Pass = 0; Pass < 10 * ThicknessScale; ++Pass)
 	{
 		for (double Z : {50.0, 130.0})
 		{
 			for (double Y : {-40.0, 40.0})
 			{
-				if (TestWorld.TraceVisibility(FVector(0, Y, Z), FVector(800, Y, Z), Hit) && Hit.GetActor() == Soil)
+				if (TestWorld.TraceVisibility(FVector(0, Y, Z), FVector(FarX, Y, Z), Hit) && Hit.GetActor() == Soil)
 				{
 					Soil->TryExcavate(Hit.ImpactPoint, 100);
 				}
 			}
 		}
 	}
-	TestWorld.Step(Character, 180, true);
+	TestWorld.Step(Character, FMath::RoundToInt(180 * ThicknessScale), true);
 	Test.TestTrue(TEXT("multiple digs applied"), Soil->GetRevision() > 1);
 	Test.TestTrue(TEXT("actual CharacterMovement crosses hole"),
-			 Character->GetActorLocation().X > 650 && FMath::Abs(Character->GetActorLocation().Y) < 10);
+			 Character->GetActorLocation().X > FarX - 150 && FMath::Abs(Character->GetActorLocation().Y) < 10);
 	Test.AddInfo(FString::Printf(TEXT("blockedX=%.2f crossedX=%.2f z=%.2f digs=%u no teleport"), Blocked,
 							Character->GetActorLocation().X, Character->GetActorLocation().Z, Soil->GetRevision()));
-	TestWorld.Step(Character, 240, true, -1.f);
+	TestWorld.Step(Character, FMath::RoundToInt(240 * ThicknessScale), true, -1.f);
 	Test.TestTrue(TEXT("character returns through same tunnel"),
 			 Character->GetActorLocation().X < 150 && FMath::Abs(Character->GetActorLocation().Y) < 10);
 	return true;
@@ -888,4 +890,11 @@ bool FDigetherLabToolsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("shovel removes more soil than pickaxe at same hit"), RemovedSamples[1] > RemovedSamples[0]);
 	return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilScaledWalkTest, "DIGETHER.Excavation.SoilActor.ScaledWalk",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FDigetherSoilScaledWalkTest::RunTest(const FString& Parameters)
+{
+    return VerifyWalk(*this, 8, 2.f);
+}
+
 #endif

@@ -85,7 +85,7 @@ namespace DigetherSoil
 	bool WorldToLocal(const FTransform& Transform, const FVector& WorldPoint, FVector& OutLocal)
 	{
 		if (Transform.ContainsNaN() || WorldPoint.ContainsNaN() || !Transform.GetRotation().IsNormalized() ||
-			!Transform.GetScale3D().Equals(FVector::OneVector, 1.e-6))
+			Transform.GetScale3D().GetMin() <= UE_SMALL_NUMBER)
 		{
 			return false;
 		}
@@ -98,15 +98,18 @@ namespace DigetherSoil
 		return true;
 	}
 	EDigetherSoilCarveResult Carve(const FDigetherSoilGrid& Grid, TArray<uint8>& Density, const FVector& Point,
-								   double Radius, const TArray<FBox>& ProtectedBoxes, FBox& OutChangedBounds)
+								   double Radius, const TArray<FBox>& ProtectedBoxes, FBox& OutChangedBounds,
+								   const FVector& WorldScale)
 	{
 		OutChangedBounds = FBox(ForceInit);
-		if (!IsDensityValid(Grid, Density) || Point.ContainsNaN() || !FMath::IsFinite(Radius))
+		if (!IsDensityValid(Grid, Density) || Point.ContainsNaN() || !FMath::IsFinite(Radius) ||
+			WorldScale.ContainsNaN() || WorldScale.GetMin() <= UE_SMALL_NUMBER)
 		{
 			return EDigetherSoilCarveResult::InvalidInput;
 		}
 		const FBox Domain(FVector::ZeroVector, Grid.GetSamplePosition(Grid.Cells.X, Grid.Cells.Y, Grid.Cells.Z));
-		if (Radius < Grid.SpacingCm * 0.5 || Radius > Domain.GetSize().Size() || !Domain.IsInsideOrOn(Point))
+		if (Radius < Grid.SpacingCm * WorldScale.GetMin() * 0.5 ||
+			Radius > (Domain.GetSize() * WorldScale).Size() || !Domain.IsInsideOrOn(Point))
 		{
 			return EDigetherSoilCarveResult::InvalidInput;
 		}
@@ -138,7 +141,8 @@ namespace DigetherSoil
 						continue;
 					}
 					// 반경 밖 양수 밀도도 감소 가능, 반경으로 순회 범위 제한 금지
-					const uint8 CarvedDensity = EncodeDistance(FVector::Distance(SamplePosition, Center) - Radius);
+					// 비균일 확대에서도 도구 반경은 월드 cm, 회전은 거리 크기에 영향 없음
+					const uint8 CarvedDensity = EncodeDistance(((SamplePosition - Center) * WorldScale).Size() - Radius);
 					uint8& CurrentDensity = Density[Grid.GetSampleIndex(X, Y, Z)];
 					if (CarvedDensity < CurrentDensity)
 					{
