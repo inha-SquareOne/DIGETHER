@@ -19,7 +19,7 @@ bool FDigetherPlayerHealthRules::IsValidState(const FDigetherPlayerHealthState& 
 	{
 		return false;
 	}
-	// 사망이면 0, 생존이면 0보다 커야 한다
+	// 사망이면 0, 생존이면 0보다 커야 함
 	return State.bDead ? State.Current == 0.f : State.Current > 0.f;
 }
 

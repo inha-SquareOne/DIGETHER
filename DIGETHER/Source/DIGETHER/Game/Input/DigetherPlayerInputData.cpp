@@ -10,7 +10,7 @@ bool UDigetherPlayerInputData::CollectMissingActions(TArray<FName>& OutMissing) 
 {
 	const auto Require = [&OutMissing](const TCHAR* Name, const UInputAction* Action)
 	{
-		if (Action == nullptr)
+		if (!IsValid(Action))
 		{
 			OutMissing.Add(Name);
 		}
@@ -28,7 +28,7 @@ UInputMappingContext* UDigetherPlayerInputData::BuildMappingContext(UObject* Out
 {
 	UInputMappingContext* Context = NewObject<UInputMappingContext>(Outer);
 
-	// 수정자는 상태가 없어 매핑끼리 공유한다
+	// 수정자는 상태가 없어 매핑끼리 공유함
 	UInputModifierNegate* NegateAll = NewObject<UInputModifierNegate>(Context);
 	UInputModifierNegate* NegateY = NewObject<UInputModifierNegate>(Context);
 	NegateY->bX = false;
@@ -37,7 +37,7 @@ UInputMappingContext* UDigetherPlayerInputData::BuildMappingContext(UObject* Out
 	SwizzleYXZ->Order = EInputAxisSwizzle::YXZ;
 
 	// 2D 축: D는 +X, A는 -X, W는 스위즐로 +Y, S는 스위즐 뒤 반전으로 -Y
-	if (MoveAction != nullptr)
+	if (IsValid(MoveAction))
 	{
 		Context->MapKey(MoveAction, EKeys::D);
 		Context->MapKey(MoveAction, EKeys::A).Modifiers.Add(NegateAll);
@@ -46,24 +46,24 @@ UInputMappingContext* UDigetherPlayerInputData::BuildMappingContext(UObject* Out
 		Back.Modifiers.Add(SwizzleYXZ);
 		Back.Modifiers.Add(NegateAll);
 	}
-	// 마우스 Y는 위로 움직일 때 양수라서 반전해야 피치 입력(양수가 아래)과 맞는다
-	if (LookAction != nullptr)
+	// 마우스 Y는 위로 움직일 때 양수라서 반전해야 피치 입력(양수가 아래)과 맞음
+	if (IsValid(LookAction))
 	{
 		Context->MapKey(LookAction, EKeys::Mouse2D).Modifiers.Add(NegateY);
 	}
-	if (JumpAction != nullptr)
+	if (IsValid(JumpAction))
 	{
 		Context->MapKey(JumpAction, EKeys::SpaceBar);
 	}
-	if (SprintAction != nullptr)
+	if (IsValid(SprintAction))
 	{
 		Context->MapKey(SprintAction, EKeys::LeftShift);
 	}
-	if (CrouchAction != nullptr)
+	if (IsValid(CrouchAction))
 	{
 		Context->MapKey(CrouchAction, EKeys::LeftControl);
 	}
-	if (AttackAction != nullptr)
+	if (IsValid(AttackAction))
 	{
 		Context->MapKey(AttackAction, EKeys::LeftMouseButton);
 	}

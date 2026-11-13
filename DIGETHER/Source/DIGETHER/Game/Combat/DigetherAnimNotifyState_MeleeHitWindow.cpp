@@ -7,8 +7,8 @@ namespace
 {
 	UDigetherMeleeHitComponent* FindHitComponent(const USkeletalMeshComponent* MeshComp)
 	{
-		const AActor* Owner = MeshComp != nullptr ? MeshComp->GetOwner() : nullptr;
-		return Owner != nullptr ? Owner->FindComponentByClass<UDigetherMeleeHitComponent>() : nullptr;
+		const AActor* Owner = IsValid(MeshComp) ? MeshComp->GetOwner() : nullptr;
+		return IsValid(Owner) ? Owner->FindComponentByClass<UDigetherMeleeHitComponent>() : nullptr;
 	}
 }
 

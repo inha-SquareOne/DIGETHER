@@ -39,7 +39,7 @@ namespace
 	};
 }
 
-// 실제 캐릭터를 띄워 표(MaxHealth) → 체력 컴포넌트 → 엔진 피해 방송(OnTakeAnyDamage) → 사망 시 이동 정지까지 연결을 확인한다
+// 실제 캐릭터를 띄워 표(MaxHealth) → 체력 컴포넌트 → 엔진 피해 방송(OnTakeAnyDamage) → 사망 시 이동 정지까지 연결을 확인함
 // 네트워크 복제와 PlayerState 생존 상태 통지는 이 테스트 범위 밖(PIE·M2에서 확인)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherPlayerHealthComponentTest,
 	"DIGETHER.Game.Player.Health.CharacterDamage", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -51,7 +51,7 @@ bool FDigetherPlayerHealthComponentTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	// 액터 초기화(PostInitializeComponents → 표 적용)는 월드가 액터 초기화를 마쳐야 실행된다
+	// 액터 초기화(PostInitializeComponents → 표 적용)는 월드가 액터 초기화를 마쳐야 실행됨
 	Fixture.World->InitializeActorsForPlay(FURL());
 	ADigetherPlayerCharacter* Character = Fixture.World->SpawnActor<ADigetherPlayerCharacter>();
 	if (!TestNotNull(TEXT("플레이어 캐릭터 생성"), Character))
@@ -68,12 +68,12 @@ bool FDigetherPlayerHealthComponentTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("최대 체력은 표 값 100"), Health->GetMaxHealth(), 100.f);
 	TestEqual(TEXT("시작 체력 가득"), Health->GetCurrentHealth(), 100.f);
 
-	// 월드 BeginPlay 없이 이 액터만 시작해 피해 구독·사망 처리 구독을 연결한다
+	// 월드 BeginPlay 없이 이 액터만 시작해 피해 구독·사망 처리 구독을 연결함
 	Character->DispatchBeginPlay();
 	TestTrue(TEXT("캐릭터 시작됨"), Character->HasActorBegunPlay());
 
-	// 엔진 ApplyDamage는 APawn::ShouldTakeDamage에서 권위 GameMode를 요구한다(실제 게임에는 항상 있음)
-	// 이 임시 월드에는 GameMode가 없으므로, 그 다음 단계인 OnTakeAnyDamage 방송을 직접 보내 연결만 확인한다
+	// 엔진 ApplyDamage는 APawn::ShouldTakeDamage에서 권위 GameMode를 요구함(실제 게임에는 항상 있음)
+	// 이 임시 월드에는 GameMode가 없으므로, 그 다음 단계인 OnTakeAnyDamage 방송을 직접 보내 연결만 확인함
 	const auto SendDamage = [](ADigetherPlayerCharacter* Target, float Amount)
 	{
 		Target->OnTakeAnyDamage.Broadcast(Target, Amount, GetDefault<UDamageType>(), nullptr, nullptr);

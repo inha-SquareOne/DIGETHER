@@ -6,7 +6,7 @@
 
 // 플레이어 이동·체형 수치 표의 행, 행 이름이 프로필 이름(현재 Default 하나)
 // 값 원본은 Content/Data/Player/DT_PlayerStats.csv, 코드 기본값 없음(미설정 0은 범위 검사에서 걸러야 함)
-// 아래 수치는 TODO 목록 기준이며 D26 기획 확인 전까지 확정값이 아니다
+// 아래 수치는 TODO 목록 기준이며 D26 기획 확인 전까지 확정값이 아님
 USTRUCT(BlueprintType)
 struct DIGETHER_API FDigetherPlayerStatRow : public FTableRowBase
 {
@@ -62,7 +62,7 @@ struct DIGETHER_API FDigetherPlayerStatRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Digether|PlayerStat|Stamina", meta=(ClampMin="0"))
 	float SprintDrainPerSec = 0.f;
 
-	// 점프 1회 소모량, D26 미정이므로 시험값이다
+	// 점프 1회 소모량, D26 미정이므로 시험값
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Digether|PlayerStat|Stamina", meta=(ClampMin="0"))
 	float JumpStaminaCost = 0.f;
 

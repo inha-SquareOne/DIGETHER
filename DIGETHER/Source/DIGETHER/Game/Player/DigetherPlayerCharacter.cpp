@@ -32,7 +32,7 @@
 
 namespace
 {
-	// 표 값 범위 검사, 미설정(0)과 범위 밖 값을 모두 모아 반환한다
+	// 표 값 범위 검사, 미설정(0)과 범위 밖 값을 모두 모아 반환함
 	bool CollectStatProblems(const FDigetherPlayerStatRow& Row, TArray<FString>& OutProblems)
 	{
 		const auto RequirePositive = [&OutProblems](const TCHAR* Name, float Value)
@@ -61,7 +61,7 @@ namespace
 		{
 			OutProblems.Add(TEXT("WalkSpeed는 SprintSpeed 이하여야 한다"));
 		}
-		// 스태미나: 0이 허용되는 값(소모·대기)과 반드시 양수인 값(최대치·회복량)을 구분한다
+		// 스태미나: 0이 허용되는 값(소모·대기)과 반드시 양수인 값(최대치·회복량)을 구분함
 		RequirePositive(TEXT("MaxStamina"), Row.MaxStamina);
 		RequirePositive(TEXT("StaminaRegenPerSec"), Row.StaminaRegenPerSec);
 		const auto RequireNonNegative = [&OutProblems](const TCHAR* Name, float Value)
@@ -98,8 +98,8 @@ ADigetherPlayerCharacter::ADigetherPlayerCharacter(const FObjectInitializer& Obj
 	InputData = TSoftObjectPtr<UDigetherPlayerInputData>(FSoftObjectPath(TEXT("/Game/Game/Input/Player/DA_PlayerInput.DA_PlayerInput")));
 	bReplicates = true;
 
-	// 스프링암을 캡슐에 붙이고 카메라는 암 끝에 붙인다 (높이는 블루프린트의 스프링암 위치로 맞춘다)
-	// 암이 컨트롤러 회전을 따르므로 카메라 자체는 따르지 않는다(이중 적용 방지)
+	// 스프링암을 캡슐에 붙이고 카메라는 암 끝에 붙임 (높이는 블루프린트의 스프링암 위치로 맞춤)
+	// 암이 컨트롤러 회전을 따르므로 카메라 자체는 따르지 않음(이중 적용 방지)
 	CameraSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
 	CameraSpringArm->SetupAttachment(GetCapsuleComponent());
 	CameraSpringArm->TargetArmLength = 0.f;
@@ -109,12 +109,12 @@ ADigetherPlayerCharacter::ADigetherPlayerCharacter(const FObjectInitializer& Obj
 	FirstPersonCamera->SetupAttachment(CameraSpringArm, USpringArmComponent::SocketName);
 	FirstPersonCamera->bUsePawnControlRotation = false;
 
-	// 3인칭 몸: 본인 화면에서는 숨기고 다른 플레이어에게만 보이게 한다
-	// 몸 메시·애니메이션 BP는 캐릭터 BP에서 지정한다. 코드의 기본값은 드워프 + 리타겟한 ABP다
+	// 3인칭 몸: 본인 화면에서는 숨기고 다른 플레이어에게만 보이게 함
+	// 몸 메시·애니메이션 BP는 캐릭터 BP에서 지정함, 코드의 기본값은 드워프 + 리타겟한 ABP
 	USkeletalMeshComponent* BodyMesh = GetMesh();
 	BodyMesh->SetOwnerNoSee(true);
 	BodyMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
-	// 숨겨져도 자세는 계속 계산해야 1인칭 팔이 따라 움직인다
+	// 숨겨져도 자세는 계속 계산해야 1인칭 팔이 따라 움직임
 	BodyMesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	static ConstructorHelpers::FObjectFinder<USkeletalMesh> BodyMeshAsset(TEXT("/Game/Characters/DwarfV15/SK_Ch_v15_Body.SK_Ch_v15_Body"));
 	if (BodyMeshAsset.Succeeded())
@@ -128,8 +128,8 @@ ADigetherPlayerCharacter::ADigetherPlayerCharacter(const FObjectInitializer& Obj
 		BodyMesh->SetAnimInstanceClass(BodyAnimAsset.Class);
 	}
 
-	// 1인칭 팔: 본인 화면에서만 보이고 3인칭 몸의 자세를 따라 한다. 충돌·그림자는 쓰지 않는다
-	// 전용 팔 모델이 오면 FirstPersonArmsMesh만 바꾼다
+	// 1인칭 팔: 본인 화면에서만 보이고 3인칭 몸의 자세를 따라 함, 충돌·그림자는 쓰지 않음
+	// 전용 팔 모델이 오면 FirstPersonArmsMesh만 바꿈
 	FirstPersonArms = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonArms"));
 	FirstPersonArms->SetupAttachment(BodyMesh);
 	FirstPersonArms->SetOnlyOwnerSee(true);
@@ -156,7 +156,7 @@ void ADigetherPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 사망·부활 표현은 모든 머신에서, 피해 표시는 소유 화면에서 쓴다
+	// 사망·부활 표현은 모든 머신에서, 피해 표시는 소유 화면에서 씀
 	Health->OnDied.AddUObject(this, &ADigetherPlayerCharacter::HandleDied);
 	Health->OnRevived.AddUObject(this, &ADigetherPlayerCharacter::HandleRevived);
 	Health->OnHealthChanged.AddUObject(this, &ADigetherPlayerCharacter::HandleHealthChanged);
@@ -166,17 +166,17 @@ void ADigetherPlayerCharacter::BeginPlay()
 		HandleDied();
 	}
 
-	// 장비는 서버가 만들어 복제한다
-	if (HasAuthority() && DefaultWeaponClass != nullptr && EquippedWeapon == nullptr)
+	// 장비는 서버가 만들어 복제함
+	if (HasAuthority() && DefaultWeaponClass != nullptr && !IsValid(EquippedWeapon))
 	{
 		EquipWeapon(DefaultWeaponClass);
 	}
-	// 1인칭 팔은 화면 표현이라 화면이 없는 전용 서버에서는 건너뛴다
+	// 1인칭 팔은 화면 표현이라 화면이 없는 전용 서버에서는 건너뜀
 	if (GetNetMode() != NM_DedicatedServer)
 	{
 		RefreshVisuals();
 #if !UE_BUILD_SHIPPING
-		// 창(뷰포트)마다 호출되는 그리기 서비스에 등록, 호출 때 자기 컨트롤러의 창인지 걸러낸다
+		// 창(뷰포트)마다 호출되는 그리기 서비스에 등록, 호출 때 자기 컨트롤러의 창인지 걸러냄
 		StatusDebugDrawHandle = UDebugDrawService::Register(TEXT("Game"), FDebugDrawDelegate::CreateUObject(this, &ADigetherPlayerCharacter::DrawStatusDebug));
 #endif
 	}
@@ -186,7 +186,7 @@ void ADigetherPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProper
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ADigetherPlayerCharacter, EquippedWeapon);
-	// 달리기 여부는 소유자 제외 모두에게(소유자는 로컬 예측 + Client_SprintStopped), 스태미나 수치는 소유자에게만 보낸다
+	// 달리기 여부는 소유자 제외 모두에게(소유자는 로컬 예측 + Client_SprintStopped), 스태미나 수치는 소유자에게만 보냄
 	DOREPLIFETIME_CONDITION(ADigetherPlayerCharacter, bIsSprinting, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(ADigetherPlayerCharacter, ReplicatedStamina, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(ADigetherPlayerCharacter, bReplicatedSprintLocked, COND_OwnerOnly);
@@ -194,8 +194,8 @@ void ADigetherPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProper
 
 namespace
 {
-	// 소유 클라이언트 예측값이 서버 값과 이만큼 이상 벌어졌을 때만 서버 값을 따른다
-	// 서버 값은 지연만큼 과거 값이라 달리기 중에는 소모량 x 지연 정도의 차이가 정상이다(소모 20/s, 지연 0.2s면 약 4)
+	// 소유 클라이언트 예측값이 서버 값과 이만큼 이상 벌어졌을 때만 서버 값을 따름
+	// 서버 값은 지연만큼 과거 값이라 달리기 중에는 소모량 x 지연 정도의 차이가 정상(소모 20/s, 지연 0.2s면 약 4)
 	constexpr float StaminaSnapTolerance = 8.f;
 }
 
@@ -220,7 +220,7 @@ void ADigetherPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 #if !UE_BUILD_SHIPPING
 namespace
 {
-	// 임시 확인용 체력·스태미나 표시, 정식 HUD(P2-7)가 생기면 제거한다
+	// 임시 확인용 체력·스태미나 표시, 정식 HUD(P2-7)가 생기면 제거함
 	TAutoConsoleVariable<int32> CVarStaminaDebug(
 		TEXT("Digether.Player.StaminaDebug"), 1,
 		TEXT("1이면 직접 조종하는 플레이어 화면에 임시 스태미나 표시를 그린다"),
@@ -246,13 +246,20 @@ namespace
 
 	// 피해를 받은 뒤 체력 줄을 흰색으로 강조하는 시간(초), 화면 확인용
 	constexpr double DamageFlashSeconds = 0.6;
+
+	// 체력 줄 색 경계(최대치 대비 비율), 화면 확인용 임시값
+	constexpr float HealthWarnFraction = 0.5f;
+	constexpr float HealthDangerFraction = 0.25f;
+
+	// 임시 표시 줄 간격(화면 픽셀)
+	constexpr float DebugLineSpacing = 30.f;
 }
 
 void ADigetherPlayerCharacter::DrawStatusDebug(UCanvas* Canvas, APlayerController* ViewportController)
 {
-	// 같은 프로세스의 PIE 창마다 호출되므로, 이 캐릭터를 조종하는 컨트롤러의 창에서만 그린다
-	// (엔진 전역 화면 메시지를 쓰면 모든 창이 한 줄을 공유해 다른 플레이어 값이 보인다)
-	if (Canvas == nullptr || ViewportController == nullptr || ViewportController != GetController() || !IsLocallyControlled())
+	// 같은 프로세스의 PIE 창마다 호출되므로, 이 캐릭터를 조종하는 컨트롤러의 창에서만 그림
+	// (엔진 전역 화면 메시지를 쓰면 모든 창이 한 줄을 공유해 다른 플레이어 값이 보임)
+	if (!IsValid(Canvas) || !IsValid(ViewportController) || ViewportController != GetController() || !IsLocallyControlled())
 	{
 		return;
 	}
@@ -260,11 +267,11 @@ void ADigetherPlayerCharacter::DrawStatusDebug(UCanvas* Canvas, APlayerControlle
 	constexpr float TextScale = 1.6f;
 	float Y = 20.f;
 
-	if (CVarHealthDebug.GetValueOnGameThread() != 0 && Health != nullptr && Health->IsReady())
+	if (CVarHealthDebug.GetValueOnGameThread() != 0 && IsValid(Health) && Health->IsReady())
 	{
 		const float Fraction = Health->GetHealthFraction();
 		const bool bFlash = LastDamagedRealTimeSeconds >= 0.0 && FPlatformTime::Seconds() - LastDamagedRealTimeSeconds < DamageFlashSeconds;
-		FColor Color = Fraction > 0.5f ? FColor::Green : (Fraction > 0.25f ? FColor::Orange : FColor::Red);
+		FColor Color = Fraction > HealthWarnFraction ? FColor::Green : (Fraction > HealthDangerFraction ? FColor::Orange : FColor::Red);
 		if (bFlash)
 		{
 			Color = FColor::White;
@@ -274,13 +281,13 @@ void ADigetherPlayerCharacter::DrawStatusDebug(UCanvas* Canvas, APlayerControlle
 		Canvas->DrawText(GEngine->GetSmallFont(),
 			FString::Printf(TEXT("체력     [%s] %.0f / %.0f%s"), *MakeTextBar(Fraction), Health->GetCurrentHealth(), Health->GetMaxHealth(), Status),
 			Left, Y, TextScale, TextScale);
-		Y += 30.f;
+		Y += DebugLineSpacing;
 	}
 
 	if (CVarStaminaDebug.GetValueOnGameThread() != 0 && bStaminaReady)
 	{
 		const TCHAR* Status = StaminaState.bSprintLocked ? TEXT("  [잠김: 회복 중]") : (bIsSprinting ? TEXT("  [달리기]") : TEXT(""));
-		// 색은 상태에 따라 노랑/빨강, 이 창의 캔버스에만 그린다
+		// 색은 상태에 따라 노랑/빨강, 이 창의 캔버스에만 그림
 		Canvas->SetDrawColor(StaminaState.bSprintLocked ? FColor::Red : FColor::Yellow);
 		Canvas->DrawText(GEngine->GetSmallFont(),
 			FString::Printf(TEXT("스태미나 [%s] %.0f / %.0f%s"), *MakeTextBar(GetStaminaFraction()), StaminaState.Current, StaminaParams.MaxStamina, Status),
@@ -291,13 +298,13 @@ void ADigetherPlayerCharacter::DrawStatusDebug(UCanvas* Canvas, APlayerControlle
 
 void ADigetherPlayerCharacter::TickStamina(float DeltaSeconds)
 {
-	// 서버와 직접 조종하는 클라이언트만 계산한다(다른 사람의 스태미나는 알 필요가 없다)
+	// 서버와 직접 조종하는 클라이언트만 계산함(다른 사람의 스태미나는 알 필요가 없음)
 	if (!bStaminaReady || !(HasAuthority() || IsLocallyControlled()))
 	{
 		return;
 	}
 
-	// 웅크리면 달리기를 끝낸다
+	// 웅크리면 달리기를 끝냄
 	if (bIsSprinting && bIsCrouched)
 	{
 		SetSprintingState(false);
@@ -307,14 +314,14 @@ void ADigetherPlayerCharacter::TickStamina(float DeltaSeconds)
 		}
 	}
 
-	// 소모는 실제로 수평 이동 중일 때만 한다(제자리에서 Shift만 누르고 있으면 회복)
+	// 소모는 실제로 수평 이동 중일 때만 함(제자리에서 Shift만 누르고 있으면 회복)
 	constexpr float MovingSpeedThreshold = 10.f;
 	const bool bMoving = GetVelocity().SizeSquared2D() > FMath::Square(MovingSpeedThreshold);
 	const bool bDraining = bIsSprinting && bMoving;
 	const bool bCanContinue = FDigetherStaminaRules::Advance(StaminaState, StaminaParams, DeltaSeconds, bDraining);
 	if (!bCanContinue && bIsSprinting)
 	{
-		// 바닥났다: 달리기 종료
+		// 바닥났음: 달리기 종료
 		SetSprintingState(false);
 		if (HasAuthority() && !IsLocallyControlled())
 		{
@@ -350,7 +357,7 @@ void ADigetherPlayerCharacter::ResetStamina()
 
 void ADigetherPlayerCharacter::OnRep_Stamina()
 {
-	// 직접 조종하는 클라이언트만 받는다. 크게 벗어났을 때만 서버 값을 따르고, 잠금 여부는 항상 서버를 따른다
+	// 직접 조종하는 클라이언트만 받음, 크게 벗어났을 때만 서버 값을 따르고, 잠금 여부는 항상 서버를 따름
 	if (!bStaminaReady)
 	{
 		return;
@@ -368,7 +375,7 @@ void ADigetherPlayerCharacter::OnRep_Stamina()
 
 void ADigetherPlayerCharacter::OnRep_IsSprinting()
 {
-	// 다른 플레이어 화면: 달리기 속도 반영(애니메이션은 IsSprinting을 읽는다)
+	// 다른 플레이어 화면: 달리기 속도 반영(애니메이션은 IsSprinting을 읽음)
 	RefreshMaxWalkSpeed();
 }
 
@@ -386,7 +393,7 @@ void ADigetherPlayerCharacter::RefreshMaxWalkSpeed()
 	}
 	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 	{
-		// 웅크리기 속도는 MaxWalkSpeedCrouched가 따로 있으므로 서 있을 때만 달리기 속도를 쓴다
+		// 웅크리기 속도는 MaxWalkSpeedCrouched가 따로 있으므로 서 있을 때만 달리기 속도를 씀
 		Movement->MaxWalkSpeed = (bIsSprinting && !bIsCrouched) ? SprintSpeedCmPerSec : WalkSpeedCmPerSec;
 	}
 }
@@ -394,14 +401,14 @@ void ADigetherPlayerCharacter::RefreshMaxWalkSpeed()
 bool ADigetherPlayerCharacter::CanStartSprint() const
 {
 	const UCharacterMovementComponent* Movement = GetCharacterMovement();
-	return !IsDead() && bStaminaReady && !bIsCrouched && Movement != nullptr && Movement->IsMovingOnGround() && FDigetherStaminaRules::CanSprint(StaminaState);
+	return !IsDead() && bStaminaReady && !bIsCrouched && IsValid(Movement) && Movement->IsMovingOnGround() && FDigetherStaminaRules::CanSprint(StaminaState);
 }
 
 void ADigetherPlayerCharacter::Server_SetSprinting_Implementation(bool bSprint)
 {
 	if (bSprint && !CanStartSprint())
 	{
-		// 서버가 거절: 소유 클라이언트가 이미 켰을 수 있으므로 되돌리라고 알린다
+		// 서버가 거절: 소유 클라이언트가 이미 켰을 수 있으므로 되돌리라고 알림
 		SetSprintingState(false);
 		if (!IsLocallyControlled())
 		{
@@ -419,7 +426,7 @@ void ADigetherPlayerCharacter::Client_SprintStopped_Implementation()
 
 void ADigetherPlayerCharacter::HandleSprintStarted()
 {
-	// 로컬에서 먼저 예측해 켜고 서버에 알린다. 서버가 거절하면 Client_SprintStopped로 돌아온다
+	// 로컬에서 먼저 예측해 켜고 서버에 알림, 서버가 거절하면 Client_SprintStopped로 돌아옴
 	if (!CanStartSprint())
 	{
 		return;
@@ -444,14 +451,14 @@ bool ADigetherPlayerCharacter::CanJumpInternal_Implementation() const
 	{
 		return false;
 	}
-	// 표가 적용되지 않았으면 스태미나 규칙을 걸지 않는다(표 오류는 로그로 이미 알림)
+	// 표가 적용되지 않았으면 스태미나 규칙을 걸지 않음(표 오류는 로그로 이미 알림)
 	return !bStaminaReady || FDigetherStaminaRules::CanJump(StaminaState, StaminaParams);
 }
 
 void ADigetherPlayerCharacter::OnJumped_Implementation()
 {
 	Super::OnJumped_Implementation();
-	// 점프 1회에 한 번만 소모한다. 서버와 직접 조종하는 클라이언트가 각자 같은 규칙으로 소모한다
+	// 점프 1회에 한 번만 소모함, 서버와 직접 조종하는 클라이언트가 각자 같은 규칙으로 소모함
 	if (bStaminaReady && (HasAuthority() || IsLocallyControlled()))
 	{
 		FDigetherStaminaRules::TryConsumeJump(StaminaState, StaminaParams);
@@ -472,13 +479,13 @@ void ADigetherPlayerCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledH
 
 void ADigetherPlayerCharacter::UpdateEyeHeight()
 {
-	// 스프링암은 캡슐 중심 기준(액터 스케일 적용 전)이므로 월드 거리를 스케일로 나눠 넣는다
+	// 스프링암은 캡슐 중심 기준(액터 스케일 적용 전)이므로 월드 거리를 스케일로 나눠 넣음
 	const float ScaleZ = FMath::Max(GetActorScale3D().Z, KINDA_SMALL_NUMBER);
 	const float EyeZ = GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight() - EyeDepthFromTopCm / ScaleZ;
 	FVector ArmLocation = CameraSpringArm->GetRelativeLocation();
 	ArmLocation.Z = EyeZ;
 	CameraSpringArm->SetRelativeLocation(ArmLocation);
-	// 시점 기준 트레이스(GetPawnViewLocation 등)도 같은 눈높이를 쓰게 한다
+	// 시점 기준 트레이스(GetPawnViewLocation 등)도 같은 눈높이를 쓰게 함
 	BaseEyeHeight = EyeZ * ScaleZ;
 }
 
@@ -488,11 +495,12 @@ void ADigetherPlayerCharacter::EquipWeapon(TSubclassOf<ADigetherWeaponBase> Weap
 	{
 		return;
 	}
-	if (EquippedWeapon != nullptr)
+	if (IsValid(EquippedWeapon))
 	{
 		EquippedWeapon->Destroy();
-		EquippedWeapon = nullptr;
 	}
+	// 파괴 대기 중인 이전 참조도 남기지 않음
+	EquippedWeapon = nullptr;
 	if (WeaponClass != nullptr)
 	{
 		FActorSpawnParameters Params;
@@ -501,8 +509,8 @@ void ADigetherPlayerCharacter::EquipWeapon(TSubclassOf<ADigetherWeaponBase> Weap
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		EquippedWeapon = GetWorld()->SpawnActor<ADigetherWeaponBase>(WeaponClass, GetActorTransform(), Params);
 	}
-	// 판정 값은 서버만 쓰므로 서버에서만 넣는다
-	if (EquippedWeapon != nullptr)
+	// 판정 값은 서버만 쓰므로 서버에서만 넣음
+	if (IsValid(EquippedWeapon))
 	{
 		MeleeHit->SetHitSource(EquippedWeapon->GetMeleeHitParams(), EquippedWeapon);
 	}
@@ -510,7 +518,7 @@ void ADigetherPlayerCharacter::EquipWeapon(TSubclassOf<ADigetherWeaponBase> Weap
 	{
 		MeleeHit->ClearHitSource();
 	}
-	// 서버(리슨 서버 호스트 포함)는 OnRep을 받지 않으므로 직접 붙인다
+	// 서버(리슨 서버 호스트 포함)는 OnRep을 받지 않으므로 직접 붙임
 	AttachEquippedWeapon();
 }
 
@@ -521,7 +529,7 @@ void ADigetherPlayerCharacter::OnRep_EquippedWeapon()
 
 void ADigetherPlayerCharacter::AttachEquippedWeapon()
 {
-	if (EquippedWeapon != nullptr && GetNetMode() != NM_DedicatedServer)
+	if (IsValid(EquippedWeapon) && GetNetMode() != NM_DedicatedServer)
 	{
 		EquippedWeapon->AttachToCharacter(GetMesh());
 	}
@@ -531,8 +539,8 @@ void ADigetherPlayerCharacter::AttachEquippedWeapon()
 void ADigetherPlayerCharacter::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-	// PIE 중 인스턴스 값을 바꾸면 바로 반영해 눈으로 보며 맞출 수 있게 한다
-	if (GetWorld() != nullptr && GetWorld()->IsGameWorld())
+	// PIE 중 인스턴스 값을 바꾸면 바로 반영해 눈으로 보며 맞출 수 있게 함
+	if (IsValid(GetWorld()) && GetWorld()->IsGameWorld())
 	{
 		RefreshVisuals();
 	}
@@ -565,7 +573,7 @@ void ADigetherPlayerCharacter::RefreshVisuals()
 void ADigetherPlayerCharacter::ApplyPlayerStats()
 {
 	const UDataTable* Table = PlayerStatTable.LoadSynchronous();
-	if (Table == nullptr)
+	if (!IsValid(Table))
 	{
 		UE_LOG(LogDigetherPlayer, Error, TEXT("플레이어 수치 표를 불러오지 못했다: %s, CSV를 FDigetherPlayerStatRow로 임포트해야 한다"), *PlayerStatTable.ToString());
 		return;
@@ -586,8 +594,8 @@ void ADigetherPlayerCharacter::ApplyPlayerStats()
 		return;
 	}
 
-	// 통과 폭·높이는 스케일이 적용된 월드 크기이므로 스케일로 나눠 캡슐 원래 크기를 구한다
-	// D26(캡슐 매핑) 확정 전 임시 환산이다. 확정되면 이 식만 바꾼다
+	// 통과 폭·높이는 스케일이 적용된 월드 크기이므로 스케일로 나눠 캡슐 원래 크기를 구함
+	// D26(캡슐 매핑) 확정 전 임시 환산, 확정되면 이 식만 바꿈
 	const float CapsuleRadius = Row->PassWidthCm * 0.5f / FMath::Min(Row->ScaleX, Row->ScaleY);
 	const float CapsuleHalfHeight = Row->PassHeightCm * 0.5f / Row->ScaleZ;
 	const float CrouchedHalfHeight = Row->CrouchHeightCm * 0.5f / Row->ScaleZ;
@@ -602,8 +610,8 @@ void ADigetherPlayerCharacter::ApplyPlayerStats()
 	Movement->GravityScale = Row->GravityScale;
 	Movement->SetCrouchedHalfHeight(CrouchedHalfHeight);
 
-	// 몸 키를 캡슐 높이(통과 높이)에 맞춰 균등 확대·축소하고, 발바닥을 캡슐 바닥에 붙인다
-	// 기준 자세 바운드로 재므로 메시 원점이 발바닥이 아니어도 맞는다
+	// 몸 키를 캡슐 높이(통과 높이)에 맞춰 균등 확대·축소하고, 발바닥을 캡슐 바닥에 붙임
+	// 기준 자세 바운드로 재므로 메시 원점이 발바닥이 아니어도 맞음
 	if (const USkeletalMesh* BodyAsset = GetMesh()->GetSkeletalMeshAsset())
 	{
 		const FBoxSphereBounds MeshBounds = BodyAsset->GetImportedBounds();
@@ -617,7 +625,7 @@ void ADigetherPlayerCharacter::ApplyPlayerStats()
 	{
 		GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -CapsuleHalfHeight));
 	}
-	// ACharacter가 PostInitializeComponents에서 저장한 기본 메시 위치로 이동 보정이 매 틱 되돌리므로, 새 위치를 다시 저장한다
+	// ACharacter가 PostInitializeComponents에서 저장한 기본 메시 위치로 이동 보정이 매 틱 되돌리므로, 새 위치를 다시 저장함
 	CacheInitialMeshOffset(GetMesh()->GetRelativeLocation(), GetMesh()->GetRelativeRotation());
 	UpdateEyeHeight();
 	RefreshVisuals();
@@ -637,7 +645,7 @@ void ADigetherPlayerCharacter::SetMappingContext(AController* InController, bool
 	const APlayerController* PlayerController = Cast<APlayerController>(InController);
 	const ULocalPlayer* LocalPlayer = PlayerController ? PlayerController->GetLocalPlayer() : nullptr;
 	UEnhancedInputLocalPlayerSubsystem* Subsystem = LocalPlayer ? LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>() : nullptr;
-	if (Subsystem == nullptr || MappingContext == nullptr)
+	if (!IsValid(Subsystem) || !IsValid(MappingContext))
 	{
 		return;
 	}
@@ -657,7 +665,7 @@ void ADigetherPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 
 	const UDigetherPlayerInputData* Data = InputData.LoadSynchronous();
 	UEnhancedInputComponent* Input = Cast<UEnhancedInputComponent>(PlayerInputComponent);
-	if (Data == nullptr || Input == nullptr)
+	if (!IsValid(Data) || !IsValid(Input))
 	{
 		UE_LOG(LogDigetherPlayer, Error, TEXT("입력 데이터를 불러오지 못했다: %s, DA_PlayerInput을 만들고 액션을 지정해야 한다"), *InputData.ToString());
 		return;
@@ -672,7 +680,7 @@ void ADigetherPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		return;
 	}
 
-	// 컨텍스트는 컨트롤러가 바뀔 때(NotifyControllerChanged) 등록하므로 여기서 만들어 둔다
+	// 컨텍스트는 컨트롤러가 바뀔 때(NotifyControllerChanged) 등록하므로 여기서 만들어 둠
 	MappingContext = Data->BuildMappingContext(this);
 
 	Input->BindAction(Data->MoveAction, ETriggerEvent::Triggered, this, &ADigetherPlayerCharacter::HandleMove);
@@ -685,14 +693,14 @@ void ADigetherPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	Input->BindAction(Data->SprintAction, ETriggerEvent::Started, this, &ADigetherPlayerCharacter::HandleSprintStarted);
 	Input->BindAction(Data->SprintAction, ETriggerEvent::Completed, this, &ADigetherPlayerCharacter::HandleSprintCompleted);
 
-	// 입력 바인딩이 컨트롤러 소유 이후에 만들어지는 경우를 위해 지금 컨트롤러에도 등록한다
+	// 입력 바인딩이 컨트롤러 소유 이후에 만들어지는 경우를 위해 지금 컨트롤러에도 등록함
 	SetMappingContext(Controller, true);
 }
 
 void ADigetherPlayerCharacter::HandleMove(const FInputActionValue& Value)
 {
 	const FVector2D Axis = Value.Get<FVector2D>();
-	if (Controller == nullptr || IsDead())
+	if (!IsValid(Controller) || IsDead())
 	{
 		return;
 	}
@@ -714,9 +722,9 @@ void ADigetherPlayerCharacter::HandleJumpPressed()
 	{
 		return;
 	}
-	// 앉은 상태에서는 점프가 막히므로 먼저 일어선다
-	// 웅크리기 요청만 남고 아직 웅크리지 않은 상태도 점프를 막으므로 함께 푼다
-	if (bIsCrouched || (GetCharacterMovement() != nullptr && GetCharacterMovement()->bWantsToCrouch))
+	// 앉은 상태에서는 점프가 막히므로 먼저 일어섬
+	// 웅크리기 요청만 남고 아직 웅크리지 않은 상태도 점프를 막으므로 함께 품
+	if (bIsCrouched || (IsValid(GetCharacterMovement()) && GetCharacterMovement()->bWantsToCrouch))
 	{
 		UnCrouch();
 		return;
@@ -730,7 +738,7 @@ void ADigetherPlayerCharacter::HandleCrouchStarted()
 	{
 		return;
 	}
-	// 웅크리면 달리기를 끝낸다(서버도 TickStamina에서 웅크림 상태를 보고 끝낸다)
+	// 웅크리면 달리기를 끝냄(서버도 TickStamina에서 웅크림 상태를 보고 끝냄)
 	HandleSprintCompleted();
 	Crouch();
 }
@@ -751,14 +759,14 @@ void ADigetherPlayerCharacter::HandleAttackPressed()
 
 void ADigetherPlayerCharacter::Server_Attack_Implementation()
 {
-	// 서버가 최종 판정: 들고 있는 장비의 몽타주 길이 동안 다음 공격을 막는다(별도 쿨다운 수치를 코드에 두지 않는다)
+	// 서버가 최종 판정: 들고 있는 장비의 몽타주 길이 동안 다음 공격을 막음(별도 쿨다운 수치를 코드에 두지 않음)
 	const UWorld* World = GetWorld();
-	const UAnimMontage* Montage = EquippedWeapon != nullptr ? EquippedWeapon->GetAttackMontage() : nullptr;
+	const UAnimMontage* Montage = IsValid(EquippedWeapon) ? EquippedWeapon->GetAttackMontage() : nullptr;
 	if (IsDead())
 	{
 		return;
 	}
-	if (World == nullptr || Montage == nullptr)
+	if (!IsValid(World) || !IsValid(Montage))
 	{
 		UE_LOG(LogDigetherPlayer, Warning, TEXT("공격할 수 없다: 장비가 없거나 장비에 공격 몽타주가 없다"));
 		return;
@@ -773,9 +781,9 @@ void ADigetherPlayerCharacter::Server_Attack_Implementation()
 
 void ADigetherPlayerCharacter::Multicast_PlayAttack_Implementation(ADigetherWeaponBase* Weapon)
 {
-	// 전용 서버도 재생한다: 몽타주의 판정 구간 노티파이가 서버에서 불려야 히트박스 판정이 된다(몸 메시는 항상 포즈를 계산한다)
-	// 본인 화면에서는 3인칭 몸이 숨겨져 있어도 몽타주는 같이 진행되고 1인칭 팔이 따라 한다
-	if (Weapon == nullptr)
+	// 전용 서버도 재생함: 몽타주의 판정 구간 노티파이가 서버에서 불려야 히트박스 판정이 됨(몸 메시는 항상 포즈를 계산함)
+	// 본인 화면에서는 3인칭 몸이 숨겨져 있어도 몽타주는 같이 진행되고 1인칭 팔이 따라 함
+	if (!IsValid(Weapon))
 	{
 		return;
 	}
@@ -797,7 +805,7 @@ void ADigetherPlayerCharacter::NotifyControllerChanged()
 
 bool ADigetherPlayerCharacter::IsDead() const
 {
-	return Health != nullptr && Health->IsDead();
+	return IsValid(Health) && Health->IsDead();
 }
 
 void ADigetherPlayerCharacter::HandleHealthChanged(float PreviousHealth, float CurrentHealth)
@@ -810,7 +818,7 @@ void ADigetherPlayerCharacter::HandleHealthChanged(float PreviousHealth, float C
 
 void ADigetherPlayerCharacter::HandleDied()
 {
-	// 모든 머신: 달리기·웅크리기를 끝내고 이동을 멈춘다(MOVE_None)
+	// 모든 머신: 달리기·웅크리기를 끝내고 이동을 멈춤(MOVE_None)
 	SetSprintingState(false);
 	UnCrouch();
 	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
@@ -818,8 +826,8 @@ void ADigetherPlayerCharacter::HandleDied()
 		Movement->StopMovementImmediately();
 		Movement->DisableMovement();
 	}
-	// 진행 중인 공격 몽타주를 끊는다(판정 구간도 노티파이 종료로 닫힌다)
-	if (UAnimInstance* AnimInstance = GetMesh() != nullptr ? GetMesh()->GetAnimInstance() : nullptr)
+	// 진행 중인 공격 몽타주를 끊음(판정 구간도 노티파이 종료로 닫힘)
+	if (UAnimInstance* AnimInstance = IsValid(GetMesh()) ? GetMesh()->GetAnimInstance() : nullptr)
 	{
 		AnimInstance->StopAllMontages(0.1f);
 	}
@@ -828,11 +836,11 @@ void ADigetherPlayerCharacter::HandleDied()
 	{
 		return;
 	}
-	// 정식 GameMode(PlayerState에 생존 상태 컴포넌트가 있는 경우)에만 사망을 알린다. 탈출과 먼저 승인된 쪽만 확정된다
-	// 드롭·지갑 손실·관전 전환은 런 흐름 담당이며 아직 이 사망 경로에 연결되지 않았다
+	// 정식 GameMode(PlayerState에 생존 상태 컴포넌트가 있는 경우)에만 사망을 알림, 탈출과 먼저 승인된 쪽만 확정됨
+	// 드롭·지갑 손실·관전 전환은 런 흐름 담당이며 아직 이 사망 경로에 연결되지 않았음
 	APlayerState* OwnerPlayerState = GetPlayerState();
-	UDigetherLifeStateComponent* Life = OwnerPlayerState != nullptr ? OwnerPlayerState->FindComponentByClass<UDigetherLifeStateComponent>() : nullptr;
-	if (Life == nullptr)
+	UDigetherLifeStateComponent* Life = IsValid(OwnerPlayerState) ? OwnerPlayerState->FindComponentByClass<UDigetherLifeStateComponent>() : nullptr;
+	if (!IsValid(Life))
 	{
 		UE_LOG(LogDigetherPlayer, Log, TEXT("%s 사망: PlayerState에 생존 상태가 없어 캐릭터 정지만 한다(시험 맵)"), *GetName());
 		return;
@@ -852,18 +860,22 @@ void ADigetherPlayerCharacter::HandleRevived()
 
 void ADigetherPlayerCharacter::DigetherDamageSelf(float Amount)
 {
+#if !UE_BUILD_SHIPPING
 	Server_DevDamageSelf(Amount);
+#endif
 }
 
 void ADigetherPlayerCharacter::DigetherResetHealth()
 {
+#if !UE_BUILD_SHIPPING
 	Server_DevResetHealth();
+#endif
 }
 
 void ADigetherPlayerCharacter::Server_DevDamageSelf_Implementation(float Amount)
 {
 #if !UE_BUILD_SHIPPING
-	// 실제 피해와 같은 경로(엔진 ApplyDamage → 체력 컴포넌트)를 탄다
+	// 실제 피해와 같은 경로(엔진 ApplyDamage → 체력 컴포넌트)를 탐
 	UGameplayStatics::ApplyDamage(this, Amount, GetController(), this, UDamageType::StaticClass());
 #endif
 }
@@ -871,7 +883,7 @@ void ADigetherPlayerCharacter::Server_DevDamageSelf_Implementation(float Amount)
 void ADigetherPlayerCharacter::Server_DevResetHealth_Implementation()
 {
 #if !UE_BUILD_SHIPPING
-	// 생존 상태(PlayerState) 부활은 런 흐름 책임이라 여기서는 캐릭터 체력만 되돌린다
+	// 생존 상태(PlayerState) 부활은 런 흐름 책임이라 여기서는 캐릭터 체력만 되돌림
 	Health->ResetToFull();
 #endif
 }

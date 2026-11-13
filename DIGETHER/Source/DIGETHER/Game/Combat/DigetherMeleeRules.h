@@ -4,9 +4,9 @@
 #include "Engine/EngineTypes.h"
 #include "DigetherMeleeRules.generated.h"
 
-// 근접 공격 한 종류의 판정 값, 장비 BP(BP_Weapon_*)가 갖고 판정 컴포넌트에 넘긴다
-// 히트박스는 시선(눈 위치·조준 방향) 앞에 놓는 상자이며, 몽타주의 판정 구간(노티파이) 동안만 존재한다
-// 수치는 장비마다 BP에서 정하고 코드 기본값은 0이다(0이면 판정하지 않는다)
+// 근접 공격 한 종류의 판정 값, 장비 BP(BP_Weapon_*)가 갖고 판정 컴포넌트에 넘김
+// 히트박스는 시선(눈 위치·조준 방향) 앞에 놓는 상자이며, 몽타주의 판정 구간(노티파이) 동안만 존재함
+// 수치는 장비마다 BP에서 정하고 코드 기본값은 0(0이면 판정하지 않음)
 USTRUCT(BlueprintType)
 struct DIGETHER_API FDigetherMeleeHitParams
 {
@@ -14,11 +14,11 @@ struct DIGETHER_API FDigetherMeleeHitParams
 
 	FDigetherMeleeHitParams();
 
-	// 한 번 맞혔을 때 피해량, 판정 구간의 DamageScale을 곱한다
+	// 한 번 맞혔을 때 피해량, 판정 구간의 DamageScale을 곱함
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Melee", meta=(ClampMin="0"))
 	float Damage = 0.f;
 
-	// 눈 위치에서 상자 앞면까지 거리(cm), 0이면 눈 바로 앞에서 시작한다
+	// 눈 위치에서 상자 앞면까지 거리(cm), 0이면 눈 바로 앞에서 시작함
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Melee", meta=(ClampMin="0"))
 	float ForwardOffsetCm = 0.f;
 
@@ -34,7 +34,7 @@ struct DIGETHER_API FDigetherMeleeHitParams
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Melee", meta=(ClampMin="0"))
 	float HalfHeightCm = 0.f;
 
-	// 켜면 눈에서 대상까지 벽 등이 가로막을 때 맞히지 않는다(Visibility 채널)
+	// 켜면 눈에서 대상까지 벽 등이 가로막을 때 맞히지 않음(Visibility 채널)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Melee")
 	bool bRequireLineOfSight = true;
 
@@ -51,15 +51,15 @@ struct DIGETHER_API FDigetherMeleeHitBox
 	FVector HalfExtent = FVector::ZeroVector;
 };
 
-// 근접 판정 순수 규칙, 월드·액터에 의존하지 않는다
+// 근접 판정 순수 규칙, 월드·액터에 의존하지 않음
 namespace DigetherMeleeRules
 {
-	// 판정에 쓸 수 있는 값인지(피해·크기가 양수, 대상 종류가 있음), 문제를 OutProblems에 모은다
+	// 판정에 쓸 수 있는 값인지(피해·크기가 양수, 대상 종류가 있음), 문제를 OutProblems에 모음
 	DIGETHER_API bool IsUsable(const FDigetherMeleeHitParams& Params, TArray<FString>* OutProblems = nullptr);
 
-	// 시선 위치·방향 앞의 상자, 상자 X축이 시선 방향이다
+	// 시선 위치·방향 앞의 상자, 상자 X축이 시선 방향
 	DIGETHER_API FDigetherMeleeHitBox ComputeHitBox(const FVector& ViewLocation, const FRotator& ViewRotation, const FDigetherMeleeHitParams& Params);
 
-	// 판정 구간 배율을 곱한 피해량, 음수·NaN 배율은 0으로 본다
+	// 판정 구간 배율을 곱한 피해량, 음수·NaN 배율은 0으로 봄
 	DIGETHER_API float ComputeDamage(const FDigetherMeleeHitParams& Params, float DamageScale);
 }

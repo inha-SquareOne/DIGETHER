@@ -27,7 +27,7 @@ bool FDigetherPlayerHealthRulesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("12.5 피해는 Damaged"), FDigetherPlayerHealthRules::ApplyDamage(State, 12.5f) == EDigetherPlayerDamageResult::Damaged);
 	TestEqual(TEXT("12.5 피해 후 87.5"), State.Current, 87.5f);
 
-	// 잘못된 피해량은 상태를 바꾸지 않는다
+	// 잘못된 피해량은 상태를 바꾸지 않음
 	TestTrue(TEXT("0 피해 무시"), FDigetherPlayerHealthRules::ApplyDamage(State, 0.f) == EDigetherPlayerDamageResult::IgnoredInvalidAmount);
 	TestTrue(TEXT("음수 피해(회복) 무시"), FDigetherPlayerHealthRules::ApplyDamage(State, -20.f) == EDigetherPlayerDamageResult::IgnoredInvalidAmount);
 	TestTrue(TEXT("NaN 피해 무시"), FDigetherPlayerHealthRules::ApplyDamage(State, std::numeric_limits<float>::quiet_NaN()) == EDigetherPlayerDamageResult::IgnoredInvalidAmount);

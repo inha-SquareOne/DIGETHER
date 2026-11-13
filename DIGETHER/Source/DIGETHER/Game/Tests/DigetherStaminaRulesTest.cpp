@@ -5,7 +5,7 @@
 
 namespace
 {
-	// 프로토타입 시험값과 같은 수치, 규칙 계산 확인용이며 표의 실제 값과 무관하다
+	// 프로토타입 시험값과 같은 수치, 규칙 계산 확인용이며 표의 실제 값과 무관함
 	FDigetherStaminaParams MakeStaminaParams()
 	{
 		FDigetherStaminaParams Params;
@@ -36,7 +36,7 @@ bool FDigetherStaminaRulesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("1초 달리기 후 80"), State.Current, 80.f);
 	TestEqual(TEXT("소모하면 회복 대기 시간이 0으로 돌아간다"), State.SecondsSinceUse, 0.f);
 
-	// 회복 대기: 소모 직후 1초 동안은 회복하지 않는다
+	// 회복 대기: 소모 직후 1초 동안은 회복하지 않음
 	FDigetherStaminaRules::Advance(State, Params, 0.5f, false);
 	TestEqual(TEXT("대기 중에는 회복하지 않는다"), State.Current, 80.f);
 	FDigetherStaminaRules::Advance(State, Params, 0.5f, false);
@@ -44,7 +44,7 @@ bool FDigetherStaminaRulesTest::RunTest(const FString& Parameters)
 	FDigetherStaminaRules::Advance(State, Params, 1.f, false);
 	TestEqual(TEXT("대기 후 1초 회복 12"), State.Current, 92.f);
 
-	// 큰 DeltaTime: 대기 시간을 건너뛰지 않고 최대치를 넘지 않는다
+	// 큰 DeltaTime: 대기 시간을 건너뛰지 않고 최대치를 넘지 않음
 	FDigetherStaminaState Big = FDigetherStaminaRules::MakeFull(Params);
 	FDigetherStaminaRules::Advance(Big, Params, 2.f, true);
 	TestEqual(TEXT("2초 달리기 후 60"), Big.Current, 60.f);
@@ -61,7 +61,7 @@ bool FDigetherStaminaRulesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("0에 닿으면 달리기 잠금"), Empty.bSprintLocked);
 	TestFalse(TEXT("잠기면 달리기 불가"), FDigetherStaminaRules::CanSprint(Empty));
 
-	// 재달리기 임계: 20 이상 회복해야 잠금이 풀린다
+	// 재달리기 임계: 20 이상 회복해야 잠금이 풀림
 	TestFalse(TEXT("잠긴 채 달리기를 요청하면 거절"), FDigetherStaminaRules::Advance(Empty, Params, 0.1f, true));
 	FDigetherStaminaRules::Advance(Empty, Params, 1.9f, false);
 	TestEqual(TEXT("요청 거절 0.1초 + 1.9초 쉼 = 대기 1초 후 1초 회복 12"), Empty.Current, 12.f);

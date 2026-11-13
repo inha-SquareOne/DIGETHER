@@ -6,7 +6,7 @@
 
 namespace
 {
-	// 규칙 계산 확인용 값, 삽 BP의 실제 값과 무관하다
+	// 규칙 계산 확인용 값, 삽 BP의 실제 값과 무관함
 	FDigetherMeleeHitParams MakeMeleeParams()
 	{
 		FDigetherMeleeHitParams Params;
@@ -49,13 +49,13 @@ bool FDigetherMeleeRulesTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("정면 중심"), Box.Center.Equals(FVector(70.f, 0.f, 100.f), 0.01f));
 		TestTrue(TEXT("반크기"), Box.HalfExtent.Equals(FVector(50.f, 30.f, 40.f), 0.01f));
 	}
-	// 오른쪽(요 90도)을 보면 +Y 방향으로 놓인다
+	// 오른쪽(요 90도)을 보면 +Y 방향으로 놓임
 	{
 		const FDigetherMeleeHitBox Box = DigetherMeleeRules::ComputeHitBox(FVector::ZeroVector, FRotator(0.f, 90.f, 0.f), Params);
 		TestTrue(TEXT("요 90도 중심"), Box.Center.Equals(FVector(0.f, 70.f, 0.f), 0.01f));
 		TestTrue(TEXT("상자 X축이 시선 방향"), Box.Rotation.GetForwardVector().Equals(FVector(0.f, 1.f, 0.f), 0.001f));
 	}
-	// 아래(피치 -90도)를 보면 아래로 놓인다(바닥 근처 대상 판정)
+	// 아래(피치 -90도)를 보면 아래로 놓임(바닥 근처 대상 판정)
 	{
 		const FDigetherMeleeHitBox Box = DigetherMeleeRules::ComputeHitBox(FVector::ZeroVector, FRotator(-90.f, 0.f, 0.f), Params);
 		TestTrue(TEXT("아래 중심"), Box.Center.Equals(FVector(0.f, 0.f, -70.f), 0.01f));

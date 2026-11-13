@@ -13,7 +13,7 @@
 namespace
 {
 #if !UE_BUILD_SHIPPING
-	// 서버 월드에 히트박스를 그린다(리슨 서버 호스트 화면에서 보인다), 0 끔 / 1 켬
+	// 서버 월드에 히트박스를 그림(리슨 서버 호스트 화면에서 보임), 0 끔 / 1 켬
 	int32 GDigetherMeleeDebugDraw = 0;
 	FAutoConsoleVariableRef CVarDigetherMeleeDebugDraw(
 		TEXT("Digether.Melee.DebugDraw"),
@@ -24,7 +24,7 @@ namespace
 
 UDigetherMeleeHitComponent::UDigetherMeleeHitComponent()
 {
-	// 판정은 애니메이션 노티파이가 진행시키므로 컴포넌트 자체 틱은 쓰지 않는다
+	// 판정은 애니메이션 노티파이가 진행시키므로 컴포넌트 자체 틱은 쓰지 않음
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
@@ -63,7 +63,7 @@ void UDigetherMeleeHitComponent::BeginHitWindow(float DamageScale)
 	}
 	++ActiveWindowCount;
 	ActiveDamageScale = DamageScale;
-	// 구간이 한 프레임보다 짧아도 최소 한 번은 검사한다
+	// 구간이 한 프레임보다 짧아도 최소 한 번은 검사함
 	PerformHitCheck();
 }
 
@@ -100,7 +100,7 @@ void UDigetherMeleeHitComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 bool UDigetherMeleeHitComponent::CanRunOnThisMachine() const
 {
 	const AActor* Owner = GetOwner();
-	return Owner != nullptr && Owner->HasAuthority() && GetWorld() != nullptr;
+	return IsValid(Owner) && Owner->HasAuthority() && IsValid(GetWorld());
 }
 
 void UDigetherMeleeHitComponent::GetViewPoint(FVector& OutLocation, FRotator& OutRotation) const
@@ -108,7 +108,7 @@ void UDigetherMeleeHitComponent::GetViewPoint(FVector& OutLocation, FRotator& Ou
 	const AActor* Owner = GetOwner();
 	if (const APawn* Pawn = Cast<APawn>(Owner))
 	{
-		// 서버의 조준 회전은 이동 RPC로 받은 컨트롤 회전이다(카메라 매니저 값은 서버에서 늦을 수 있어 쓰지 않는다)
+		// 서버의 조준 회전은 이동 RPC로 받은 컨트롤 회전(카메라 매니저 값은 서버에서 늦을 수 있어 쓰지 않음)
 		OutLocation = Pawn->GetPawnViewLocation();
 		OutRotation = Pawn->GetBaseAimRotation();
 		return;
@@ -144,7 +144,7 @@ void UDigetherMeleeHitComponent::PerformHitCheck()
 		ObjectParams.AddObjectTypesToQuery(Channel);
 	}
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(DigetherMeleeHit), false, Owner);
-	// 들고 있는 장비 등 소유자에게 붙은 액터는 맞지 않는다
+	// 들고 있는 장비 등 소유자에게 붙은 액터는 맞지 않음
 	TArray<AActor*> AttachedActors;
 	Owner->GetAttachedActors(AttachedActors, true, true);
 	QueryParams.AddIgnoredActors(AttachedActors);
@@ -163,18 +163,18 @@ void UDigetherMeleeHitComponent::PerformHitCheck()
 
 	const float Damage = DigetherMeleeRules::ComputeDamage(Params, ActiveDamageScale);
 	const APawn* OwnerPawn = Cast<APawn>(Owner);
-	AController* InstigatorController = OwnerPawn != nullptr ? OwnerPawn->GetController() : nullptr;
+	AController* InstigatorController = IsValid(OwnerPawn) ? OwnerPawn->GetController() : nullptr;
 	AActor* Causer = DamageCauser.IsValid() ? DamageCauser.Get() : Owner;
 
 	for (const FOverlapResult& Overlap : Overlaps)
 	{
 		AActor* Target = Overlap.GetActor();
-		if (Target == nullptr || Target == Owner || HitActorsThisWindow.Contains(Target))
+		if (!IsValid(Target) || Target == Owner || HitActorsThisWindow.Contains(Target))
 		{
 			continue;
 		}
 		const UPrimitiveComponent* TargetComponent = Overlap.GetComponent();
-		const FVector TargetPoint = TargetComponent != nullptr ? TargetComponent->Bounds.Origin : Target->GetActorLocation();
+		const FVector TargetPoint = IsValid(TargetComponent) ? TargetComponent->Bounds.Origin : Target->GetActorLocation();
 		if (Params.bRequireLineOfSight && !HasLineOfSight(ViewLocation, Target, TargetPoint))
 		{
 			continue;
@@ -186,7 +186,7 @@ void UDigetherMeleeHitComponent::PerformHitCheck()
 		}
 		UE_LOG(LogDigetherCombat, Verbose, TEXT("%s 근접 적중: %s, 피해 %g"), *GetNameSafe(Owner), *GetNameSafe(Target), Damage);
 		OnMeleeHit.Broadcast(Target, Damage, TargetPoint);
-		// 피해 처리 중 소유자가 사라졌으면 나머지 대상은 처리하지 않는다
+		// 피해 처리 중 소유자가 사라졌으면 나머지 대상은 처리하지 않음
 		if (!IsValid(Owner) || ActiveWindowCount == 0)
 		{
 			return;

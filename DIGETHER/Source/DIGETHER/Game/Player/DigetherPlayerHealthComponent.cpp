@@ -37,17 +37,19 @@ void UDigetherPlayerHealthComponent::InitializeFromMaxHealth(const float MaxHeal
 void UDigetherPlayerHealthComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	if (AActor* Owner = GetOwner())
+	AActor* Owner = GetOwner();
+	if (IsValid(Owner))
 	{
 		Owner->OnTakeAnyDamage.AddUniqueDynamic(this, &UDigetherPlayerHealthComponent::HandleTakeAnyDamage);
 	}
-	// 초기 복제가 BeginPlay보다 먼저 왔으면(이미 죽은 채로 보임) 여기서 한 번 알린다
+	// 초기 복제가 BeginPlay보다 먼저 왔으면(이미 죽은 채로 보임) 여기서 한 번 알림
 	NotifyLifeIfChanged();
 }
 
 void UDigetherPlayerHealthComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (AActor* Owner = GetOwner())
+	AActor* Owner = GetOwner();
+	if (IsValid(Owner))
 	{
 		Owner->OnTakeAnyDamage.RemoveDynamic(this, &UDigetherPlayerHealthComponent::HandleTakeAnyDamage);
 	}
@@ -82,7 +84,7 @@ void UDigetherPlayerHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, f
 	UE_LOG(LogDigetherPlayer, Log, TEXT("%s 피해 %g (%s): 체력 %g -> %g%s"), *GetNameSafe(Owner), Damage,
 		*GetNameSafe(DamageCauser), PreviousHealth, State.Current, State.bDead ? TEXT(" [사망]") : TEXT(""));
 
-	// 서버의 C++ 대입은 OnRep을 부르지 않으므로 같은 통지를 직접 한다(리슨 서버 호스트 포함)
+	// 서버의 C++ 대입은 OnRep을 부르지 않으므로 같은 통지를 직접 함(리슨 서버 호스트 포함)
 	OnHealthChanged.Broadcast(PreviousHealth, State.Current);
 	NotifyLifeIfChanged();
 }
@@ -105,13 +107,13 @@ void UDigetherPlayerHealthComponent::ResetToFull()
 	NotifyLifeIfChanged();
 }
 
-void UDigetherPlayerHealthComponent::OnRep_CurrentHealth(const float PreviousHealth)
+void UDigetherPlayerHealthComponent::OnRep_ReplicatedCurrentHealth(const float PreviousHealth)
 {
 	State.Current = ReplicatedCurrentHealth;
 	OnHealthChanged.Broadcast(PreviousHealth, State.Current);
 }
 
-void UDigetherPlayerHealthComponent::OnRep_Dead()
+void UDigetherPlayerHealthComponent::OnRep_ReplicatedDead()
 {
 	State.bDead = bReplicatedDead;
 	if (HasBegunPlay())

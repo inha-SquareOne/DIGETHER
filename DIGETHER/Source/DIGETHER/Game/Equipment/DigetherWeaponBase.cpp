@@ -6,7 +6,7 @@
 ADigetherWeaponBase::ADigetherWeaponBase()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	// 장비 자체는 위치가 캐릭터를 따라가므로 이동 복제가 필요 없고, 어느 장비를 들었는지는 캐릭터가 복제한다
+	// 장비 자체는 위치가 캐릭터를 따라가므로 이동 복제가 필요 없고, 어느 장비를 들었는지는 캐릭터가 복제함
 	bReplicates = true;
 	SetReplicateMovement(false);
 
@@ -22,7 +22,7 @@ ADigetherWeaponBase::ADigetherWeaponBase()
 
 void ADigetherWeaponBase::AttachToCharacter(USceneComponent* Parent)
 {
-	if (Parent == nullptr)
+	if (!IsValid(Parent))
 	{
 		return;
 	}

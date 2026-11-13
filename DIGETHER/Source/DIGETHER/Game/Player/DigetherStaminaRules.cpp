@@ -61,7 +61,7 @@ bool FDigetherStaminaRules::Advance(FDigetherStaminaState& State, const FDigethe
 		return true;
 	}
 
-	// 회복: 대기 시간이 지난 뒤의 시간분만 회복한다(DeltaSeconds가 커도 대기 시간을 건너뛰지 않는다)
+	// 회복: 대기 시간이 지난 뒤의 시간분만 회복함(DeltaSeconds가 커도 대기 시간을 건너뛰지 않음)
 	const float PreviousWait = State.SecondsSinceUse;
 	State.SecondsSinceUse += DeltaSeconds;
 	const float RegenSeconds = FMath::Clamp(State.SecondsSinceUse - FMath::Max(PreviousWait, Params.StaminaRegenDelaySec), 0.f, DeltaSeconds);
@@ -72,6 +72,6 @@ bool FDigetherStaminaRules::Advance(FDigetherStaminaState& State, const FDigethe
 		State.bSprintLocked = false;
 	}
 
-	// 잠금 중이거나 달리기를 원하지 않은 경우, 달리기 요청이 거절되었는지는 호출자가 CanSprint로 판단한다
+	// 잠금 중이거나 달리기를 원하지 않은 경우, 달리기 요청이 거절되었는지는 호출자가 CanSprint로 판단함
 	return !(bSprinting && !CanSprint(State));
 }

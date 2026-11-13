@@ -4,7 +4,7 @@
 
 struct FDigetherPlayerStatRow;
 
-// 스태미나 규칙에 쓰는 수치, DT_PlayerStats 행에서 복사한다(코드 기본값 없음)
+// 스태미나 규칙에 쓰는 수치, DT_PlayerStats 행에서 복사함(코드 기본값 없음)
 struct DIGETHER_API FDigetherStaminaParams
 {
 	float MaxStamina = 0.f;
@@ -17,19 +17,19 @@ struct DIGETHER_API FDigetherStaminaParams
 	static FDigetherStaminaParams FromRow(const FDigetherPlayerStatRow& Row);
 };
 
-// 스태미나 한 명분의 상태, 엔진 월드·시간에 의존하지 않는다(서버와 소유 클라이언트가 같은 함수로 갱신)
+// 스태미나 한 명분의 상태, 엔진 월드·시간에 의존하지 않음(서버와 소유 클라이언트가 같은 함수로 갱신)
 struct DIGETHER_API FDigetherStaminaState
 {
 	float Current = 0.f;
 
-	// 마지막으로 소모한 뒤 지난 시간(초), 회복 대기 판정에 쓴다
+	// 마지막으로 소모한 뒤 지난 시간(초), 회복 대기 판정에 씀
 	float SecondsSinceUse = 0.f;
 
-	// 바닥나서 달리기가 잠긴 상태, Current가 SprintResumeThreshold 이상이 되면 풀린다
+	// 바닥나서 달리기가 잠긴 상태, Current가 SprintResumeThreshold 이상이 되면 풀림
 	bool bSprintLocked = false;
 };
 
-// 스태미나 순수 규칙, 모든 함수는 상태를 인자로 받아 새 상태를 돌려준다
+// 스태미나 순수 규칙, 모든 함수는 상태를 인자로 받아 새 상태를 돌려줌
 class DIGETHER_API FDigetherStaminaRules
 {
 public:
@@ -45,7 +45,7 @@ public:
 	// 점프 1회 소모, 부족하면 상태를 바꾸지 않고 false
 	static bool TryConsumeJump(FDigetherStaminaState& State, const FDigetherStaminaParams& Params);
 
-	// DeltaSeconds만큼 진행한다. bSprinting이면 소모, 아니면 대기 후 회복
-	// 달리기를 계속할 수 없으면 false(소모 중 0에 닿아 잠겼거나, 잠긴 채로 달리기를 요청함). 호출자가 달리기를 종료해야 한다
+	// DeltaSeconds만큼 진행함, bSprinting이면 소모, 아니면 대기 후 회복
+	// 달리기를 계속할 수 없으면 false(소모 중 0에 닿아 잠겼거나, 잠긴 채로 달리기를 요청함), 호출자가 달리기를 종료해야 함
 	static bool Advance(FDigetherStaminaState& State, const FDigetherStaminaParams& Params, float DeltaSeconds, bool bSprinting);
 };
