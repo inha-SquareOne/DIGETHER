@@ -94,8 +94,8 @@ ADigetherPlayerCharacter::ADigetherPlayerCharacter(const FObjectInitializer& Obj
 	PrimaryActorTick.bCanEverTick = true;
 
 	PlayerStatTable = TSoftObjectPtr<UDataTable>(FSoftObjectPath(TEXT("/Game/Data/Player/DT_PlayerStats.DT_PlayerStats")));
-	// 입력 데이터 에셋 이름 약속: 에디터에서 이 이름·위치로 만든다, 다르면 BP 자식 클래스에서 지정한다
-	InputData = TSoftObjectPtr<UDigetherPlayerInputData>(FSoftObjectPath(TEXT("/Game/Developers/taewoong/Input/DA_PlayerInput.DA_PlayerInput")));
+	// 입력 데이터 에셋 기본 위치(Git 로직 폴더), 다른 에셋을 쓰면 BP 자식 클래스에서 지정
+	InputData = TSoftObjectPtr<UDigetherPlayerInputData>(FSoftObjectPath(TEXT("/Game/Game/Input/Player/DA_PlayerInput.DA_PlayerInput")));
 	bReplicates = true;
 
 	// 스프링암을 캡슐에 붙이고 카메라는 암 끝에 붙인다 (높이는 블루프린트의 스프링암 위치로 맞춘다)
