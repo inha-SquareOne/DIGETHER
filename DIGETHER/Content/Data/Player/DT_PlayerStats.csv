@@ -1,2 +1,2 @@
----,WalkSpeed,SprintSpeed,CrouchSpeed,JumpZVelocity,GravityScale,ScaleX,ScaleY,ScaleZ,PassWidthCm,PassHeightCm,CrouchHeightCm
-Default,400,600,200,450,1.5,1,1,1,82,165,115
+---,WalkSpeed,SprintSpeed,CrouchSpeed,JumpZVelocity,GravityScale,ScaleX,ScaleY,ScaleZ,PassWidthCm,PassHeightCm,CrouchHeightCm,MaxStamina,SprintDrainPerSec,JumpStaminaCost,StaminaRegenPerSec,StaminaRegenDelaySec,SprintResumeThreshold,MaxHealth
+Default,400,600,200,450,1.5,1,1,1,82,165,115,100,20,10,12,1,20,100

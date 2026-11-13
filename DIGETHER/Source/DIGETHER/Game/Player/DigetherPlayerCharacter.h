@@ -3,14 +3,19 @@
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
 #include "GameFramework/Character.h"
+#include "Game/Player/DigetherStaminaRules.h"
 #include "DigetherPlayerCharacter.generated.h"
 
+class UCanvas;
+class APlayerController;
 class UCameraComponent;
 class USpringArmComponent;
 class USkeletalMeshComponent;
 class USkeletalMesh;
 class ADigetherWeaponBase;
 class UAnimMontage;
+class UDigetherMeleeHitComponent;
+class UDigetherPlayerHealthComponent;
 class UDigetherPlayerInputData;
 class UInputMappingContext;
 struct FInputActionValue;
@@ -18,7 +23,9 @@ struct FInputActionValue;
 // 정식 1인칭 플레이어 캐릭터(S03), 별도 GameMode의 기본 Pawn으로 지정 예정
 // 이동·체형 수치는 DT_PlayerStats 표(FDigetherPlayerStatRow)에서 읽고 코드 기본값은 없다
 // 서버와 클라이언트가 같은 표를 읽어 이동 예측 값이 일치해야 한다
-// 달리기와 스태미나는 아직 없다(전용 이동 컴포넌트를 제거했으므로 스태미나 작업에서 방식을 정해 다시 만든다)
+// 달리기·스태미나(B안): 서버가 스태미나 원본이고 소유 클라이언트는 같은 규칙(FDigetherStaminaRules)으로 예측한다
+// 달리기 시작/정지는 Server RPC로 알리고 서버가 조건을 다시 검사한다. 이동 속도 변경은 RefreshMaxWalkSpeed 한 곳에서만 한다
+// 한계: RPC 지연만큼 서버와 속도 전환 시점이 달라 위치 보정이 생길 수 있다(M2에서 측정, 심하면 커스텀 이동 컴포넌트로 전환 검토)
 UCLASS()
 class DIGETHER_API ADigetherPlayerCharacter : public ACharacter
 {
@@ -29,6 +36,7 @@ public:
 
 	virtual void PostInitializeComponents() override;
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void NotifyControllerChanged() override;
 
 	// 달리기 최대 속도(표 값), 스태미나 구현에서 사용
@@ -39,9 +47,36 @@ public:
 
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void Tick(float DeltaSeconds) override;
+
+	// 달리기 중인지(달리기 의도가 켜져 있음). 실제 이동 중인지는 속도로 따로 본다
+	bool IsSprinting() const { return bIsSprinting; }
+
+	// 현재 스태미나(소유자·서버만 의미 있음, 다른 클라이언트에서는 갱신되지 않는다)
+	float GetStamina() const { return StaminaState.Current; }
+	float GetStaminaFraction() const { return StaminaParams.MaxStamina > 0.f ? FMath::Clamp(StaminaState.Current / StaminaParams.MaxStamina, 0.f, 1.f) : 0.f; }
+
+	// 스태미나를 가득 채우고 달리기를 멈춘다, 사망·부활·귀환 처리가 호출한다(서버에서 호출하면 소유자에게 복제된다)
+	void ResetStamina();
+
+	virtual bool CanJumpInternal_Implementation() const override;
+	virtual void OnJumped_Implementation() override;
+	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
 
 	// 들고 있는 장비, 없으면 nullptr
 	ADigetherWeaponBase* GetEquippedWeapon() const { return EquippedWeapon; }
+
+	// 체력(서버 원본, 수치는 소유자에게만 복제). 사망 여부는 모든 머신에서 맞다
+	UDigetherPlayerHealthComponent* GetHealthComponent() const { return Health; }
+	bool IsDead() const;
+
+	// 개발용(Shipping 제외): 콘솔에서 자기 캐릭터에 피해·체력 초기화. 서버에 요청해 실제 피해 경로(ApplyDamage)를 탄다
+	UFUNCTION(Exec)
+	void DigetherDamageSelf(float Amount);
+
+	UFUNCTION(Exec)
+	void DigetherResetHealth();
 
 	// 서버 전용: 장비를 바꾼다(기존 장비는 제거). 빈 클래스면 빈손이 된다
 	void EquipWeapon(TSubclassOf<ADigetherWeaponBase> WeaponClass);
@@ -77,6 +112,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Digether|Visual")
 	FTransform FirstPersonArmsOffset;
 
+	// 1인칭 눈높이: 캡슐 꼭대기에서 아래로 내린 거리(월드 cm). 서 있을 때·웅크렸을 때 모두 이 거리로 맞춘다
+	// 드워프 메시(키 165cm로 확대) 기준 헬멧 꼭대기~눈 약 19cm에서 잡은 시험값. 눈으로 보며 맞추는 값
+	UPROPERTY(EditDefaultsOnly, Category="Digether|Camera", meta=(ClampMin="0"))
+	float EyeDepthFromTopCm = 20.f;
+
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
@@ -84,6 +124,9 @@ protected:
 private:
 	// 표를 읽어 이동·점프·중력·스케일·캡슐에 적용, 실패하면 이유를 로그로 남기고 적용하지 않는다
 	void ApplyPlayerStats();
+
+	// 현재 캡슐 높이(서기·웅크리기)에 맞춰 카메라 스프링암 높이와 BaseEyeHeight를 맞춘다
+	void UpdateEyeHeight();
 
 	// 입력 컨텍스트를 로컬 플레이어에 등록·해제
 	void SetMappingContext(AController* InController, bool bAdd) const;
@@ -99,6 +142,29 @@ private:
 	// 별도 애니메이션 없이 3인칭 몸(GetMesh())의 자세를 그대로 따라 한다(리더 포즈)
 	UPROPERTY(VisibleAnywhere, Category="Digether|Components")
 	TObjectPtr<USkeletalMeshComponent> FirstPersonArms;
+
+	// 근접 히트박스 판정(서버 전용), 공격 몽타주의 MeleeHitWindow 구간에서 장비의 판정 값으로 검사한다
+	UPROPERTY(VisibleAnywhere, Category="Digether|Components")
+	TObjectPtr<UDigetherMeleeHitComponent> MeleeHit;
+
+	// 체력, 최대치는 표(MaxHealth)에서 읽는다
+	UPROPERTY(VisibleAnywhere, Category="Digether|Components")
+	TObjectPtr<UDigetherPlayerHealthComponent> Health;
+
+	// 사망: 달리기 종료, 이동 정지, 이동·점프·웅크리기·공격·달리기 입력 무시(시점 회전은 허용)
+	// 서버는 PlayerState의 생존 상태에 사망(Killed)을 알린다. 드롭·관전 전환은 런 흐름 담당(아직 연결 안 됨)
+	void HandleDied();
+	void HandleRevived();
+
+	// 소유 화면의 피해 표시용(서버 값 수신 시각)
+	void HandleHealthChanged(float PreviousHealth, float CurrentHealth);
+	double LastDamagedRealTimeSeconds = -1.0;
+
+	UFUNCTION(Server, Reliable)
+	void Server_DevDamageSelf(float Amount);
+
+	UFUNCTION(Server, Reliable)
+	void Server_DevResetHealth();
 
 	// 들고 있는 장비, 서버가 정하고 복제한다. 받은 머신은 OnRep에서 몸·1인칭 팔에 붙인다
 	UPROPERTY(ReplicatedUsing=OnRep_EquippedWeapon)
@@ -121,8 +187,63 @@ private:
 	void HandleCrouchStarted();
 	void HandleCrouchCompleted();
 	void HandleAttackPressed();
+	void HandleSprintStarted();
+	void HandleSprintCompleted();
 
-	// 공격 요청: 서버가 허용하면 모든 머신(서버 포함)이 몽타주를 재생한다. 피해 판정은 이 클래스가 하지 않는다
+	// 달리기 상태를 바꾸고 이동 속도를 다시 계산한다(모든 상태 변경이 이 함수를 거친다)
+	void SetSprintingState(bool bSprint);
+
+	// 이동 최고 속도 계산, MaxWalkSpeed를 바꾸는 유일한 곳(이후 중량·감속 배율도 여기서 합성한다)
+	void RefreshMaxWalkSpeed();
+
+	// 지금 달리기를 시작할 수 있는지(표 적용됨, 잠기지 않음, 서 있음, 지면)
+	bool CanStartSprint() const;
+
+	// 서버·소유 클라이언트가 매 틱 같은 규칙으로 스태미나를 갱신한다
+	void TickStamina(float DeltaSeconds);
+
+#if !UE_BUILD_SHIPPING
+	// 임시 확인용 체력·스태미나 화면 표시(정식 HUD는 P2-7, 체력 표시 방식은 D2·D3 미정)
+	// 콘솔 Digether.Player.HealthDebug 0 / Digether.Player.StaminaDebug 0으로 각각 끈다
+	// 뷰포트마다 호출되며 자기 컨트롤러의 창에서만 그린다(PIE 다인에서 값이 섞이지 않게)
+	void DrawStatusDebug(UCanvas* Canvas, APlayerController* ViewportController);
+	FDelegateHandle StatusDebugDrawHandle;
+#endif
+
+	// 달리기 시작/정지 요청, 서버가 조건을 다시 검사한다(거절하면 Client_SprintStopped로 되돌린다)
+	UFUNCTION(Server, Reliable)
+	void Server_SetSprinting(bool bSprint);
+
+	// 서버가 달리기를 거절·종료했음을 소유 클라이언트에 알린다(복제 값이 변하지 않아도 되돌리기 위함)
+	UFUNCTION(Client, Reliable)
+	void Client_SprintStopped();
+
+	UFUNCTION()
+	void OnRep_Stamina();
+
+	UFUNCTION()
+	void OnRep_IsSprinting();
+
+	// 달리기 의도, 서버와 소유 클라이언트가 각자 정하고 다른 클라이언트에는 서버 값이 복제된다(소유자 제외)
+	UPROPERTY(ReplicatedUsing=OnRep_IsSprinting)
+	bool bIsSprinting = false;
+
+	// 서버 스태미나 값(소유자 전용 복제), 소유 클라이언트의 예측값이 크게 벗어났을 때만 따라간다
+	UPROPERTY(ReplicatedUsing=OnRep_Stamina)
+	float ReplicatedStamina = 0.f;
+
+	UPROPERTY(ReplicatedUsing=OnRep_Stamina)
+	bool bReplicatedSprintLocked = false;
+
+	FDigetherStaminaParams StaminaParams;
+	FDigetherStaminaState StaminaState;
+	bool bStaminaReady = false;
+
+	// 표에서 읽은 걷기 속도, 적용 전에는 0
+	float WalkSpeedCmPerSec = 0.f;
+
+	// 공격 요청: 서버가 허용하면 모든 머신(전용 서버 포함)이 몽타주를 재생한다
+	// 피해 판정은 몽타주 노티파이 구간에서 MeleeHit 컴포넌트가 서버에서만 한다(이 클래스는 판정하지 않는다)
 	UFUNCTION(Server, Reliable)
 	void Server_Attack();
 

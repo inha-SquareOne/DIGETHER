@@ -53,4 +53,32 @@ struct DIGETHER_API FDigetherPlayerStatRow : public FTableRowBase
 	// 앉았을 때 높이
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Digether|PlayerStat", meta=(ClampMin="1", Units="cm"))
 	float CrouchHeightCm = 0.f;
+
+	// 스태미나 최대치
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Digether|PlayerStat|Stamina", meta=(ClampMin="0"))
+	float MaxStamina = 0.f;
+
+	// 달리는 동안 초당 소모량
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Digether|PlayerStat|Stamina", meta=(ClampMin="0"))
+	float SprintDrainPerSec = 0.f;
+
+	// 점프 1회 소모량, D26 미정이므로 시험값이다
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Digether|PlayerStat|Stamina", meta=(ClampMin="0"))
+	float JumpStaminaCost = 0.f;
+
+	// 회복 시작 후 초당 회복량
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Digether|PlayerStat|Stamina", meta=(ClampMin="0"))
+	float StaminaRegenPerSec = 0.f;
+
+	// 마지막 소모 후 회복이 시작되기까지의 대기 시간
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Digether|PlayerStat|Stamina", meta=(ClampMin="0", Units="s"))
+	float StaminaRegenDelaySec = 0.f;
+
+	// 스태미나가 바닥난 뒤 다시 달릴 수 있게 되는 최소 스태미나
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Digether|PlayerStat|Stamina", meta=(ClampMin="0"))
+	float SprintResumeThreshold = 0.f;
+
+	// 최대 체력, D1 결정의 '플레이어 HP 100' 기준 시험값
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Digether|PlayerStat|Health", meta=(ClampMin="0"))
+	float MaxHealth = 0.f;
 };
