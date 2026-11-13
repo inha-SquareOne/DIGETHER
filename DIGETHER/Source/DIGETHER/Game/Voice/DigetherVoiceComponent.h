@@ -96,6 +96,13 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<USoundAttenuation> SurvivorAttenuation;
 
+	UPROPERTY(Transient)
+	TObjectPtr<USoundAttenuation> BuriedAttenuation;
+
+	// 비공간 음성에도 감쇠 설정 객체를 유지해 발화 중 공간/비공간 전환 지원
+	UPROPERTY(Transient)
+	TObjectPtr<USoundAttenuation> UnspatializedAttenuation;
+
 	// 액션 에셋 미지정 시 실행 중 생성한 누르고 말하기 입력
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> FallbackPushToTalkAction;

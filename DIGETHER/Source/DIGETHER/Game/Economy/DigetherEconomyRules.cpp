@@ -347,16 +347,34 @@ FDigetherPourTickResult FDigetherEconomyRules::CalculatePourTick(const FDigether
 	Result.bTargetCompleted = bTargetCompleted;
 	Result.WalletState.BalanceCredits = ClampCredits(static_cast<int64>(WalletState.BalanceCredits) - SpentCredits);
 	Result.QuotaState.DepositedCredits = AddCredits(QuotaState.DepositedCredits, CreditedCredits);
-	if (bTargetCompleted)
+	if (bTargetCompleted && !TryMakeCompletedQuotaState(QuotaState, Tuning, Result.QuotaState))
 	{
-		Result.QuotaState.TargetCredits = CalculateNextTargetCredits(QuotaState.TargetCredits, Tuning);
-		Result.QuotaState.DepositedCredits = 0;
-		// 새 기간은 기간 일차만 1로 복귀, 탐사 종료가 아니므로 전체 일차 유지(기획 02 개요 5·6행)
-		Result.QuotaState.Day = FirstDay;
-		Result.QuotaState.PeriodGeneration = static_cast<int32>(static_cast<int64>(QuotaState.PeriodGeneration) + 1);
+		// 위 세대·입력 검사를 통과했으므로 도달 불가, 실패해도 변경 전 거절
+		Result = FDigetherPourTickResult();
+		Result.WalletState = WalletState;
+		Result.QuotaState = QuotaState;
+		return Result;
 	}
 	Result.Result = EDigetherEconomyResult::Success;
 	return Result;
+}
+
+bool FDigetherEconomyRules::TryMakeCompletedQuotaState(const FDigetherQuotaState& QuotaState,
+	const FDigetherEconomyTuning& Tuning, FDigetherQuotaState& OutState)
+{
+	// 세대 재사용 시 이전 기간 붓기와 구별 불가, 변경 전 거절
+	if (!IsValidQuotaState(QuotaState) || Tuning.TargetIncreaseCredits < 0 || QuotaState.PeriodGeneration == MAX_int32)
+	{
+		return false;
+	}
+	FDigetherQuotaState Completed = QuotaState;
+	Completed.TargetCredits = CalculateNextTargetCredits(QuotaState.TargetCredits, Tuning);
+	Completed.DepositedCredits = 0;
+	// 새 기간은 기간 일차만 1로 복귀, 탐사 종료가 아니므로 전체 일차 유지(기획 02 개요 5·6행)
+	Completed.Day = FirstDay;
+	Completed.PeriodGeneration = static_cast<int32>(static_cast<int64>(QuotaState.PeriodGeneration) + 1);
+	OutState = Completed;
+	return true;
 }
 
 FDigetherPourTickResult FDigetherEconomyRules::ReclaimFloorCredits(const FDigetherPourTickResult& Result)

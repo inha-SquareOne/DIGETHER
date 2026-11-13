@@ -15,8 +15,6 @@
 #include "Game/Elevator/DigetherElevatorLeverActor.h"
 #include "Game/Elevator/DigetherElevatorLeverComponent.h"
 #include "Game/Elevator/DigetherElevatorRules.h"
-#include "Game/Dev/DigetherCheatManager.h"
-#include "Game/Dev/DigetherDevCommands.h"
 #include "Game/Framework/DigetherFrameworkDefaults.h"
 #include "Game/Framework/DigetherFrameworkLog.h"
 #include "Game/Framework/DigetherGameplayGameMode.h"
@@ -46,6 +44,7 @@
 #include "Misc/AutomationTest.h"
 #include "OnlineSubsystemTypes.h"
 #include "OnlineSubsystem.h"
+#include "Game/Monster/DigetherMonsterDirectorSubsystem.h"
 #include "Templates/Function.h"
 #include "TimerManager.h"
 #include "UObject/Class.h"
@@ -1431,23 +1430,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkSaveCommandContractTest,
 
 bool FDigetherFrameworkSaveCommandContractTest::RunTest(const FString& Parameters)
 {
-	const TConstArrayView<DigetherDev::FCommandInfo> Commands = DigetherDev::GetPlannedCommands();
-	TestEqual(TEXT("저장 명령을 포함한 예정 명령 수"), Commands.Num(), 7);
-	const TArray<FName> SaveCommands = { TEXT("DigetherSave"), TEXT("DigetherLoad"), TEXT("DigetherNewGame") };
-	for (const FName Name : SaveCommands)
-	{
-		int32 Count = 0;
-		for (const DigetherDev::FCommandInfo& Command : Commands)
-		{
-			Count += Command.Name == Name ? 1 : 0;
-		}
-		TestEqual(FString::Printf(TEXT("%s 예약은 한 번"), *Name.ToString()), Count, 1);
-		const UFunction* Function = UDigetherCheatManager::StaticClass()->FindFunctionByName(Name);
-		if (TestNotNull(FString::Printf(TEXT("%s 함수 등록"), *Name.ToString()), Function))
-		{
-			TestTrue(FString::Printf(TEXT("%s 콘솔 Exec 선언"), *Name.ToString()), Function->HasAllFunctionFlags(FUNC_Exec));
-		}
-	}
+	// 저장 명령 이름·콘솔 등록은 DIGETHERDevTools의 DIGETHER.Dev.Registry 테스트가 확인, 여기서는 요청 RPC 계약만
 	const TArray<FName> ServerRequests = { TEXT("Server_ManualSave"), TEXT("Server_LoadGame"), TEXT("Server_NewGame") };
 	for (const FName Name : ServerRequests)
 	{
@@ -2359,6 +2342,9 @@ bool FDigetherFrameworkCommonLoadingFailureTest::RunTest(const FString& Paramete
 	{
 		return false;
 	}
+	// 테스트 월드는 BeginPlay를 거치지 않아 몬스터 디렉터를 직접 활성(테이블 없으면 몬스터 없이 런만 기록)
+	UDigetherMonsterDirectorSubsystem* MonsterDirector = Mode->GetWorld()->GetSubsystem<UDigetherMonsterDirectorSubsystem>();
+	TestTrue(TEXT("몬스터 디렉터 활성"), MonsterDirector && MonsterDirector->Activate());
 	if (!TestNotEqual(TEXT("4일차 출발 게이지 완료"), PullDepartureUntilDoorClosing(*Mode, Run), IntegrationTickTimedOut))
 	{
 		return false;
@@ -2374,8 +2360,10 @@ bool FDigetherFrameworkCommonLoadingFailureTest::RunTest(const FString& Paramete
 		return false;
 	}
 	TestFalse(TEXT("갱도 도착 전(로딩 단계)"), Mode->GetRunCoordinatorComponent()->IsClockStarted());
+	TestTrue(TEXT("출발 확정 때 몬스터 런 시작"), MonsterDirector && MonsterDirector->HasActiveRun());
 
 	TestTrue(TEXT("공통 로딩 실패 복귀"), Mode->RecoverFromCommonLoadingFailure());
+	TestTrue(TEXT("로딩 실패 복귀 시 몬스터 런 정리"), MonsterDirector && !MonsterDirector->HasActiveRun());
 	const FDigetherRunPublicState Returned = Mode->GetRunCoordinatorComponent()->CapturePublicState();
 	TestEqual(TEXT("탐사를 시작하지 않은 거점 상태"), Returned.Phase, EDigetherRunPhase::NotStarted);
 	TestTrue(TEXT("기록한 4일차 마감 유지"), Returned.bPaymentDeadline);

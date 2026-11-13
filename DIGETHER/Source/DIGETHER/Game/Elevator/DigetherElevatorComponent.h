@@ -51,6 +51,13 @@ public:
 	bool TryGetLastAscent(FDigetherElevatorAscentConfirmed& OutAscent) const;
 	bool TryGetServerState(FDigetherElevatorState& OutState) const;
 
+#if !UE_BUILD_SHIPPING
+	// 개발 표시(V-03), 서버 전용 값: 최근 UpdateLoad가 무게 단계 판정에 쓴 중량 합계
+	double GetLastLoadWeightKgForDev() const { return LastLoadWeightKg; }
+	float GetCapacityKgForDev() const { return CapacityKg; }
+	int32 GetTripLimitForDev() const { return TripLimit; }
+#endif
+
 	FOnDigetherElevatorStateChanged OnStateChanged;
 	FOnDigetherElevatorAscentConfirmed OnAscentConfirmed;
 	FOnDigetherElevatorExplorationFinished OnExplorationFinished;
@@ -95,4 +102,9 @@ private:
 
 	int32 NotificationBatchDepth = 0;
 	bool bStateNotificationPending = false;
+
+#if !UE_BUILD_SHIPPING
+	// 개발 표시 전용 기록, 판정에는 쓰지 않음
+	double LastLoadWeightKg = 0.0;
+#endif
 };

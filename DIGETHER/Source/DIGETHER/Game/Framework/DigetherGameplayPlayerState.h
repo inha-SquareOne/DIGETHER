@@ -37,6 +37,10 @@ public:
 	FGuid GetGameplayPlayerId() const;
 	FString GetGameplayPlayerKey() const;
 	bool IsGameplayInitialized() const { return bGameplayInitialized; }
+
+	// 서버가 현재 Pawn의 매몰 원본에서 다시 산출하는 음성 표현값, 저장/월드 인계 대상 아님
+	void RefreshVoiceEnvironment();
+	bool IsBuriedForVoice() const { return bVoiceBuried; }
 	void MarkGameplayInitialized();
 	// 서버 전용: 이 게임의 방 참가 순서(1부터)다. 결과 크레딧 블록의 표시 순서이며 복제하지 않는다. 0은 아직 없음이다.
 	int32 GetJoinOrder() const { return JoinOrder; }
@@ -73,6 +77,9 @@ private:
 
 	UPROPERTY(ReplicatedUsing=OnRep_LastRunResult)
 	FDigetherRunResult LastRunResult;
+
+	UPROPERTY(Replicated, Transient)
+	bool bVoiceBuried = false;
 
 	// 생존·엘리베이터 서버 판정만 공유하며 클라이언트에 복제하지 않는다.
 	FGuid GameplayPlayerId;

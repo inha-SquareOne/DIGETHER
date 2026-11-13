@@ -9,7 +9,7 @@
 | 계열 | 코드 위치 | 상태 | 문서 |
 |---|---|---|---|
 | 프로토타입 | `Prototype/World/DigetherExcavationField.*`·`DigetherExcavationTerrain.*` | 고정 격자 16×16×6칸·50cm·2,023샘플, 밀도 스냅샷 복제, 지지대·여진 복원 포함. 2026-10-28 UE 5.8.2에서 패키지 1인 렌더·로컬 4인 경합/재접속을 검증한 참조 구현이다. 5.8.4에서 다시 검증한 기록은 이 문서에 없다 | 이 문서, [프로토타입](../prototype/PROTOTYPE.md) |
-| 다인 | `Game/Excavation/Dain/`(계산 코어 `DigetherSoilField`, 지형 Actor `DigetherDiggableSoil`)·`Game/Excavation/DainLab/`(시험 캐릭터·맵용 코드). 담당 용다인([리뷰 담당](../project/CODE_OWNERSHIP.md)) | 가변 격자(축별 4~64칸, 총 32,768샘플 이하), 바깥 한 겹을 빈 공간으로 고정한 닫힌 볼륨, 복원(붕괴) 연산 없음. 지형 Actor에 복제 설정이 없고 초기화·굴착이 서버 권한에서만 동작한다(2026-11-10 코드 확인). 검증 범위는 오른쪽 문서를 따른다 | [통합 설계](DAIN_EXCAVATION_INTEGRATION.md), [E1 계산 코어](DAIN_EXCAVATION_CORE_E1.md), [E2 지형 Actor](DAIN_EXCAVATION_ACTOR_E2.md), [맵 시험](DAIN_EXCAVATION_MAP_TEST.md), [표면 개선](DAIN_EXCAVATION_SMOOTHING.md) |
+| 다인 | `Game/Excavation/Dain/`(계산 코어 `DigetherSoilField`, 지형 Actor `DigetherDiggableSoil`)·`Game/Excavation/DainLab/`(시험 캐릭터·맵용 코드). 담당 용다인([리뷰 담당](../project/CODE_OWNERSHIP.md)) | 가변 격자(축별 4~64칸, 총 32,768샘플 이하), 바깥 한 겹을 빈 공간으로 고정한 닫힌 볼륨, 복원(붕괴) 연산 없음. 지형 Actor에 복제 설정이 없고 초기화·굴착이 서버 권한에서만 동작한다(2026-11-10 코드 확인). 검증 범위는 오른쪽 문서를 따른다 | [통합 설계](DAIN_EXCAVATION_INTEGRATION.md), [맵 시험](DAIN_EXCAVATION_MAP_TEST.md) |
 
 같은 입력이라도 두 계열의 밀도 양자화·경계 처리·해시가 달라 프로토타입의 4인 검증 결과를 다인 계열의 증거로 쓸 수 없다.
 

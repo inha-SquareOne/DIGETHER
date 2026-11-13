@@ -11,11 +11,13 @@
 #include "Game/Framework/DigetherGameplayPlayerState.h"
 #include "Game/Framework/DigetherPlayerCameraManager.h"
 #include "Game/Hub/DigetherHubInteractionComponent.h"
+#include "Game/Monster/DigetherMonsterCameraSampleComponent.h"
 #include "Game/UI/Deposit/DigetherDepositPanelWidget.h"
 #include "Game/UI/DigetherPlayerScreenComponent.h"
 #include "Game/Voice/DigetherVoiceComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
+#include "Net/OnlineEngineInterface.h"
 
 ADigetherGameplayPlayerController::ADigetherGameplayPlayerController()
 {
@@ -24,6 +26,7 @@ ADigetherGameplayPlayerController::ADigetherGameplayPlayerController()
 	HubInteractionComponent = CreateDefaultSubobject<UDigetherHubInteractionComponent>(TEXT("HubInteractionComponent"));
 	PlayerScreenComponent = CreateDefaultSubobject<UDigetherPlayerScreenComponent>(TEXT("PlayerScreenComponent"));
 	VoiceComponent = CreateDefaultSubobject<UDigetherVoiceComponent>(TEXT("VoiceComponent"));
+	MonsterCameraSampleComponent = CreateDefaultSubobject<UDigetherMonsterCameraSampleComponent>(TEXT("MonsterCameraSampleComponent"));
 }
 
 void ADigetherGameplayPlayerController::ClientEnableNetworkVoice_Implementation(const bool bEnable)
@@ -34,6 +37,23 @@ void ADigetherGameplayPlayerController::ClientEnableNetworkVoice_Implementation(
 		return;
 	}
 	Super::ClientEnableNetworkVoice_Implementation(bEnable);
+}
+
+void ADigetherGameplayPlayerController::ClientMutePlayer_Implementation(FUniqueNetIdRepl PlayerId)
+{
+	if (!HasAuthority() || !IsLocalController())
+	{
+		Super::ClientMutePlayer_Implementation(PlayerId);
+		return;
+	}
+	// 서버가 Gameplay/Muted/Blocked를 이미 기록한 같은 MuteList에 Muted가 추가되면 해제 후 잔류
+	// 실제 로컬 음성 인터페이스의 mute는 엔진 ClientMute와 똑같이 수행
+	ULocalPlayer* LocalPlayer = GetLocalPlayer();
+	UWorld* World = GetWorld();
+	if (LocalPlayer != nullptr && World != nullptr)
+	{
+		UOnlineEngineInterface::Get()->MuteRemoteTalker(World, LocalPlayer->GetControllerId(), PlayerId, false);
+	}
 }
 
 void ADigetherGameplayPlayerController::BeginPlay()

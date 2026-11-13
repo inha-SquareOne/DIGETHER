@@ -149,11 +149,11 @@ Notion 승인본이 아닌 사용자 결정이며 1차 구현했다([구현 현�
 | 호스트 발화 감지 시험(PQ-13) | 콘솔 `Digether.VoiceProbe 1`(Shipping 제외) | 호스트 로그 `LogDigetherVoice`에 참가자별 `talking`·`amplitude`·`hostMuted` 기록. 미실행 |
 
 한계와 확인할 것:
-- **갱도·던전 구역 구분이 코드에 없다.** `ResolveVoiceZone`은 모두 같은 구역(0)을 돌려준다. 구역 판정이 생기면 그 값을 연결한다.
-- **매몰자 먹먹함 미구현.** 게임 코드에 매몰 상태가 없다. 상태가 생기면 `UVOIPTalker::Settings.SourceEffectChain`(고음 감소)과 감쇠 반경 0.5배로 연결한다.
+- **2026-11-11 구역 연결:** `ResolveVoiceZone`이 기존 `ADigetherZoneVolume`과 서버 Pawn 위치로 갱도/던전을 분류한다. 실제 던전 맵의 볼륨 배치는 별도다. [사용 가이드](../VOICE_ENVIRONMENT.md)
+- **2026-11-11 매몰 재생 처리:** 기존 Core 매몰 조회를 PlayerState의 음성용 bool로 투영하고 발화자별 AudioComponent의 LPF·최대 거리 0.5배를 적용한다. 원음 3m는 유지한다. 실제 Game 플레이어의 매몰 인터페이스 구현은 아직 없으며 시험 Pawn과 구분한다. 새 SourceEffectChain 에셋은 만들지 않는다.
 - **호스트가 음소거한 발화자는 호스트에서 발화 감지가 안 될 수 있다.** 엔진 `FOnlineVoiceImpl::SerializeRemotePacket`이 로컬 음소거 대상 패킷을 재생 목록에 넣지 않고 `IsRemotePlayerTalking`도 거짓이 된다(소스). 몬스터 음성 감지가 모든 발화자를 봐야 하면 별도 경로(NetDriver `ReplicateVoicePacket`의 패킷 진폭 등)가 필요하다. 시험 로그의 `hostMuted=1` 행으로 확인한다.
 - **호스트 로컬 음소거는 온라인 세션이 있어야 적용된다.** `FOnlineVoiceImpl::MuteRemoteTalker`는 세션이 없으면 건너뛴다(소스). 세션 없이 여는 PIE에서는 호스트 청취 제한이 동작하지 않을 수 있다.
-- `UVOIPTalker` 설정은 다음 발화 시작부터 적용된다(엔진 규칙). 말하는 도중 관전 전환·몸 교체는 그 발화가 끝난 뒤 반영된다.
+- `UVOIPTalker::Settings` 자체는 다음 발화 시작부터 적용된다(엔진 규칙). 2026-11-11 프로젝트 Talker는 활성 AudioComponent의 부착·감쇠·LPF와 Synth 재시작 원본도 함께 갱신한다. 엔진 지원 조사와 실제 발화 청취 검증은 구분한다.
 - **음성은 온라인 세션이 있어야 동작한다.** 엔진 Null·Steam 세션이 생성·참가 때 로컬·원격 발화자를 등록한다(소스 `OnlineSessionInterfaceNull.cpp`, `OnlineSessionInterfaceSteam.cpp`). `?listen` + IP 직접 접속 시험에서는 `StartLocalProcessing` 실패를 확인했고, `RoomHost`/`RoomJoin` 세션 경로에서는 등록·처리 시작 성공을 확인했다(2026-11-06 같은 PC 2프로세스, 실제 발화 없음).
 - 실제 마이크 음성 송수신·두 PC 이상 Steam 연결(M3) 미검증.
 

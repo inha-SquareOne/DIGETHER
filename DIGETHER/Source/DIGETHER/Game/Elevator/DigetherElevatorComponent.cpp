@@ -69,6 +69,9 @@ EDigetherElevatorResult UDigetherElevatorComponent::InitializeForRun(const FDige
 	LastAscent = FDigetherElevatorAscentConfirmed();
 	bHasLastAscent = false;
 	bInitialized = true;
+#if !UE_BUILD_SHIPPING
+	LastLoadWeightKg = 0.0;
+#endif
 
 	UE_LOG(LogDigetherElevator, Verbose, TEXT("Elevator initialized for a run."));
 	CommitState(EDigetherElevatorWeightStage::Empty);
@@ -172,6 +175,9 @@ EDigetherElevatorResult UDigetherElevatorComponent::UpdateLoad(const TArray<FDig
 
 	const FDigetherElevatorWeightSummary Weight = DigetherElevatorRules::EvaluateLoad(LoadEntries, CapacityKg,
 		ElevatorTuning);
+#if !UE_BUILD_SHIPPING
+	LastLoadWeightKg = Weight.TotalWeightKg;
+#endif
 	// 기획 A3: 갱도 상승 문이 닫히는 중 무게 초과면 문 재개방, 이번 시도는 편으로 세지 않음
 	// 거점 출발 문은 게이지 완료로 취소 불가가 확정되어 무게로 재개방하지 않음
 	if (DigetherElevatorRules::ShouldReopenDoorForOverweight(State, Weight.TotalWeightKg, CapacityKg))

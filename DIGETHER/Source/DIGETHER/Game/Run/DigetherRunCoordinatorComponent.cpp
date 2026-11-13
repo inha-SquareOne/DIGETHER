@@ -342,3 +342,46 @@ FDigetherRunPublicState UDigetherRunCoordinatorComponent::CapturePublicState() c
 {
 	return ConfirmedPublicState;
 }
+
+#if !UE_BUILD_SHIPPING
+EDigetherRunResult UDigetherRunCoordinatorComponent::DevSetRemainingSeconds(const double RemainingSeconds,
+	const double ServerSeconds)
+{
+	if (!HasServerAuthority())
+	{
+		return EDigetherRunResult::NotAuthority;
+	}
+	FDigetherRunCoordinatorState Candidate = ServerState;
+	const FDigetherRunAdvanceResult Advance = FDigetherRunCoordinatorRules::DevSetRemainingSeconds(
+		Candidate, RemainingSeconds, ServerSeconds);
+	const EDigetherRunResult Result = ApplyAdvance(Candidate, Advance);
+	if (Result == EDigetherRunResult::Success)
+	{
+		UE_LOG(LogDigetherRun, Log, TEXT("Dev remaining time set: %.2f"), ServerState.RemainingSeconds);
+	}
+	return Result;
+}
+
+EDigetherRunResult UDigetherRunCoordinatorComponent::DevSetClockPaused(const bool bPaused, const double ServerSeconds)
+{
+	// 정지·재개 직전까지 흐른 시간을 먼저 반영해 전환 시점 기준 남은 시간 고정
+	const EDigetherRunResult Updated = UpdateTime(ServerSeconds);
+	if (Updated != EDigetherRunResult::Success)
+	{
+		return Updated;
+	}
+	ServerState.bDevClockPaused = bPaused;
+	UE_LOG(LogDigetherRun, Log, TEXT("Dev run clock paused: %d"), bPaused);
+	return EDigetherRunResult::Success;
+}
+
+bool UDigetherRunCoordinatorComponent::IsDevClockPaused() const
+{
+	return ServerState.Phase == EDigetherRunPhase::InProgress && ServerState.bDevClockPaused;
+}
+
+double UDigetherRunCoordinatorComponent::DevGetMaxRemainingSeconds() const
+{
+	return FDigetherRunCoordinatorRules::DevGetMaxRemainingSeconds(ServerState);
+}
+#endif

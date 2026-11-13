@@ -5,6 +5,8 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Game/Framework/DigetherGameplayPlayerState.h"
+#include "Game/Framework/DigetherGameplayGameState.h"
+#include "Game/Run/DigetherGameOverPublicStateComponent.h"
 #include "Game/Life/DigetherLifeStateComponent.h"
 #include "Game/Settings/DigetherGameUserSettings.h"
 #include "Game/Settings/DigetherOptionsSettings.h"
@@ -89,6 +91,14 @@ void UDigetherVoiceComponent::BeginPlay()
 	Settings.AttenuationShape = EAttenuationShape::Sphere;
 	Settings.AttenuationShapeExtents = FVector(DigetherVoiceDefaults::RangeFullCm, 0.f, 0.f);
 	Settings.FalloffDistance = DigetherVoiceDefaults::RangeMaxCm - DigetherVoiceDefaults::RangeFullCm;
+
+	BuriedAttenuation = NewObject<USoundAttenuation>(this, TEXT("BuriedVoiceAttenuation"));
+	BuriedAttenuation->Attenuation = Settings;
+	BuriedAttenuation->Attenuation.FalloffDistance = DigetherVoiceDefaults::RangeMaxCm
+		* DigetherVoiceDefaults::BuriedRangeRatio - DigetherVoiceDefaults::RangeFullCm;
+	UnspatializedAttenuation = NewObject<USoundAttenuation>(this, TEXT("UnspatializedVoiceAttenuation"));
+	UnspatializedAttenuation->Attenuation.bAttenuate = false;
+	UnspatializedAttenuation->Attenuation.bSpatialize = false;
 
 	GetWorld()->GetTimerManager().SetTimer(RefreshTimer, this, &ThisClass::Refresh,
 		DigetherVoiceDefaults::RefreshSeconds, true);
@@ -239,6 +249,10 @@ void UDigetherVoiceComponent::UpdateTalkers()
 	{
 		return;
 	}
+	const ADigetherGameplayGameState* GameplayState = Cast<ADigetherGameplayGameState>(GameState);
+	const UDigetherGameOverPublicStateComponent* GameOver = GameplayState != nullptr
+		? GameplayState->GetGameOverPublicStateComponent() : nullptr;
+	const bool bAllOpen = GameOver != nullptr && GameOver->GetPhase() == EDigetherGameOverPhase::Credits;
 	for (auto It = Talkers.CreateIterator(); It; ++It)
 	{
 		if (!It.Key().IsValid() || !It.Value().IsValid())
@@ -261,12 +275,14 @@ void UDigetherVoiceComponent::UpdateTalkers()
 			Talker->RegisterWithPlayerState(State);
 			TalkerRef = Talker;
 		}
-		// 관전자 목소리는 거리 감쇠·방향 없음, 몸이 없으면(관전 합류·대기실) 같은 방식
+		// 관전자·크레딧은 비공간 음성, 생존자는 서버 매몰 투영값만 사용
 		const APawn* Pawn = State->GetPawn();
-		USceneComponent* Source = !IsSpectatorTalker(State) && IsValid(Pawn) ? Pawn->GetRootComponent() : nullptr;
-		// 다음 발화 시작부터 적용(엔진 VOIPTalker 규칙)
-		Talker->Settings.ComponentToAttachTo = Source;
-		Talker->Settings.AttenuationSettings = Source != nullptr ? SurvivorAttenuation.Get() : nullptr;
+		USceneComponent* Source = !bAllOpen && !IsSpectatorTalker(State) && IsValid(Pawn) ? Pawn->GetRootComponent() : nullptr;
+		const ADigetherGameplayPlayerState* GameplayPlayer = Cast<ADigetherGameplayPlayerState>(State);
+		const bool bBuried = Source != nullptr && GameplayPlayer != nullptr && GameplayPlayer->IsBuriedForVoice();
+		USoundAttenuation* Attenuation = Source == nullptr ? UnspatializedAttenuation.Get()
+			: bBuried ? BuriedAttenuation.Get() : SurvivorAttenuation.Get();
+		Talker->SetPlaybackEnvironment(Source, Attenuation, bBuried, UDigetherOptionsSettings::Get()->BuriedVoiceLowPassHz);
 		// 설정 화면 목소리 볼륨 변경도 이 주기에 반영
 		ApplyPlaybackVolume(State);
 	}
