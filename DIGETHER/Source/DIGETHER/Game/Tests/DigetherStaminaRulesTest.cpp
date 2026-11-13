@@ -6,7 +6,7 @@
 namespace
 {
 	// 프로토타입 시험값과 같은 수치, 규칙 계산 확인용이며 표의 실제 값과 무관하다
-	FDigetherStaminaParams MakeParams()
+	FDigetherStaminaParams MakeStaminaParams()
 	{
 		FDigetherStaminaParams Params;
 		Params.MaxStamina = 100.f;
@@ -24,7 +24,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherStaminaRulesTest,
 
 bool FDigetherStaminaRulesTest::RunTest(const FString& Parameters)
 {
-	const FDigetherStaminaParams Params = MakeParams();
+	const FDigetherStaminaParams Params = MakeStaminaParams();
 
 	// 시작 상태
 	FDigetherStaminaState State = FDigetherStaminaRules::MakeFull(Params);

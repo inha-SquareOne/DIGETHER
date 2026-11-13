@@ -7,7 +7,7 @@
 namespace
 {
 	// 규칙 계산 확인용 값, 삽 BP의 실제 값과 무관하다
-	FDigetherMeleeHitParams MakeParams()
+	FDigetherMeleeHitParams MakeMeleeParams()
 	{
 		FDigetherMeleeHitParams Params;
 		Params.Damage = 10.f;
@@ -24,7 +24,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherMeleeRulesTest,
 
 bool FDigetherMeleeRulesTest::RunTest(const FString& Parameters)
 {
-	const FDigetherMeleeHitParams Params = MakeParams();
+	const FDigetherMeleeHitParams Params = MakeMeleeParams();
 
 	// 사용 가능 여부
 	TestTrue(TEXT("양수 값은 사용 가능"), DigetherMeleeRules::IsUsable(Params));
