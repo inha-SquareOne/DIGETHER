@@ -97,13 +97,57 @@ namespace DigetherSoil
 		OutLocal = Local;
 		return true;
 	}
+	// 새로 공기가 된 표본의 한 셀 이웃만 한 번 완화, 순회 순서에 따른 연쇄 침식 금지
+	static void SoftenCutEdges(const FDigetherSoilGrid& Grid, const TArray<uint8>& Before,
+		TArray<uint8>& Density, const TArray<FBox>& ProtectedBoxes, double Strength, FBox& Changed)
+	{
+		const TArray<uint8> Cut = Density;
+		const FIntVector Neighbors[] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
+		for (int32 Z = 1; Z < Grid.Cells.Z; ++Z)
+		{
+			for (int32 Y = 1; Y < Grid.Cells.Y; ++Y)
+			{
+				for (int32 X = 1; X < Grid.Cells.X; ++X)
+				{
+					const int32 Index = Grid.GetSampleIndex(X,Y,Z);
+					const FVector Position = Grid.GetSamplePosition(X,Y,Z);
+					if (ProtectedBoxes.ContainsByPredicate([&](const FBox& Box)
+						{ return Box.ExpandBy(Grid.SpacingCm).IsInsideOrOn(Position); }))
+					{
+						continue;
+					}
+					bool bNewCutNeighbor = false;
+					int32 Sum = 0;
+					for (const FIntVector& Offset : Neighbors)
+					{
+						const int32 Adjacent = Grid.GetSampleIndex(X+Offset.X,Y+Offset.Y,Z+Offset.Z);
+						Sum += Cut[Adjacent];
+						bNewCutNeighbor |= Before[Adjacent] > SurfaceThreshold && Cut[Adjacent] <= SurfaceThreshold;
+					}
+					if (!bNewCutNeighbor)
+					{
+						continue;
+					}
+					// 공기 쪽으로만 완화: 구멍을 메우지 않고, 보호 경계와 초기 지형은 보존
+					const int32 Value = FMath::Min(int32(Cut[Index]), FMath::RoundToInt(FMath::Lerp(double(Cut[Index]), Sum / 6.0, Strength)));
+					if (Value < Cut[Index])
+					{
+						Density[Index] = uint8(Value);
+						Changed += Position;
+					}
+				}
+			}
+		}
+	}
 	EDigetherSoilCarveResult Carve(const FDigetherSoilGrid& Grid, TArray<uint8>& Density, const FVector& Point,
 								   double Radius, const TArray<FBox>& ProtectedBoxes, FBox& OutChangedBounds,
-								   const FVector& WorldScale)
+								   const FVector& WorldScale, double Irregularity, double EdgeSoftening)
 	{
 		OutChangedBounds = FBox(ForceInit);
 		if (!IsDensityValid(Grid, Density) || Point.ContainsNaN() || !FMath::IsFinite(Radius) ||
-			WorldScale.ContainsNaN() || WorldScale.GetMin() <= UE_SMALL_NUMBER)
+			WorldScale.ContainsNaN() || WorldScale.GetMin() <= UE_SMALL_NUMBER ||
+			!FMath::IsFinite(Irregularity) || Irregularity < 0 || Irregularity > .2 ||
+			!FMath::IsFinite(EdgeSoftening) || EdgeSoftening < 0 || EdgeSoftening > .5)
 		{
 			return EDigetherSoilCarveResult::InvalidInput;
 		}
@@ -121,6 +165,11 @@ namespace DigetherSoil
 			{
 				return EDigetherSoilCarveResult::InvalidInput;
 			}
+		}
+		TArray<uint8> Before;
+		if (EdgeSoftening > 0)
+		{
+			Before = Density;
 		}
 		// 타격 중심 1cm 양자화, 반복 요청에서 동일 중심 유지
 		const FVector Center(FMath::RoundToDouble(Point.X), FMath::RoundToDouble(Point.Y),
@@ -142,7 +191,15 @@ namespace DigetherSoil
 					}
 					// 반경 밖 양수 밀도도 감소 가능, 반경으로 순회 범위 제한 금지
 					// 비균일 확대에서도 도구 반경은 월드 cm, 회전은 거리 크기에 영향 없음
-					const uint8 CarvedDensity = EncodeDistance(((SamplePosition - Center) * WorldScale).Size() - Radius);
+					const FVector Offset = (SamplePosition - Center) * WorldScale;
+					double LocalRadius = Radius;
+					if (Irregularity > 0)
+					{
+						// 저주파 방향 노이즈, 같은 입력은 같은 결과. 기본 구의 바깥으로 확장하지 않음
+						const float Noise = FMath::PerlinNoise3D(Offset.GetSafeNormal() * 1.5 + Center * WorldScale / 400.0);
+						LocalRadius *= 1.0 - Irregularity * FMath::Clamp(.5 + double(Noise) * .5, 0.0, 1.0);
+					}
+					const uint8 CarvedDensity = EncodeDistance(Offset.Size() - LocalRadius);
 					uint8& CurrentDensity = Density[Grid.GetSampleIndex(X, Y, Z)];
 					if (CarvedDensity < CurrentDensity)
 					{
@@ -155,6 +212,10 @@ namespace DigetherSoil
 		if (!OutChangedBounds.IsValid)
 		{
 			return EDigetherSoilCarveResult::NoChange;
+		}
+		if (EdgeSoftening > 0)
+		{
+			SoftenCutEdges(Grid, Before, Density, ProtectedBoxes, EdgeSoftening, OutChangedBounds);
 		}
 		OutChangedBounds = OutChangedBounds.ExpandBy(Grid.SpacingCm).Overlap(Domain);
 		return EDigetherSoilCarveResult::Changed;

@@ -43,6 +43,12 @@ public:
 	// 현재 규격·모드로 원상 초기화, 실패 시 기존 지형 유지
 	UFUNCTION(BlueprintCallable, Category = "Digether|Excavation")
 	bool ResetSoil();
+	// 0은 기존 구형, 최대 반경 안쪽의 약한 굴곡. 시험값이며 기획 승인값 아님
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Digether|Brush", meta = (ClampMin = "0", ClampMax = "0.2"))
+	float BrushIrregularity = 0.f;
+	// 0은 완화 끔. 새 절삭면의 한 셀 이웃만 밀도 감소, 반경 바깥 가장자리도 소폭 영향
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Digether|Brush", meta = (ClampMin = "0", ClampMax = "0.5"))
+	float CutEdgeSoftening = 0.f;
 	// 마지막 초기화 이후 성공한 굴착 횟수, 네트워크 전송 구현과 별개
 	uint32 GetRevision() const { return Revision; }
 	// 확정 밀도 CRC32, 회귀 비교용이며 충돌 상태의 완전한 증명은 아님

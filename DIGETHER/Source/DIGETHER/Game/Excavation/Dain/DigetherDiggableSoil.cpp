@@ -121,7 +121,7 @@ EDigetherSoilEditResult ADigetherDiggableSoil::TryExcavate(FVector WorldPoint, f
 	FBox Changed;
 	DIGETHER_SOIL_TIMER(CarveTimer, Carve);
 	const DigetherSoil::EDigetherSoilCarveResult Result =
-		DigetherSoil::Carve(AppliedGrid, Candidate, Local, Radius, ProtectedRegions, Changed, GetActorScale3D());
+		DigetherSoil::Carve(AppliedGrid, Candidate, Local, Radius, ProtectedRegions, Changed, GetActorScale3D(), BrushIrregularity, CutEdgeSoftening);
 	DIGETHER_SOIL_STOP(CarveTimer);
 	if (Result == DigetherSoil::EDigetherSoilCarveResult::InvalidInput)
 	{
