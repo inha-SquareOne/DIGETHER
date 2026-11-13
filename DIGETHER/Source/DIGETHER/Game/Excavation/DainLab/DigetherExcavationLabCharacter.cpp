@@ -1,5 +1,4 @@
 #include "DigetherExcavationLabCharacter.h"
-#include "Game/Excavation/Dain/DigetherDiggableSoil.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
@@ -73,9 +72,14 @@ void ADigetherExcavationLabCharacter::Tick(float DeltaSeconds)
 
 bool ADigetherExcavationLabCharacter::TraceTool(FHitResult& OutHit) const
 {
+	OutHit = FHitResult();
+	if (!FMath::IsFinite(ToolReachCm) || ToolReachCm <= 0.f)
+	{
+		return false;
+	}
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(LabTool), true, this);
 	const FVector Start = Camera->GetComponentLocation();
-	return GetWorld()->LineTraceSingleByChannel(OutHit, Start, Start + Camera->GetForwardVector() * 400.f,
+	return GetWorld()->LineTraceSingleByChannel(OutHit, Start, Start + Camera->GetForwardVector() * ToolReachCm,
 												ECC_Visibility, Params);
 }
 
@@ -96,16 +100,16 @@ float ADigetherExcavationLabCharacter::GetSelectedIntervalSeconds() const
 	return SelectedTool == EDigetherLabTool::Pickaxe ? PickaxeIntervalSeconds : HitInterval;
 }
 
-bool ADigetherExcavationLabCharacter::DigOnce()
+EDigetherSoilEditResult ADigetherExcavationLabCharacter::TryDigOnce()
 {
 	const float RadiusCm = GetSelectedRadiusCm();
 	const float IntervalSeconds = GetSelectedIntervalSeconds();
 	// 잘못된 C++ 설정값도 거절, 무효값으로 대기 시각 오염 방지
-	if (!HasAuthority() || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f ||
+	if (!HasAuthority() || !FMath::IsFinite(ToolReachCm) || ToolReachCm <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f ||
 		!FMath::IsFinite(IntervalSeconds) || IntervalSeconds < .15f ||
 		GetWorld()->GetTimeSeconds() < NextUseSeconds)
 	{
-		return false;
+		return EDigetherSoilEditResult::Rejected;
 	}
 	// 빗나간 시도도 사용 간격 소비, 보호 벽 뒤 재탐색 금지
 	// 도구를 전환해도 직전 사용의 대기 시각 유지
@@ -113,13 +117,13 @@ bool ADigetherExcavationLabCharacter::DigOnce()
 	FHitResult Hit;
 	if (!TraceTool(Hit))
 	{
-		return false;
+		return EDigetherSoilEditResult::Rejected;
 	}
 	// 첫 충돌만 판정해 보호 벽 뒤의 흙 굴착 방지
 	ADigetherDiggableSoil* CurrentSoil = Cast<ADigetherDiggableSoil>(Hit.GetActor());
 	if (IsValid(CurrentSoil))
 	{
-		return CurrentSoil->TryExcavate(Hit.ImpactPoint, RadiusCm) == EDigetherSoilEditResult::Applied;
+		return CurrentSoil->TryExcavate(Hit.ImpactPoint, RadiusCm);
 	}
-	return false;
+	return EDigetherSoilEditResult::Rejected;
 }

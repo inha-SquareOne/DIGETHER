@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Game/Excavation/Dain/DigetherDiggableSoil.h"
 #include "DigetherExcavationLabCharacter.generated.h"
 class UCameraComponent;
 
@@ -21,10 +22,15 @@ public:
 	ADigetherExcavationLabCharacter();
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* Input) override;
-	// 카메라 첫 흙 타격으로 요청, 지형 Applied만 true, 실패한 시도도 간격 소비
-	bool DigOnce();
-	// 시선 앞 400cm 첫 차단 결과를 OutHit에 출력, 자신은 제외
+	// 기존 시험 호출 호환, 상세 결과는 TryDigOnce 사용
+	bool DigOnce() { return TryDigOnce() == EDigetherSoilEditResult::Applied; }
+	// 입력·간격·대상 거절은 Rejected, 유효 흙 타격은 코어 결과 그대로 반환
+	EDigetherSoilEditResult TryDigOnce();
+	// 시선 앞 ToolReachCm 첫 차단 결과, 무효 사거리·미충돌 시 OutHit 초기화
 	bool TraceTool(FHitResult& OutHit) const;
+	// 두 도구 공통 시험 사거리(cm), 기존 400cm 유지, 정식 장비 수치 미확정
+	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab", meta = (ClampMin = "1", Units = "cm"))
+	float ToolReachCm = 400.f;
 	// 삽 반경(cm), 기존 직렬화 이름과 75cm 기본값 유지, 기획 미확정
 	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab",
 			  meta = (ClampMin = "25", ClampMax = "125", Units = "cm"))
