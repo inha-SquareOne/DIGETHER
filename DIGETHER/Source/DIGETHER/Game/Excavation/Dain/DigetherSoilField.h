@@ -71,7 +71,7 @@ namespace DigetherSoil
 		double Radius,
 		const TArray<FBox>& ProtectedBoxes,
 		FBox& OutChangedBounds,
-		const FVector& WorldScale = FVector::OneVector);
+		const FVector& WorldScale = FVector::OneVector, double Irregularity = 0.0, double EdgeSoftening = 0.0);
 	// Transform·월드점 입력 → OutLocal(cm), 유효 변환일 때만 true
 	// 이동·회전·양수 비균일 스케일 허용, 0과 음수 반전은 거절
 	bool WorldToLocal(const FTransform& Transform, const FVector& WorldPoint, FVector& OutLocal);

@@ -545,4 +545,68 @@ bool FDigetherSoilScaledBrushTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilOrganicBrushTest, "DIGETHER.Excavation.SoilCore.OrganicBrush",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FDigetherSoilOrganicBrushTest::RunTest(const FString& Parameters)
+{
+	FDigetherSoilGrid Grid;
+	Grid.Cells = FIntVector(16); Grid.SpacingCm = 25;
+	TArray<uint8> Initial; Initialize(Grid, Initial);
+	TArray<uint8> Sphere = Initial, ExplicitZero = Initial, Organic = Initial, Soft = Initial;
+	FBox Bounds;
+	const FVector Point(100,200,200);
+	Carve(Grid, Sphere, Point, 75, {}, Bounds);
+	Carve(Grid, ExplicitZero, Point, 75, {}, Bounds, FVector::OneVector, 0, 0);
+	TestTrue(TEXT("zero options preserve legacy density exactly"), Sphere == ExplicitZero);
+	Carve(Grid, Organic, Point, 75, {}, Bounds, FVector::OneVector, .08, 0);
+	TestTrue(TEXT("organic differs from sphere"), Organic != Sphere);
+	for (int32 I=0; I<Initial.Num(); ++I)
+	{
+		TestTrue(TEXT("organic does not exceed spherical removal"), Organic[I] >= Sphere[I]);
+		TestTrue(TEXT("organic only removes density"), Organic[I] <= Initial[I]);
+	}
+	Carve(Grid, Soft, Point, 75, {}, Bounds, FVector::OneVector, .08, .35);
+	TestTrue(TEXT("edge softening changes boundary"), Soft != Organic);
+	TArray<uint8> Repeat = Initial;
+	Carve(Grid, Repeat, Point, 75, {}, Bounds, FVector::OneVector, .08, .35);
+	TestTrue(TEXT("deterministic result"), Repeat == Soft);
+	Carve(Grid, Repeat, Point, 75, {}, Bounds, FVector::OneVector, .08, .35);
+	TestTrue(TEXT("same brush does not repeatedly erode edge"), Repeat == Soft);
+	const FBox Protected(FVector(150,150,150),FVector(175,250,250));
+	TArray<uint8> Guarded = Initial;
+	Carve(Grid, Guarded, Point, 75, {Protected}, Bounds, FVector::OneVector, .08, .35);
+	int32 Softened = 0;
+	for (int32 Z=0; Z<=16; ++Z) for (int32 Y=0; Y<=16; ++Y) for (int32 X=0; X<=16; ++X)
+	{
+		const int32 I=Grid.GetSampleIndex(X,Y,Z);
+		TestTrue(TEXT("softening never fills air"), Soft[I] <= Organic[I]);
+		Softened += Soft[I] < Organic[I];
+		if (Protected.ExpandBy(25).IsInsideOrOn(Grid.GetSamplePosition(X,Y,Z)))
+			TestEqual(TEXT("protected samples unchanged"), Guarded[I], Initial[I]);
+		if (X==0 || Y==0 || Z==0 || X==16 || Y==16 || Z==16)
+			TestEqual(TEXT("outer air unchanged"), Soft[I], Initial[I]);
+	}
+	AddInfo(FString::Printf(TEXT("edge samples softened=%d"),Softened));
+	const TArray<uint8> BeforeInvalid = Soft;
+	TestTrue(TEXT("invalid tuning rejected"), Carve(Grid,Soft,Point,75,{},Bounds,FVector::OneVector,.3,.35)==EDigetherSoilCarveResult::InvalidInput);
+	TestTrue(TEXT("invalid tuning preserves state"),Soft==BeforeInvalid);
+	// 붙어 있는 한 표본 두께 돌출부: 분리 조각 제거 없이 절삭 경계 완화만 비교
+	TArray<uint8> Tip; Tip.Init(0,Grid.GetSampleCount());
+	for (int32 Z=1;Z<16;++Z) for (int32 Y=1;Y<16;++Y) for (int32 X=1;X<=8;++X)
+		Tip[Grid.GetSampleIndex(X,Y,Z)] = 255;
+	for (int32 X=9;X<=12;++X) Tip[Grid.GetSampleIndex(X,8,8)] = 255;
+	for (int32 Z=9;Z<16;++Z) Tip[Grid.GetSampleIndex(12,8,Z)] = 255;
+	for (int32 X=9;X<=12;++X) Tip[Grid.GetSampleIndex(X,8,15)] = 255;
+	TArray<uint8> SharpTip=Tip, SoftTip=Tip;
+	Carve(Grid,SharpTip,FVector(270,225,200),35,{},Bounds,FVector::OneVector,0,0);
+	Carve(Grid,SoftTip,FVector(270,225,200),35,{},Bounds,FVector::OneVector,0,.35);
+	const int32 TipIndex=Grid.GetSampleIndex(12,8,8);
+	TestTrue(TEXT("sharp tip fixture remains solid without softening"),SharpTip[TipIndex]>128);
+	TestTrue(TEXT("thin tip becomes air after one softening pass"),SoftTip[TipIndex]<=128);
+	AddInfo(FString::Printf(TEXT("tip density sharp=%d softened=%d"),SharpTip[TipIndex],SoftTip[TipIndex]));
+	FDigetherSoilSurface Surface;
+	TestTrue(TEXT("organic surface builds"),BuildSurface(Grid,Soft,Surface));
+	return true;
+}
+
 #endif

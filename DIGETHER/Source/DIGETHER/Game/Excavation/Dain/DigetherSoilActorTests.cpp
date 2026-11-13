@@ -26,6 +26,24 @@
 class FDigetherSoilActorTestAccess
 {
 public:
+	static FString ActiveSignature(const ADigetherDiggableSoil& Soil)
+	{
+		FString Result;
+		for (int32 Index = 0; Index < Soil.Chunks.Num(); ++Index)
+		{
+			UProceduralMeshComponent* Mesh =
+				Soil.ChunkMeshes[Soil.Chunks[Index].GetActiveMeshIndex(Index)];
+			Result += FString::Printf(TEXT("%s:%d:%d;"), *Mesh->GetName(), Mesh->IsVisible(),
+				int32(Mesh->GetCollisionEnabled()));
+			const FProcMeshSection* Section = Mesh->GetProcMeshSection(0);
+			if (!Section) continue;
+			for (const FProcMeshVertex& Vertex : Section->ProcVertexBuffer)
+				Result += Vertex.Position.ToString() + Vertex.Normal.ToString();
+			for (uint32 VertexIndex : Section->ProcIndexBuffer)
+				Result += FString::Printf(TEXT("%u,"), VertexIndex);
+		}
+		return Result;
+	}
 	static int32 CountAir(const ADigetherDiggableSoil& Soil)
 	{
 		return Soil.Density.FilterByPredicate([](uint8 Value) { return Value < 128; }).Num();
@@ -126,7 +144,7 @@ namespace
 	};
 } // namespace
 // 비교 모드 입력 → 동일 이동·충돌 시나리오 실행, 검사 문구·임계값 유지
-static bool VerifyWalk(FAutomationTestBase& Test, int32 ChunkCells, float ThicknessScale = 1.f)
+static bool VerifyWalk(FAutomationTestBase& Test, int32 ChunkCells, float ThicknessScale = 1.f, bool bOrganic = false)
 {
 	FDigetherSoilTestWorld TestWorld;
 	TestWorld.CreateFloor();
@@ -134,7 +152,12 @@ static bool VerifyWalk(FAutomationTestBase& Test, int32 ChunkCells, float Thickn
 		TestWorld.World->SpawnActor<ADigetherDiggableSoil>(FVector(200, -200, -25), FRotator::ZeroRotator);
 	Soil->SetActorScale3D(FVector(ThicknessScale, 1, 1));
 	const float FarX = 200.f + 400.f * ThicknessScale + 200.f;
-	if (ChunkCells != 0)
+	if (bOrganic)
+	{
+		Soil->BrushIrregularity = .08f;
+		Soil->CutEdgeSoftening = .35f;
+	}
+	if (ChunkCells == 0 || ChunkCells == 8 || ChunkCells == 16)
 	{
 		Test.TestTrue(TEXT("chunk initialization"), Soil->SetComparisonChunkCells(ChunkCells));
 	}
@@ -178,13 +201,18 @@ static bool VerifyWalk(FAutomationTestBase& Test, int32 ChunkCells, float Thickn
 }
 
 // 비교 모드 입력 → 동일 이동·충돌 시나리오 실행, 검사 문구·임계값 유지
-static bool VerifyVertical(FAutomationTestBase& Test, int32 ChunkCells)
+static bool VerifyVertical(FAutomationTestBase& Test, int32 ChunkCells, bool bOrganic = false)
 {
 	// 바닥 충돌 위에 선 뒤 굴착한 구멍으로 낙하하는지 확인
 	{
 		FDigetherSoilTestWorld TestWorld;
 		ADigetherDiggableSoil* Soil = TestWorld.World->SpawnActor<ADigetherDiggableSoil>();
-		if (ChunkCells != 0)
+		if (bOrganic)
+	{
+		Soil->BrushIrregularity = .08f;
+		Soil->CutEdgeSoftening = .35f;
+	}
+	if (ChunkCells == 0 || ChunkCells == 8 || ChunkCells == 16)
 		{
 			Test.TestTrue(TEXT("chunk initialization"), Soil->SetComparisonChunkCells(ChunkCells));
 		}
@@ -211,7 +239,12 @@ static bool VerifyVertical(FAutomationTestBase& Test, int32 ChunkCells)
 		TestWorld.CreateFloor();
 		ADigetherDiggableSoil* Soil =
 			TestWorld.World->SpawnActor<ADigetherDiggableSoil>(FVector(0, 0, 300), FRotator::ZeroRotator);
-		if (ChunkCells != 0)
+		if (bOrganic)
+	{
+		Soil->BrushIrregularity = .08f;
+		Soil->CutEdgeSoftening = .35f;
+	}
+	if (ChunkCells == 0 || ChunkCells == 8 || ChunkCells == 16)
 		{
 			Test.TestTrue(TEXT("chunk initialization"), Soil->SetComparisonChunkCells(ChunkCells));
 		}
@@ -895,6 +928,33 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilScaledWalkTest, "DIGETHER.Excavati
 bool FDigetherSoilScaledWalkTest::RunTest(const FString& Parameters)
 {
     return VerifyWalk(*this, 8, 2.f);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilOrganicActorTest, "DIGETHER.Excavation.SoilActor.OrganicBrush",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FDigetherSoilOrganicActorTest::RunTest(const FString& Parameters)
+{
+	VerifyWalk(*this, 8, 1.f, true);
+	VerifyVertical(*this, 8, true);
+	FDigetherSoilTestWorld TestWorld;
+	ADigetherDiggableSoil* Soil = TestWorld.World->SpawnActor<ADigetherDiggableSoil>();
+	Soil->BrushIrregularity = .08f; Soil->CutEdgeSoftening = .35f;
+	Soil->GridCells = FIntVector(16); Soil->CellSpacing = 25;
+	uint32 ExpectedHash = 0;
+	for (const int32 Cells : {0,16,8})
+	{
+		TestTrue(TEXT("comparison reset"), Soil->SetComparisonChunkCells(Cells));
+		TestTrue(TEXT("organic boundary dig"), Soil->TryExcavate(FVector(200,200,200),75)==EDigetherSoilEditResult::Applied);
+		if (Cells==0) ExpectedHash=Soil->GetDensityHash();
+		else TestEqual(TEXT("whole and chunk organic density match"),Soil->GetDensityHash(),ExpectedHash);
+	}
+	const uint32 Hash = Soil->GetDensityHash();
+	const FString Signature = FDigetherSoilActorTestAccess::ActiveSignature(*Soil);
+	FDigetherSoilActorTestAccess::SetFailure(*Soil,0);
+	TestTrue(TEXT("organic failure reported"),Soil->TryExcavate(FVector(25,200,200),100)==EDigetherSoilEditResult::ApplyFailed);
+	TestEqual(TEXT("organic failure preserves density"),Soil->GetDensityHash(),Hash);
+	TestEqual(TEXT("organic failure preserves collision buffers"),FDigetherSoilActorTestAccess::ActiveSignature(*Soil),Signature);
+	return true;
 }
 
 #endif
