@@ -40,7 +40,9 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
 #include "GameFramework/PlayerStart.h"
+#include "HAL/PlatformFileManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/Paths.h"
 #include "Misc/AutomationTest.h"
 #include "OnlineSubsystemTypes.h"
 #include "OnlineSubsystem.h"
@@ -178,6 +180,7 @@ public:
 	static bool CreateNextGameAfterCredits(ADigetherGameplayGameMode& Mode) { return Mode.CreateNextGameAfterCredits(); }
 	static bool IsNewJoinLocked(const ADigetherGameplayGameMode& Mode) { return Mode.IsNewJoinLockedNow(); }
 	static FGuid GetGameId(const ADigetherGameplayGameMode& Mode) { return Mode.GameId; }
+	static bool IsExplicitNewGamePending(const ADigetherGameplayGameMode& Mode) { return Mode.ExplicitNewGamePendingGameId.IsValid(); }
 	static const TArray<FDigetherGameResult>& GetArchivedResults(const ADigetherGameplayGameMode& Mode)
 	{
 		return Mode.ArchivedGameResults;
@@ -360,7 +363,7 @@ namespace
 		Tuning.DepositIntervalSeconds = 0.5f;
 		Tuning.EmergencyWeightLimitKg = 3.f;
 		Tuning.DeathLossPercent = 50;
-		Tuning.CorpseRefundPercent = 50;
+		Tuning.RecoveredDeathLossPercent = 50;
 		return Tuning;
 	}
 
@@ -2555,6 +2558,143 @@ bool FDigetherFrameworkStartupSlotSelectionTest::RunTest(const FString& Paramete
 	AddExpectedMessagePlain(TEXT("진행 슬롯 선택 거절"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
 	TestFalse(TEXT("범위 밖 슬롯 선택 거절"), Save->SetSlotSelection(OutOfRange));
 	TestEqual(TEXT("거절 시 이전 선택 유지"), Save->GetSlotSelection().SlotIndex, 2);
+	return true;
+}
+
+namespace
+{
+	// 엔진 기본 저장 시스템(FGenericSaveGameSystem)과 같은 슬롯 파일 경로, 쓰기 실패 유도용 읽기 전용 표시에만 사용
+	FString GetIntegrationSlotFilePath(const FString& Slot)
+	{
+		return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SaveGames"), Slot + TEXT(".sav"));
+	}
+
+	// 시험이 중간에 끝나도 슬롯 파일 읽기 전용을 풀어 임시 슬롯 정리(삭제)가 가능하게 함
+	struct FDigetherIntegrationReadOnlySlots
+	{
+		explicit FDigetherIntegrationReadOnlySlots(const FDigetherSaveSlotNames& InNames) : Names(InNames) {}
+		~FDigetherIntegrationReadOnlySlots() { Set(false); }
+		FDigetherIntegrationReadOnlySlots(const FDigetherIntegrationReadOnlySlots&) = delete;
+		FDigetherIntegrationReadOnlySlots& operator=(const FDigetherIntegrationReadOnlySlots&) = delete;
+
+		bool Set(const bool bReadOnly) const
+		{
+			IPlatformFile& File = FPlatformFileManager::Get().GetPlatformFile();
+			bool bAll = true;
+			for (const FString& Slot : { Names.Primary, Names.Backup })
+			{
+				const FString Path = GetIntegrationSlotFilePath(Slot);
+				bAll &= File.FileExists(*Path) && File.SetReadOnly(*Path, bReadOnly);
+			}
+			return bAll;
+		}
+
+		FDigetherSaveSlotNames Names;
+	};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkNewGameAutosaveTest,
+	"DIGETHER.Game.Framework.SaveIntegration.NewGameAutosaveRetriesWithoutMarkingResumePoint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherFrameworkNewGameAutosaveTest::RunTest(const FString& Parameters)
+{
+	// 런 플로우 v1.1.0 12.2: 새 게임 생성 직후 자동 저장, 최초 저장 실패에도 기존 유효 저장 보존·알림·자동 재시도
+	// 실패한 최초 저장은 재개 지점으로 표시하지 않음(같은 방 재시작 시 이어하기로 전환하지 않음)
+	FDigetherSaveIntegrationWorld Fixture(this);
+	if (!TestTrue(TEXT("새 게임 자동 저장 시험 월드"), Fixture.IsReady())
+		|| !TestNotNull(TEXT("새 게임 자동 저장 시험 런 준비"), PrepareIntegrationRun(Fixture)))
+	{
+		return false;
+	}
+	ADigetherGameplayGameMode* Mode = Fixture.GetGameMode();
+	const FUniqueNetIdRepl HostId = MakeRuntimeIntegrationNetId();
+	ADigetherGameplayPlayerController* Host = MakeRuntimeIntegrationPlayer(Fixture, HostId, true);
+	if (!TestNotNull(TEXT("새 게임 시험 호스트"), Host)
+		|| !TestNotNull(TEXT("새 게임 시험 호스트 Pawn"), GiveIntegrationPawn(Fixture, Host, FVector(0.0, 0.0, 200.0))))
+	{
+		return false;
+	}
+	UDigetherSaveSubsystem* Save = Mode->GetGameInstance()->GetSubsystem<UDigetherSaveSubsystem>();
+	const FDigetherSaveSlotNames Names = MakeIntegrationSlotNames(HostId);
+	FDigetherWalletState ExistingWallet;
+	ExistingWallet.BalanceCredits = 67;
+	Host->GetPlayerState<ADigetherGameplayPlayerState>()->RestoreState(ExistingWallet);
+	AddExpectedMessagePlain(TEXT("Message=진행을 저장했습니다."), ELogVerbosity::Display, EAutomationExpectedMessageFlags::Contains, 1);
+	if (!TestTrue(TEXT("기존 유효 저장 작성"), Mode->SaveProgress(Host)))
+	{
+		return false;
+	}
+	const FGuid PreviousGameId = FDigetherFrameworkSaveIntegrationAccess::GetGameId(*Mode);
+	TArray<uint8> PrimaryBefore;
+	TArray<uint8> BackupBefore;
+	if (!TestTrue(TEXT("기존 주 슬롯 바이트"), UGameplayStatics::LoadDataFromSlot(PrimaryBefore, Names.Primary, 0))
+		|| !TestTrue(TEXT("기존 백업 슬롯 바이트"), UGameplayStatics::LoadDataFromSlot(BackupBefore, Names.Backup, 0)))
+	{
+		return false;
+	}
+	FDigetherSaveSlotSelection NewGameSelection;
+	NewGameSelection.StartMode = EDigetherSaveStartMode::NewGame;
+	if (!TestTrue(TEXT("슬롯 0 새 게임 선택"), Save->SetSlotSelection(NewGameSelection)))
+	{
+		return false;
+	}
+	const FDigetherIntegrationReadOnlySlots ReadOnly(Names);
+	if (!TestTrue(TEXT("주·백업 슬롯 파일을 읽기 전용으로 바꿔 쓰기 실패 유도"), ReadOnly.Set(true)))
+	{
+		return false;
+	}
+	AddExpectedMessagePlain(TEXT("자동 저장(NewGameCreated) 실패"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
+	AddExpectedMessagePlain(TEXT("Message=새 게임을 초기화했습니다."), ELogVerbosity::Display, EAutomationExpectedMessageFlags::Contains, 2);
+	AddExpectedMessagePlain(TEXT("Message=자동 저장에 실패했습니다. 진행은 계속되며 자동으로 다시 시도합니다."),
+		ELogVerbosity::Display, EAutomationExpectedMessageFlags::Contains, 1);
+	if (!TestTrue(TEXT("저장 실패에도 새 게임 진행 시작"), Mode->StartNewGame(Host)))
+	{
+		return false;
+	}
+	const FGuid NewGameId = FDigetherFrameworkSaveIntegrationAccess::GetGameId(*Mode);
+	TestTrue(TEXT("새 게임 ID 발급"), NewGameId.IsValid() && NewGameId != PreviousGameId);
+	TestEqual(TEXT("새 게임 시작 잔고 지급"), Host->GetPlayerState<ADigetherGameplayPlayerState>()->CaptureState().BalanceCredits,
+		DigetherFrameworkDefaults::StartingBalanceCredits);
+	TestTrue(TEXT("최초 저장 실패를 재시도 대기로 보관"), FDigetherFrameworkSaveIntegrationAccess::HasPendingAutosave(*Mode));
+	TestTrue(TEXT("재시도 타이머 예약"), FDigetherFrameworkSaveIntegrationAccess::IsAutosaveRetryScheduled(*Mode));
+	TestTrue(TEXT("첫 쓰기 성공 전까지 명시 새 게임 쓰기 유지"), FDigetherFrameworkSaveIntegrationAccess::IsExplicitNewGamePending(*Mode));
+	TestEqual(TEXT("실패한 최초 저장은 재개 지점(이어하기)으로 표시하지 않음"),
+		Save->GetSlotSelection().StartMode, EDigetherSaveStartMode::NewGame);
+	TArray<uint8> PrimaryAfter;
+	TArray<uint8> BackupAfter;
+	TestTrue(TEXT("실패 뒤 기존 주 슬롯 보존"), UGameplayStatics::LoadDataFromSlot(PrimaryAfter, Names.Primary, 0)
+		&& PrimaryAfter == PrimaryBefore);
+	TestTrue(TEXT("실패 뒤 기존 백업 슬롯 보존"), UGameplayStatics::LoadDataFromSlot(BackupAfter, Names.Backup, 0)
+		&& BackupAfter == BackupBefore);
+
+	if (!TestTrue(TEXT("쓰기 실패 원인 해제"), ReadOnly.Set(false)))
+	{
+		return false;
+	}
+	AddExpectedMessagePlain(TEXT("Message=자동 저장을 다시 시도해 저장했습니다."), ELogVerbosity::Display,
+		EAutomationExpectedMessageFlags::Contains, 1);
+	FDigetherFrameworkSaveIntegrationAccess::RetryAutosave(*Mode);
+	TestFalse(TEXT("재시도 성공 뒤 대기 해제"), FDigetherFrameworkSaveIntegrationAccess::HasPendingAutosave(*Mode));
+	TestFalse(TEXT("재시도 성공 뒤 타이머 해제"), FDigetherFrameworkSaveIntegrationAccess::IsAutosaveRetryScheduled(*Mode));
+	TestFalse(TEXT("첫 쓰기 성공 뒤 명시 새 게임 해제"), FDigetherFrameworkSaveIntegrationAccess::IsExplicitNewGamePending(*Mode));
+	TestEqual(TEXT("성공한 최초 저장부터 이어하기로 전환"), Save->GetSlotSelection().StartMode, EDigetherSaveStartMode::Continue);
+	FDigetherSaveSnapshot Saved;
+	if (TestTrue(TEXT("재시도로 쓴 새 게임 읽기"), ReadIntegrationProgress(*Mode, HostId, Saved) == EDigetherSaveResult::Success))
+	{
+		TestTrue(TEXT("저장된 진행은 새 게임"), Saved.GameId == NewGameId);
+		TestEqual(TEXT("새 게임 초기 기간 일차"), Saved.Quota.Quota.Day, 1);
+		TestEqual(TEXT("새 게임 시작 지급 기록"), GetIntegrationSavedBalance(Saved, HostId),
+			DigetherFrameworkDefaults::StartingBalanceCredits);
+	}
+
+	// 정상 경로: 쓰기가 되면 생성 직후 바로 저장되고 대기 없음
+	TestTrue(TEXT("두 번째 새 게임"), Mode->StartNewGame(Host));
+	TestFalse(TEXT("정상 최초 저장은 대기 없음"), FDigetherFrameworkSaveIntegrationAccess::HasPendingAutosave(*Mode));
+	if (TestTrue(TEXT("생성 직후 저장 읽기"), ReadIntegrationProgress(*Mode, HostId, Saved) == EDigetherSaveResult::Success))
+	{
+		TestTrue(TEXT("생성 직후 저장은 두 번째 새 게임"), Saved.GameId == FDigetherFrameworkSaveIntegrationAccess::GetGameId(*Mode));
+	}
 	return true;
 }
 

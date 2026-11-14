@@ -161,9 +161,31 @@ bool FDigetherElevatorDepartureWarningTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("상승 레버 시작"), AscentPull.Feedback.Result, EDigetherElevatorLeverResult::Started);
 	TestEqual(TEXT("상승 레버는 출발 경고 없음"), CalculateDepartureWarning(AscentPull.State), EDigetherDepartureWarningKind::None);
 
-	TestFalse(TEXT("일반 경고 문구 있음"), UDigetherElevatorLeverComponent::GetDepartureWarningText(EDigetherDepartureWarningKind::Standard).IsEmpty());
-	TestFalse(TEXT("마감 경고 문구 있음"), UDigetherElevatorLeverComponent::GetDepartureWarningText(EDigetherDepartureWarningKind::Deadline).IsEmpty());
-	TestTrue(TEXT("경고 없음은 빈 문구"), UDigetherElevatorLeverComponent::GetDepartureWarningText(EDigetherDepartureWarningKind::None).IsEmpty());
+	// 4일차 레버 조작 중 목표 달성(기간 세대 변경)이면 게이지 중단과 함께 경고 종료
+	FDigetherElevatorPullContext Achieved = Context;
+	Achieved.PeriodGeneration = Context.PeriodGeneration + 1;
+	const FDigetherElevatorGaugeUpdate Interrupted = AdvancePull(Deadline.State, EDigetherElevatorLeverKind::Departure, 0.5f,
+		Achieved, Tuning);
+	TestEqual(TEXT("목표 달성 시 마감 경고 종료"), CalculateDepartureWarning(Interrupted.State), EDigetherDepartureWarningKind::None);
+	TestEqual(TEXT("레버 취소 시 마감 경고 종료"),
+		CalculateDepartureWarning(ReleasePull(Deadline.State, Puller).State), EDigetherDepartureWarningKind::None);
+
+	// 런 플로우 v1.1.0 5.2: 1~3일차 문구 삭제(경고등·소리만), 4일차 조작자·로비 문구, 마감 확정 문구
+	// 이전 시험의 1~3일차 '승강기가 곧 출발합니다' 문구 존재 기대를 빈 문구로 변경
+	using FLever = UDigetherElevatorLeverComponent;
+	TestTrue(TEXT("1~3일차 조작자 문구 없음"), FLever::GetDepartureWarningText(EDigetherDepartureWarningKind::Standard).IsEmpty());
+	TestTrue(TEXT("1~3일차 로비 문구 없음"), FLever::GetDepartureLobbyWarningText(EDigetherDepartureWarningKind::Standard).IsEmpty());
+	TestEqual(TEXT("4일차 조작자 문구"), FLever::GetDepartureWarningText(EDigetherDepartureWarningKind::Deadline).ToString(),
+		FString(TEXT("현재 할당량 마감일입니다!")));
+	TestEqual(TEXT("4일차 로비 전원 문구"), FLever::GetDepartureLobbyWarningText(EDigetherDepartureWarningKind::Deadline).ToString(),
+		FString(TEXT("출발하면 납부가 마감됩니다. 목표 미달이면 이번 탐사 후 게임이 종료됩니다.")));
+	const FString ConfirmedText(TEXT("납부가 마감되었습니다. 이번 탐사 후 게임이 종료됩니다."));
+	TestEqual(TEXT("마감 확정 로비 문구"),
+		FLever::GetDepartureLobbyWarningText(EDigetherDepartureWarningKind::DeadlineConfirmed).ToString(), ConfirmedText);
+	TestEqual(TEXT("마감 확정 조작자 문구도 같음"),
+		FLever::GetDepartureWarningText(EDigetherDepartureWarningKind::DeadlineConfirmed).ToString(), ConfirmedText);
+	TestTrue(TEXT("경고 없음은 빈 문구"), FLever::GetDepartureWarningText(EDigetherDepartureWarningKind::None).IsEmpty());
+	TestTrue(TEXT("경고 없음은 로비 빈 문구"), FLever::GetDepartureLobbyWarningText(EDigetherDepartureWarningKind::None).IsEmpty());
 	return true;
 }
 

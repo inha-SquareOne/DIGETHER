@@ -9,10 +9,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherEconomyDeathAndCorpseTest,
 
 bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 {
-	// 기본값 없는 런 스냅샷이라 시험 입력 명시
+	// 기본값 없는 런 스냅샷이라 시험 입력 명시, 100%·50%는 런 플로우 v1.1.0 9.4 시험값
 	FDigetherRunTuning RunTuning;
 	RunTuning.DeathLossPercent = 100;
-	RunTuning.CorpseRefundPercent = 50;
+	RunTuning.RecoveredDeathLossPercent = 50;
 	RunTuning.InitialQuotaCredits = 100;
 	struct FDigetherDeathCase
 	{
@@ -22,17 +22,20 @@ bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 		int32 LossCredits;
 		int32 RemainingCredits;
 	};
+	// D25 개정(2026-11-14): 손실액 올림, 이전 시험의 내림 기대값(101의 50% → 50)을 올림(51)으로 변경
 	const FDigetherDeathCase DeathCases[] =
 	{
 		{ 101, 100, 101, 101, 0 },
 		{ 10, 30, 10, 3, 7 },
-		{ 101, 50, 101, 50, 51 },
+		{ 101, 50, 101, 51, 50 },
+		{ 3, 30, 3, 1, 2 },
+		{ 1, 50, 1, 1, 0 },
 		{ 101, 0, 101, 0, 101 },
 		{ 101, -50, 101, 0, 101 },
 		{ 10, 150, 10, 10, 0 },
 		{ -10, 50, 0, 0, 0 },
 		{ MAX_int32, 100, MAX_int32, MAX_int32, 0 },
-		{ MAX_int32, 50, MAX_int32, 1073741823, 1073741824 },
+		{ MAX_int32, 50, MAX_int32, 1073741824, 1073741823 },
 		{ 0, 100, 0, 0, 0 }
 	};
 	for (const FDigetherDeathCase& Case : DeathCases)
@@ -40,60 +43,13 @@ bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 		const FDigetherDeathLossResult Loss = FDigetherEconomyRules::CalculateDeathLoss(Case.BalanceCredits, Case.Percent);
 		const FString Name = FString::Printf(TEXT("잔고 %d, 손실률 %d"), Case.BalanceCredits, Case.Percent);
 		TestEqual(Name + TEXT(": 사망 직전 기준 잔고"), Loss.PreDeathBalanceCredits, Case.PreDeathCredits);
-		TestEqual(Name + TEXT(": 내림한 손실액"), Loss.LossCredits, Case.LossCredits);
+		TestEqual(Name + TEXT(": 올림한 손실액"), Loss.LossCredits, Case.LossCredits);
 		TestEqual(Name + TEXT(": 잔여 잔고"), Loss.RemainingBalanceCredits, Case.RemainingCredits);
 	}
 
-	TestEqual(TEXT("시체 복구는 사망 직전 잔고에서 내림"), FDigetherEconomyRules::CalculateCorpseRefund(101, RunTuning.CorpseRefundPercent), RunTuning.CorpseRefundPercent);
-	TestEqual(TEXT("복구율 0%"), FDigetherEconomyRules::CalculateCorpseRefund(101, 0), 0);
-	TestEqual(TEXT("음수 사망 직전 잔고는 복구 없음"), FDigetherEconomyRules::CalculateCorpseRefund(-10, RunTuning.CorpseRefundPercent), 0);
-	TestEqual(TEXT("복구율 상한 100%"), FDigetherEconomyRules::CalculateCorpseRefund(101, 150), 101);
-	TestEqual(TEXT("음수 복구율은 0%"), FDigetherEconomyRules::CalculateCorpseRefund(101, -50), 0);
-	TestEqual(TEXT("최대 잔고의 전액 복구"), FDigetherEconomyRules::CalculateCorpseRefund(MAX_int32, 100), MAX_int32);
-	TestEqual(TEXT("최대 잔고의 절반 복구도 내림"), FDigetherEconomyRules::CalculateCorpseRefund(MAX_int32, RunTuning.CorpseRefundPercent), 1073741823);
-
-	FDigetherPlayerSettlementInput Dead;
-	Dead.bDied = true;
-	Dead.bCorpseRecovered = true;
-	Dead.PreDeathBalanceCredits = 101;
-	Dead.ReturnedHiddenCredits = 77;
-	FDigetherPlayerSettlementInput Living;
-	Living.bSurvived = true;
-	Living.ReturnedHiddenCredits = 7;
-	const FDigetherRunSettlementResult RecoveredRun = FDigetherEconomyRules::CalculateRunSettlement(100, 2, { Dead, Living }, RunTuning.CorpseRefundPercent);
-	TestTrue(TEXT("사망자와 생존자가 함께 있는 정산 성공"), RecoveredRun.Result == EDigetherEconomyResult::Success);
-	TestEqual(TEXT("회수 시체 정산 결과 인원 수"), RecoveredRun.Players.Num(), 2);
-	if (RecoveredRun.Players.Num() == 2)
-	{
-		TestEqual(TEXT("시체가 회수돼도 사망자 일반 몫 0"), RecoveredRun.Players[0].GeneralCredits, 0);
-		TestEqual(TEXT("시체가 회수돼도 사망자 히든 0"), RecoveredRun.Players[0].HiddenCredits, 0);
-		TestEqual(TEXT("시체가 회수돼도 사망자 런 지급액 0"), RecoveredRun.Players[0].PayoutCredits, 0);
-		TestEqual(TEXT("사망자 본인의 직전 잔고 101에서 복구 50"), RecoveredRun.Players[0].CorpseRefundCredits, RunTuning.CorpseRefundPercent);
-		TestEqual(TEXT("생존자 런 지급액은 본인 일반 몫과 히든"), RecoveredRun.Players[1].PayoutCredits, 57);
-		TestEqual(TEXT("시체 복구액을 생존자에게 주지 않음"), RecoveredRun.Players[1].CorpseRefundCredits, 0);
-	}
-	const FDigetherRunSettlementResult WipeoutRun = FDigetherEconomyRules::CalculateRunSettlement(100, 1, { Dead }, RunTuning.CorpseRefundPercent);
-	TestTrue(TEXT("생존자 없는 시체 회수 정산 성공"), WipeoutRun.Result == EDigetherEconomyResult::Success);
-	TestEqual(TEXT("생존자 없는 시체 회수 결과 인원 수"), WipeoutRun.Players.Num(), 1);
-	if (WipeoutRun.Players.Num() == 1)
-	{
-		TestEqual(TEXT("전멸 시 일반 몫 0"), WipeoutRun.Players[0].GeneralCredits, 0);
-		TestEqual(TEXT("전멸 시 히든 0"), WipeoutRun.Players[0].HiddenCredits, 0);
-		TestEqual(TEXT("전멸 시 런 지급액 0"), WipeoutRun.Players[0].PayoutCredits, 0);
-		// D25 확정: 전멸이어도 유효 회수 시체 복구금은 생존자 있을 때와 같은 산식
-		TestEqual(TEXT("전멸이어도 회수된 시체는 직전 잔고 기준 복구"), WipeoutRun.Players[0].CorpseRefundCredits,
-			FDigetherEconomyRules::CalculateCorpseRefund(Dead.PreDeathBalanceCredits, RunTuning.CorpseRefundPercent));
-		TestTrue(TEXT("전멸 복구금은 0보다 큼(픽스처 직전 잔고 양수)"), WipeoutRun.Players[0].CorpseRefundCredits > 0);
-		TestEqual(TEXT("전멸 일반 화물은 전액 손실"), WipeoutRun.LostGeneralCredits, 100);
-	}
-	Dead.bCorpseRecovered = false;
-	const FDigetherRunSettlementResult UnrecoveredRun = FDigetherEconomyRules::CalculateRunSettlement(100, 2, { Dead, Living }, RunTuning.CorpseRefundPercent);
-	TestTrue(TEXT("회수하지 않은 시체 정산 성공"), UnrecoveredRun.Result == EDigetherEconomyResult::Success);
-	TestEqual(TEXT("미회수 시체 정산 결과 인원 수"), UnrecoveredRun.Players.Num(), 2);
-	if (UnrecoveredRun.Players.Num() == 2)
-	{
-		TestEqual(TEXT("생존자가 있어도 시체 미회수는 복구 없음"), UnrecoveredRun.Players[0].CorpseRefundCredits, 0);
-	}
+	// 시체 회수 여부로 탐사 사망 손실률 선택, 미스터리 박스 포식(시체 없음)은 미회수와 같음
+	TestEqual(TEXT("시체 유효 회수 손실률"), FDigetherEconomyRules::GetExplorationDeathLossPercent(RunTuning, true), 50);
+	TestEqual(TEXT("시체 미회수 손실률"), FDigetherEconomyRules::GetExplorationDeathLossPercent(RunTuning, false), 100);
 
 	const auto CheckWallet = [this](const TCHAR* Name, const FDigetherWalletState& Actual, const FDigetherWalletState& Expected)
 	{
@@ -101,7 +57,9 @@ bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 			Actual.LastRunPayoutCredits == Expected.LastRunPayoutCredits &&
 			Actual.HiddenLifetimeCredits == Expected.HiddenLifetimeCredits &&
 			Actual.TotalDeathLossCredits == Expected.TotalDeathLossCredits &&
-			Actual.LastPreDeathBalanceCredits == Expected.LastPreDeathBalanceCredits);
+			Actual.LastPreDeathBalanceCredits == Expected.LastPreDeathBalanceCredits &&
+			Actual.LifetimeEarnedCredits == Expected.LifetimeEarnedCredits &&
+			Actual.LifetimeCorpseRefundCredits == Expected.LifetimeCorpseRefundCredits);
 	};
 	FDigetherWalletState Wallet;
 	Wallet.BalanceCredits = 101;
@@ -109,13 +67,63 @@ bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 	Wallet.HiddenLifetimeCredits = 17;
 	Wallet.TotalDeathLossCredits = 40;
 	Wallet.LastPreDeathBalanceCredits = 42;
+
+	// 기획 예시: 잔고 101, 유효 회수 50% → 51 차감·50 잔존, 미회수 100% → 101 차감
 	FDigetherWalletState Expected = Wallet;
-	Expected.BalanceCredits = 71;
-	Expected.TotalDeathLossCredits = 70;
+	Expected.BalanceCredits = 50;
+	Expected.TotalDeathLossCredits = 91;
+	Expected.LastPreDeathBalanceCredits = 101;
+	const FDigetherWalletUpdateResult Recovered = FDigetherEconomyRules::ApplyDeathLoss(Wallet,
+		FDigetherEconomyRules::GetExplorationDeathLossPercent(RunTuning, true));
+	TestTrue(TEXT("회수 시체 손실 적용 성공"), Recovered.Result == EDigetherEconomyResult::Success);
+	CheckWallet(TEXT("회수 시체는 51 차감·50 잔존, 누적 손실은 실제 차감액"), Recovered.State, Expected);
+	Expected = Wallet;
+	Expected.BalanceCredits = 0;
+	Expected.TotalDeathLossCredits = 141;
+	Expected.LastPreDeathBalanceCredits = 101;
+	const FDigetherWalletUpdateResult Unrecovered = FDigetherEconomyRules::ApplyDeathLoss(Wallet,
+		FDigetherEconomyRules::GetExplorationDeathLossPercent(RunTuning, false));
+	TestTrue(TEXT("미회수 시체 손실 적용 성공"), Unrecovered.Result == EDigetherEconomyResult::Success);
+	CheckWallet(TEXT("미회수 시체는 101 전액 차감"), Unrecovered.State, Expected);
+
+	// 정산은 사망자에게 지급·복구 없음, 회수 여부와 무관하게 지갑은 그대로(복구금 폐지)
+	FDigetherPlayerSettlementInput Dead;
+	Dead.bDied = true;
+	Dead.bCorpseRecovered = true;
+	Dead.ReturnedHiddenCredits = 77;
+	FDigetherPlayerSettlementInput Living;
+	Living.bSurvived = true;
+	Living.ReturnedHiddenCredits = 7;
+	const FDigetherRunSettlementResult RecoveredRun = FDigetherEconomyRules::CalculateRunSettlement(100, 2, { Dead, Living });
+	TestTrue(TEXT("사망자와 생존자가 함께 있는 정산 성공"), RecoveredRun.Result == EDigetherEconomyResult::Success);
+	if (TestEqual(TEXT("회수 시체 정산 결과 인원 수"), RecoveredRun.Players.Num(), 2))
+	{
+		TestEqual(TEXT("시체가 회수돼도 사망자 일반 몫 0"), RecoveredRun.Players[0].GeneralCredits, 0);
+		TestEqual(TEXT("시체가 회수돼도 사망자 히든 0"), RecoveredRun.Players[0].HiddenCredits, 0);
+		TestEqual(TEXT("시체가 회수돼도 사망자 런 지급액 0"), RecoveredRun.Players[0].PayoutCredits, 0);
+		TestEqual(TEXT("생존자 런 지급액은 본인 일반 몫과 히든"), RecoveredRun.Players[1].PayoutCredits, 57);
+		const FDigetherWalletUpdateResult DeadSettled = FDigetherEconomyRules::ApplyRunSettlement(Recovered.State,
+			RecoveredRun.Players[0]);
+		TestTrue(TEXT("사망자 정산 적용 성공"), DeadSettled.Result == EDigetherEconomyResult::Success);
+		Expected = Recovered.State;
+		Expected.LastRunPayoutCredits = 0;
+		CheckWallet(TEXT("사망자 정산은 복구 없이 손실 뒤 잔고 유지"), DeadSettled.State, Expected);
+	}
+	const FDigetherRunSettlementResult WipeoutRun = FDigetherEconomyRules::CalculateRunSettlement(100, 1, { Dead });
+	TestTrue(TEXT("생존자 없는 시체 회수 정산 성공"), WipeoutRun.Result == EDigetherEconomyResult::Success);
+	if (TestEqual(TEXT("생존자 없는 시체 회수 결과 인원 수"), WipeoutRun.Players.Num(), 1))
+	{
+		TestEqual(TEXT("전멸 시 런 지급액 0"), WipeoutRun.Players[0].PayoutCredits, 0);
+		TestEqual(TEXT("전멸 일반 화물은 전액 제외"), WipeoutRun.LostGeneralCredits, 100);
+	}
+
+	Expected = Wallet;
+	Expected.BalanceCredits = 70;
+	Expected.TotalDeathLossCredits = 71;
 	Expected.LastPreDeathBalanceCredits = 101;
 	const FDigetherWalletUpdateResult PartialLoss = FDigetherEconomyRules::ApplyDeathLoss(Wallet, 30);
 	TestTrue(TEXT("부분 사망 손실 적용 성공"), PartialLoss.Result == EDigetherEconomyResult::Success);
-	CheckWallet(TEXT("손실 누적·직전 잔고 갱신과 다른 기록 보존"), PartialLoss.State, Expected);
+	CheckWallet(TEXT("30.3을 올린 31 차감, 손실 누적·직전 잔고 갱신과 다른 기록 보존"), PartialLoss.State, Expected);
 	Expected = Wallet;
 	Expected.LastPreDeathBalanceCredits = 101;
 	const FDigetherWalletUpdateResult NoLoss = FDigetherEconomyRules::ApplyDeathLoss(Wallet, -10);
@@ -139,7 +147,9 @@ bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 		&FDigetherWalletState::LastRunPayoutCredits,
 		&FDigetherWalletState::HiddenLifetimeCredits,
 		&FDigetherWalletState::TotalDeathLossCredits,
-		&FDigetherWalletState::LastPreDeathBalanceCredits
+		&FDigetherWalletState::LastPreDeathBalanceCredits,
+		&FDigetherWalletState::LifetimeEarnedCredits,
+		&FDigetherWalletState::LifetimeCorpseRefundCredits
 	};
 	for (const FDigetherWalletCreditMember Member : WalletMembers)
 	{
@@ -161,18 +171,16 @@ bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 	Expected.BalanceCredits = 333;
 	Expected.LastRunPayoutCredits = 232;
 	Expected.HiddenLifetimeCredits = 24;
+	Expected.LifetimeEarnedCredits = 232;
 	const FDigetherWalletUpdateResult Survivor = FDigetherEconomyRules::ApplyRunSettlement(Wallet, Settlement);
 	TestTrue(TEXT("생존자 정산 적용 성공"), Survivor.Result == EDigetherEconomyResult::Success);
-	CheckWallet(TEXT("일반 몫·개인 히든 지급과 히든 평생 누적"), Survivor.State, Expected);
+	CheckWallet(TEXT("일반 몫·개인 히든 지급과 히든·획득 누적"), Survivor.State, Expected);
 
-	FDigetherPlayerSettlement Corpse;
-	Corpse.CorpseRefundCredits = 50;
-	Expected = PartialLoss.State;
-	Expected.BalanceCredits = 121;
-	Expected.LastRunPayoutCredits = 0;
-	const FDigetherWalletUpdateResult Recovered = FDigetherEconomyRules::ApplyRunSettlement(PartialLoss.State, Corpse);
-	TestTrue(TEXT("사망자 시체 복구 적용 성공"), Recovered.Result == EDigetherEconomyResult::Success);
-	CheckWallet(TEXT("남은 잔고에 직전 잔고 기준 복구액 추가, 런 지급·히든 누적 제외"), Recovered.State, Expected);
+	// 구 저장의 복구 누적은 정산으로 바뀌지 않음(통계 순액 계산 전용)
+	FDigetherWalletState LegacyWallet = Wallet;
+	LegacyWallet.LifetimeCorpseRefundCredits = 25;
+	const FDigetherWalletUpdateResult LegacySettled = FDigetherEconomyRules::ApplyRunSettlement(LegacyWallet, Settlement);
+	TestEqual(TEXT("구 복구 누적 유지"), LegacySettled.State.LifetimeCorpseRefundCredits, 25);
 
 	FDigetherWalletState LargeWallet = Wallet;
 	LargeWallet.BalanceCredits = MAX_int32 - 2;
@@ -184,15 +192,10 @@ bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 	Expected.BalanceCredits = MAX_int32;
 	Expected.LastRunPayoutCredits = MAX_int32;
 	Expected.HiddenLifetimeCredits = MAX_int32;
+	Expected.LifetimeEarnedCredits = MAX_int32;
 	const FDigetherWalletUpdateResult SaturatedPayout = FDigetherEconomyRules::ApplyRunSettlement(LargeWallet, Settlement);
 	TestTrue(TEXT("상한 지급액 적용 성공"), SaturatedPayout.Result == EDigetherEconomyResult::Success);
 	CheckWallet(TEXT("지급 합계·잔고·히든 평생 누적의 포화"), SaturatedPayout.State, Expected);
-	Expected = LargeWallet;
-	Expected.BalanceCredits = MAX_int32;
-	Expected.LastRunPayoutCredits = 0;
-	const FDigetherWalletUpdateResult SaturatedRefund = FDigetherEconomyRules::ApplyRunSettlement(LargeWallet, Corpse);
-	TestTrue(TEXT("상한 시체 복구 적용 성공"), SaturatedRefund.Result == EDigetherEconomyResult::Success);
-	CheckWallet(TEXT("시체 복구로 잔고가 넘으면 포화, 히든 누적 유지"), SaturatedRefund.State, Expected);
 
 	const auto CheckRejectedSettlement = [this, &Wallet, &CheckWallet](const TCHAR* Name, const FDigetherPlayerSettlement& Invalid)
 	{
@@ -205,8 +208,7 @@ bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 	{
 		&FDigetherPlayerSettlement::GeneralCredits,
 		&FDigetherPlayerSettlement::HiddenCredits,
-		&FDigetherPlayerSettlement::PayoutCredits,
-		&FDigetherPlayerSettlement::CorpseRefundCredits
+		&FDigetherPlayerSettlement::PayoutCredits
 	};
 	for (const FDigetherSettlementCreditMember Member : SettlementMembers)
 	{
@@ -219,14 +221,6 @@ bool FDigetherEconomyDeathAndCorpseTest::RunTest(const FString& Parameters)
 	Invalid.HiddenCredits = 2;
 	Invalid.PayoutCredits = 6;
 	CheckRejectedSettlement(TEXT("일반·히든 합계와 다른 지급액"), Invalid);
-	Invalid.GeneralCredits = 0;
-	Invalid.HiddenCredits = 5;
-	Invalid.PayoutCredits = 5;
-	Invalid.CorpseRefundCredits = 1;
-	CheckRejectedSettlement(TEXT("히든과 시체 복구 동시 지급"), Invalid);
-	Invalid.GeneralCredits = 5;
-	Invalid.HiddenCredits = 0;
-	CheckRejectedSettlement(TEXT("일반 몫과 시체 복구 동시 지급"), Invalid);
 	return true;
 }
 

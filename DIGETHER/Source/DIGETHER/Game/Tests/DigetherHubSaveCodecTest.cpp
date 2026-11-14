@@ -33,7 +33,7 @@ namespace
 		Snapshot.RunTuning.DepositIntervalSeconds = .5f;
 		Snapshot.RunTuning.EmergencyWeightLimitKg = 3.f;
 		Snapshot.RunTuning.DeathLossPercent = 100;
-		Snapshot.RunTuning.CorpseRefundPercent = 50;
+		Snapshot.RunTuning.RecoveredDeathLossPercent = 50;
 		Snapshot.EconomyTuning.DayOneEfficiencyPercent = 30;
 		Snapshot.EconomyTuning.DayTwoEfficiencyPercent = 50;
 		Snapshot.EconomyTuning.DayThreeEfficiencyPercent = 70;
@@ -363,7 +363,8 @@ bool FDigetherHubSaveWireProtectionTest::RunTest(const FString& Parameters)
 	// 구 reader(v3 전용)는 payload 첫 int32 > 3, v4 reader는 > 4면 본문/CRC와 무관하게 UnsupportedVersion
 	int32 StoredWireVersion = 0;
 	FMemory::Memcpy(&StoredWireVersion, Envelope.GetData() + sizeof(int32), sizeof(StoredWireVersion));
-	TestEqual(TEXT("구 reader가 볼 첫 버전은 5"), StoredWireVersion, 5);
+	TestEqual(TEXT("구 reader가 볼 첫 버전은 6(회수 손실률 튜닝)"), StoredWireVersion, 6);
+	TestTrue(TEXT("v5 reader도 미래 버전으로 분류(복구율 칸 오해석 방지)"), StoredWireVersion > DigetherSaveWire::DayVersion);
 	TestTrue(TEXT("v4 reader도 미래 버전으로 분류"), StoredWireVersion > DigetherSaveWire::HubVersion);
 	TestEqual(TEXT("진행 스키마 버전은 3 유지"), DigetherSaveTuning::SchemaVersion, 3);
 	TestEqual(TEXT("슬롯 이름 버전은 3 유지"), DigetherSaveTuning::SlotNameVersion, 3);
@@ -643,6 +644,61 @@ bool FDigetherSaveTotalDayWireTest::RunTest(const FString& Parameters)
 	FMemory::Memcpy(Corrupt.GetData() + ProgressExtensionOffset + 3 * sizeof(int32), &NegativeTicks, sizeof(NegativeTicks));
 	TestTrue(TEXT("음수 저장 시각 거절"), DigetherSaveRules::DeserializeSlot(Corrupt, Output)
 		== EDigetherSaveResult::InvalidState);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSaveRecoveredDeathLossMigrationTest,
+	"DIGETHER.Game.Save.Hub.WireV6RecoveredDeathLossMigratesLegacyRefund",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherSaveRecoveredDeathLossMigrationTest::RunTest(const FString& Parameters)
+{
+	// 런 플로우 v1.1.0 9.4: wire v6은 튜닝 마지막 칸이 회수 손실률, v5 이하는 시체 복구율이라 순 손실률로 이관
+	// 80%·30%는 구분용 픽스처, 기획 값 아님
+	FDigetherSaveSlotData Slot;
+	Slot.Progress = MakeHubSaveFixture();
+	Slot.Progress.Quota.Quota.TotalDay = 1;
+	Slot.Progress.RunTuning.DeathLossPercent = 80;
+	Slot.Progress.RunTuning.RecoveredDeathLossPercent = 30;
+	Slot.bHasDepartureCheckpoint = true;
+	Slot.DepartureCheckpoint = Slot.Progress;
+	TArray<uint8> V6;
+	if (!TestTrue(TEXT("v6 직렬화"), DigetherSaveRules::SerializeSlot(Slot, V6) == EDigetherSaveResult::Success))
+	{
+		return false;
+	}
+	FDigetherSaveSlotData FromV6;
+	if (TestTrue(TEXT("v6 읽기"), DigetherSaveRules::DeserializeSlot(V6, FromV6) == EDigetherSaveResult::Success))
+	{
+		TestEqual(TEXT("v6 회수 손실률 그대로"), FromV6.Progress.RunTuning.RecoveredDeathLossPercent, 30);
+		TestEqual(TEXT("v6 기준점 회수 손실률 그대로"), FromV6.DepartureCheckpoint.RunTuning.RecoveredDeathLossPercent, 30);
+		TestEqual(TEXT("v6 미회수 손실률 그대로"), FromV6.Progress.RunTuning.DeathLossPercent, 80);
+	}
+	// 같은 배치의 v5 파일: 마지막 칸 30은 구 복구율, 순 손실 80 - 30 = 50
+	TArray<uint8> V5 = V6;
+	const int32 DayWireVersion = DigetherSaveWire::DayVersion;
+	FMemory::Memcpy(V5.GetData(), &DayWireVersion, sizeof(DayWireVersion));
+	FDigetherSaveSlotData FromV5;
+	if (!TestTrue(TEXT("구 v5 읽기"), DigetherSaveRules::DeserializeSlot(V5, FromV5) == EDigetherSaveResult::Success))
+	{
+		return false;
+	}
+	TestEqual(TEXT("구 v5 복구율 30%를 회수 손실률 50%로 이관"), FromV5.Progress.RunTuning.RecoveredDeathLossPercent, 50);
+	TestEqual(TEXT("구 v5 기준점도 같은 이관"), FromV5.DepartureCheckpoint.RunTuning.RecoveredDeathLossPercent, 50);
+	TestEqual(TEXT("이관 뒤 사용 중단 복구율은 0"), FromV5.Progress.RunTuning.CorpseRefundPercent, 0);
+	TestEqual(TEXT("구 v5 미회수 손실률 유지"), FromV5.Progress.RunTuning.DeathLossPercent, 80);
+	TestEqual(TEXT("구 v5 전체 일차 유지(진행 확장 해석 불변)"), FromV5.Progress.Quota.Quota.TotalDay, 1);
+	TArray<uint8> Upgraded;
+	FDigetherSaveSlotData UpgradedRead;
+	if (TestTrue(TEXT("이관한 슬롯을 다시 쓰면 최신 wire"), DigetherSaveRules::SerializeSlot(FromV5, Upgraded)
+		== EDigetherSaveResult::Success))
+	{
+		int32 UpgradedVersion = 0;
+		FMemory::Memcpy(&UpgradedVersion, Upgraded.GetData(), sizeof(UpgradedVersion));
+		TestEqual(TEXT("다시 쓴 wire는 v6"), UpgradedVersion, DigetherSaveWire::LatestVersion);
+		TestTrue(TEXT("다시 읽어도 이관 값 유지(두 번 이관 없음)"), DigetherSaveRules::DeserializeSlot(Upgraded, UpgradedRead)
+			== EDigetherSaveResult::Success && UpgradedRead.Progress.RunTuning.RecoveredDeathLossPercent == 50);
+	}
 	return true;
 }
 

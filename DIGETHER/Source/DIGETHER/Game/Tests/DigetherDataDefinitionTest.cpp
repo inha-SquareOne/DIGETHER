@@ -31,7 +31,7 @@ namespace
 		Tuning.DepositIntervalSeconds = 0.25f;
 		Tuning.EmergencyWeightLimitKg = 5.f;
 		Tuning.DeathLossPercent = 100;
-		Tuning.CorpseRefundPercent = 50;
+		Tuning.RecoveredDeathLossPercent = 50;
 		return Tuning;
 	}
 }
@@ -85,7 +85,8 @@ bool FDigetherTuningProfileTest::RunTest(const FString& Parameters)
 {
 	TArray<FText> Problems;
 	TestFalse(TEXT("기본값(빈 프로필)은 실패"), FDigetherRunTuning().CollectProblems(Problems));
-	TestEqual(TEXT("빈 프로필의 문제 수(0이 허용되는 4개 필드 제외)"), Problems.Num(), 8);
+	// 회수 손실률(RecoveredDeathLossPercent)은 미설정 INDEX_NONE이라 빈 프로필 문제에 추가(8 → 9)
+	TestEqual(TEXT("빈 프로필의 문제 수(0이 허용되는 4개 필드 제외)"), Problems.Num(), 9);
 
 	Problems.Reset();
 	TestTrue(TEXT("정상 프로필 통과"), MakeValidTuning().CollectProblems(Problems));
@@ -105,7 +106,39 @@ bool FDigetherTuningProfileTest::RunTest(const FString& Parameters)
 	FDigetherRunTuning OverRefund = MakeValidTuning();
 	OverRefund.CorpseRefundPercent = 101;
 	Problems.Reset();
-	TestFalse(TEXT("복구 101%는 실패"), OverRefund.CollectProblems(Problems));
+	TestFalse(TEXT("사용 중단 복구율도 101%는 실패(프로토타입 호환 범위 검사)"), OverRefund.CollectProblems(Problems));
+
+	// 런 플로우 v1.1.0 9.4: 시체 유효 회수 손실률, 미설정(INDEX_NONE)·범위 밖 거절
+	FDigetherRunTuning OverRecovered = MakeValidTuning();
+	OverRecovered.RecoveredDeathLossPercent = 101;
+	Problems.Reset();
+	TestFalse(TEXT("회수 손실률 101%는 실패"), OverRecovered.CollectProblems(Problems));
+	TestEqual(TEXT("회수 손실률 거절 사유 한 개"), Problems.Num(), 1);
+	FDigetherRunTuning UnsetRecovered = MakeValidTuning();
+	UnsetRecovered.RecoveredDeathLossPercent = INDEX_NONE;
+	Problems.Reset();
+	TestFalse(TEXT("회수 손실률 미설정은 실패(코드 기본값 없음)"), UnsetRecovered.CollectProblems(Problems));
+
+	// 필드 도입 전 DA 이관: 순 손실률 max(0, 손실률 - 복구율), 이미 설정한 값은 유지
+	FDigetherRunTuning Legacy = MakeValidTuning();
+	Legacy.RecoveredDeathLossPercent = INDEX_NONE;
+	Legacy.DeathLossPercent = 100;
+	Legacy.CorpseRefundPercent = 50;
+	Legacy.MigrateLegacyCorpseRefund();
+	TestEqual(TEXT("구 100%/복구 50%는 회수 손실 50%"), Legacy.RecoveredDeathLossPercent, 50);
+	Legacy.RecoveredDeathLossPercent = INDEX_NONE;
+	Legacy.DeathLossPercent = 80;
+	Legacy.CorpseRefundPercent = 30;
+	Legacy.MigrateLegacyCorpseRefund();
+	TestEqual(TEXT("구 80%/복구 30%는 회수 손실 50%"), Legacy.RecoveredDeathLossPercent, 50);
+	Legacy.RecoveredDeathLossPercent = INDEX_NONE;
+	Legacy.DeathLossPercent = 30;
+	Legacy.CorpseRefundPercent = 50;
+	Legacy.MigrateLegacyCorpseRefund();
+	TestEqual(TEXT("복구율이 더 크면 회수 손실 0%"), Legacy.RecoveredDeathLossPercent, 0);
+	Legacy.RecoveredDeathLossPercent = 70;
+	Legacy.MigrateLegacyCorpseRefund();
+	TestEqual(TEXT("이미 설정한 회수 손실률은 이관하지 않음"), Legacy.RecoveredDeathLossPercent, 70);
 
 	FDigetherRunTuning NaNTime = MakeValidTuning();
 	NaNTime.RunSeconds = DigetherTestValues::NaN();
@@ -150,7 +183,9 @@ bool FDigetherPrototypeDataAssetsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("납부 간격"), Values.DepositIntervalSeconds, 0.25f);
 	TestEqual(TEXT("긴급 탈출 중량"), Values.EmergencyWeightLimitKg, 5.f);
 	TestEqual(TEXT("사망 손실"), Values.DeathLossPercent, 100);
-	TestEqual(TEXT("시체 복구"), Values.CorpseRefundPercent, 50);
+	TestEqual(TEXT("시체 복구(사용 중단, 프로토타입 원본)"), Values.CorpseRefundPercent, 50);
+	// DA에는 새 필드가 없어 PostLoad 이관 값(100 - 50), 다시 저장하면 그대로 기록
+	TestEqual(TEXT("시체 회수 손실률(이관)"), Values.RecoveredDeathLossPercent, 50);
 
 	// 이전 값: ADigetherPrototypePickup 기본값 40원·5kg·한 손
 	TestTrue(TEXT("회수품 종류"), Cargo->IsCargo());

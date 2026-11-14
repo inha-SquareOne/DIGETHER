@@ -45,7 +45,7 @@ namespace
 		Snapshot.RunTuning.DepositIntervalSeconds = 0.5f;
 		Snapshot.RunTuning.EmergencyWeightLimitKg = 3.f;
 		Snapshot.RunTuning.DeathLossPercent = 100;
-		Snapshot.RunTuning.CorpseRefundPercent = 50;
+		Snapshot.RunTuning.RecoveredDeathLossPercent = 50;
 		FDigetherSavePlayerRecord Host;
 		Host.AuthenticatedPlayerKey = HostKey;
 		Host.GameplayPlayerId = FGuid::NewGuid();

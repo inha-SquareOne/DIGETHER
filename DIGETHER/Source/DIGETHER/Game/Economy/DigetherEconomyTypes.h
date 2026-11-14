@@ -53,12 +53,13 @@ struct DIGETHER_API FDigetherWalletState
 	int32 LastPreDeathBalanceCredits = 0;
 
 	// 기획 S33 결과 통계: 이번 게임에서 실제 지급받은 일반 몫 + 히든 수익 누적, 정산마다 가산
-	// 구매·납부·사망으로 감소 없음, 시작 지급·시체 복구금·개발 지급 제외
+	// 구매·납부·사망으로 감소 없음, 시작 지급·개발 지급 제외
 	// 새 게임은 0
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Economy")
 	int32 LifetimeEarnedCredits = 0;
 
-	// 기획 S33: 시체 회수로 실제 돌려받은 금액 누적, 사망 손실 순액(TotalDeathLossCredits - 이 값) 계산 전용
+	// 구 저장 호환 전용: 시체 복구금 폐지(런 플로우 v1.1.0 9.4, 2026-11-14) 전에 돌려받은 금액 누적
+	// 새 규칙은 증가 없음, 구 저장의 TotalDeathLossCredits가 복구 전 차감액이라 통계 순액 계산에만 사용
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Economy")
 	int32 LifetimeCorpseRefundCredits = 0;
 };
@@ -170,9 +171,7 @@ struct DIGETHER_API FDigetherPlayerSettlementInput
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Economy")
 	bool bDied = false;
 
-	UPROPERTY(BlueprintReadOnly, Category="Digether|Economy")
-	int32 PreDeathBalanceCredits = 0;
-
+	// 사망자만 true 허용, 지급액에는 영향 없음(손실 비율은 조율자가 ApplyDeathLoss에 반영)
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Economy")
 	bool bCorpseRecovered = false;
 };
@@ -190,10 +189,6 @@ struct DIGETHER_API FDigetherPlayerSettlement
 
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Economy")
 	int32 PayoutCredits = 0;
-
-	// 복구액은 런 지급액·히든 누적액과 별도, 회수자에게 지급하지 않음
-	UPROPERTY(BlueprintReadOnly, Category="Digether|Economy")
-	int32 CorpseRefundCredits = 0;
 };
 
 USTRUCT(BlueprintType)
@@ -207,6 +202,7 @@ struct DIGETHER_API FDigetherRunSettlementResult
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Economy")
 	int32 GeneralShareCredits = 0;
 
+	// 제외된 금액: 유효 일반 회수 총액 - 생존자에게 지급한 일반 몫 합계(런 플로우 9.5)
 	UPROPERTY(BlueprintReadOnly, Category="Digether|Economy")
 	int32 LostGeneralCredits = 0;
 

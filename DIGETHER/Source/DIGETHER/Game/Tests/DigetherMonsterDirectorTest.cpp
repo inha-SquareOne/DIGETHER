@@ -11,6 +11,7 @@
 #include "Game/Monster/DigetherMonsterSenseSubsystem.h"
 #include "Game/Monster/DigetherMonsterSettings.h"
 #include "Game/Monster/DigetherMonsterSpawnPoint.h"
+#include "Game/Monster/DigetherMonsterSpawnPolicy.h"
 #include "Game/Monster/DigetherMonsterSpawnTable.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Misc/AutomationTest.h"
@@ -264,6 +265,44 @@ bool FDigetherMonsterDirectorTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("종료된 런의 예고는 폐기"), Live.Num(), 0);
 	TestEqual(TEXT("새 런 장부는 비어 있음"), Director->GetAliveCount(Mole), 0);
 	Director->EndRun(NextRun);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherMonsterVentDistanceFallbackTest,
+	"DIGETHER.Game.Monster.VentDistanceFallback", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDigetherMonsterVentDistanceFallbackTest::RunTest(const FString& Parameters)
+{
+	// 런 플로우 v1.1.0 6.6: 최소 거리로 배출구가 0개인 판정 한 번만 거리 조건 생략, 다른 조건(지점 종류·구역)은 유지
+	// 구역 볼륨 없는 시험 월드는 갱도로 간주돼 정의 구역을 Mine으로 둔 픽스처, 거리·위치는 기획 값 아님
+	FMonsterTestWorld TestWorld;
+	UWorld* World = TestWorld.World;
+	if (!TestNotNull(TEXT("테스트 월드"), World))
+	{
+		return false;
+	}
+	UBehaviorTree* Tree = NewObject<UBehaviorTree>(GetTransientPackage(), NAME_None, RF_Transient);
+	UDigetherMonsterDefinition* Box = MakeDefinition(TEXT("DA_TestFallbackBox"), EDigetherMonsterSpawnKind::PeriodicPower,
+		EDigetherMonsterZone::Mine, Tree);
+	Box->MinPlayerDistance = 1000.f;
+	const UDigetherMonsterPeriodicPowerSpawnPolicy* Policy = NewObject<UDigetherMonsterPeriodicPowerSpawnPolicy>();
+	ADigetherMonsterSpawnPoint* NearVent = AddPoint(World, EDigetherMonsterSpawnPointKind::DungeonVent, FVector(100.f, 0.f, 0.f));
+	ADigetherMonsterSpawnPoint* FarVent = AddPoint(World, EDigetherMonsterSpawnPointKind::DungeonVent, FVector(5000.f, 0.f, 0.f));
+	ADigetherMonsterSpawnPoint* Nest = AddPoint(World, EDigetherMonsterSpawnPointKind::HabitatNest, FVector(100.f, 0.f, 0.f));
+	if (!TestNotNull(TEXT("가까운 배출구"), NearVent) || !TestNotNull(TEXT("먼 배출구"), FarVent) || !TestNotNull(TEXT("둥지"), Nest))
+	{
+		return false;
+	}
+	FDigetherSpawnPointQuery Query;
+	Query.Definition = Box;
+	Query.LivingPlayerLocations.Add(FVector::ZeroVector);
+	TestFalse(TEXT("최소 거리 안 배출구 제외"), Policy->IsPointAllowed(*NearVent, Query));
+	TestTrue(TEXT("최소 거리 밖 배출구 허용"), Policy->IsPointAllowed(*FarVent, Query));
+	Query.bIgnorePlayerDistance = true;
+	TestTrue(TEXT("거리 예외 판정에서는 가까운 배출구도 허용"), Policy->IsPointAllowed(*NearVent, Query));
+	TestFalse(TEXT("거리 예외에도 배출구가 아닌 지점은 제외"), Policy->IsPointAllowed(*Nest, Query));
+	Query.bIgnorePlayerDistance = false;
+	TestFalse(TEXT("다음 판정은 다시 최소 거리 적용"), Policy->IsPointAllowed(*NearVent, Query));
 	return true;
 }
 

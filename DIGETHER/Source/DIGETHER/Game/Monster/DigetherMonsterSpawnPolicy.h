@@ -18,6 +18,8 @@ struct FDigetherSpawnPointQuery
 	// 서식지형만, 엘리베이터 도착 지점(없으면 거리 필터 생략)
 	TOptional<FVector> ElevatorArrivalLocation;
 	float MinNestDistanceFromElevator = 0.f;
+	// 생존자 최소 거리 필터 생략, 던전 배출구가 거리 조건만으로 0개인 판정 한 번에만 디렉터가 켬(런 플로우 v1.1.0 6.6)
+	bool bIgnorePlayerDistance = false;
 };
 
 // 스폰 방식별로 다른 부분(쓰는 지점 종류·위치 필터), 새 방식은 enum 값 + 하위 클래스 + 디렉터 선택 경로 추가

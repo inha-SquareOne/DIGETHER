@@ -157,7 +157,7 @@ bool DigetherGameOverRules::TrySetFastForward(const FDigetherCreditPlayback& Cur
 int32 DigetherGameOverRules::CalculateNetDeathLoss(const FDigetherWalletState& Wallet)
 {
 	const int64 Net = static_cast<int64>(Wallet.TotalDeathLossCredits) - Wallet.LifetimeCorpseRefundCredits;
-	// 복구금은 사망 직전 잔고 일부라 같은 게임 손실보다 클 수 없음, 넘으면 장부 오류로 0 처리 후 ensure
+	// 구 복구금은 사망 직전 잔고 일부라 같은 게임 손실보다 클 수 없음, 넘으면 장부 오류로 0 처리 후 ensure
 	ensureMsgf(Net >= 0, TEXT("Corpse refunds exceed death losses: loss=%d refund=%d"),
 		Wallet.TotalDeathLossCredits, Wallet.LifetimeCorpseRefundCredits);
 	return static_cast<int32>(FMath::Clamp<int64>(Net, 0, MAX_int32));

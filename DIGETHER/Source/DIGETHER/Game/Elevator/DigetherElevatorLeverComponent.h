@@ -38,9 +38,14 @@ public:
 	UFUNCTION(BlueprintPure, Category="Digether|Elevator")
 	FDigetherElevatorLeverPublicState GetPublicState() const;
 
-	// 경고 종류별 안내 문구, 표시 대상(Standard는 팀원, Deadline은 레버 조작자)은 BP 결정
+	// 레버 조작자 문구(런 플로우 v1.1.0 5.2): Standard 없음, Deadline '현재 할당량 마감일입니다!', 마감 확정은 로비 문구와 같음
 	UFUNCTION(BlueprintPure, Category="Digether|Elevator")
 	static FText GetDepartureWarningText(EDigetherDepartureWarningKind WarningKind);
+
+	// 로비 전원 문구: Standard 없음, Deadline 출발 시 마감 안내, DeadlineConfirmed 마감 확정 안내
+	// 종류는 레버 공개 상태 대신 DigetherFrameworkRules::ResolveDepartureWarning(게임 상태 GetDepartureWarningKind) 값 사용
+	UFUNCTION(BlueprintPure, Category="Digether|Elevator")
+	static FText GetDepartureLobbyWarningText(EDigetherDepartureWarningKind WarningKind);
 
 	// 서버가 실제 조작자와 레버 사이 거리를 유지 검사할 때만 사용
 	FGuid GetActivePullerId() const;

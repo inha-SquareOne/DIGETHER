@@ -353,20 +353,21 @@ bool UDigetherMonsterDirectorSubsystem::TrySpawnDungeon()
 	}
 	UDigetherMonsterDefinition* Definition = Table->DungeonEntries[Filtered[Pick].SourceIndex].Definition;
 	TArray<TPair<FName, ADigetherMonsterSpawnPoint*>> Options;
-	for (const FName DungeonId : DungeonIds)
+	CollectDungeonSpawnOptions(Definition, DungeonIds, false, Options);
+	if (Options.IsEmpty())
 	{
-		if (DungeonPowerLimit - Ledger.GetPowerUsed(DungeonId) < Definition->PowerLevel)
+		// 런 플로우 v1.1.0 6.6: 최소 거리 때문에 배출구가 0개면 이 판정에 한해 거리 조건만 풀고 전체 배출구에서 선택
+		// 파워 한도·탐사당 상한·종별 최대 수는 위 후보 필터가 그대로 적용, 다음 판정은 다시 최소 거리 적용
+		CollectDungeonSpawnOptions(Definition, DungeonIds, true, Options);
+		if (!Options.IsEmpty())
 		{
-			continue;
-		}
-		if (ADigetherMonsterSpawnPoint* Point = PickPoint(Definition, DungeonId))
-		{
-			Options.Emplace(DungeonId, Point);
+			UE_LOG(LogDigetherMonster, Log, TEXT("던전 %s: 최소 거리 조건을 만족하는 배출구가 없어 이번 판정만 거리 조건 없이 생성합니다."),
+				*GetNameSafe(Definition));
 		}
 	}
 	if (Options.IsEmpty())
 	{
-		UE_LOG(LogDigetherMonster, Log, TEXT("던전 %s: 파워·거리 조건을 만족하는 배출구가 없어 생성하지 않습니다."), *GetNameSafe(Definition));
+		UE_LOG(LogDigetherMonster, Log, TEXT("던전 %s: 파워 여유가 있는 던전에 배출구가 없어 생성하지 않습니다."), *GetNameSafe(Definition));
 		return false;
 	}
 	const TPair<FName, ADigetherMonsterSpawnPoint*>& Chosen = Options[Random.RandRange(0, Options.Num() - 1)];
@@ -742,7 +743,26 @@ void UDigetherMonsterDirectorSubsystem::HandleMonsterRemoved(ADigetherMonsterCha
 	UE_LOG(LogDigetherMonster, Log, TEXT("몬스터 제거: %s (%s)"), *GetNameSafe(Monster), *UEnum::GetValueAsString(Reason));
 }
 
-ADigetherMonsterSpawnPoint* UDigetherMonsterDirectorSubsystem::PickPoint(const UDigetherMonsterDefinition* Definition, const FName DungeonId) const
+void UDigetherMonsterDirectorSubsystem::CollectDungeonSpawnOptions(const UDigetherMonsterDefinition* Definition,
+	const TArray<FName>& DungeonIds, const bool bIgnorePlayerDistance,
+	TArray<TPair<FName, ADigetherMonsterSpawnPoint*>>& OutOptions) const
+{
+	OutOptions.Reset();
+	for (const FName DungeonId : DungeonIds)
+	{
+		if (DungeonPowerLimit - Ledger.GetPowerUsed(DungeonId) < Definition->PowerLevel)
+		{
+			continue;
+		}
+		if (ADigetherMonsterSpawnPoint* Point = PickPoint(Definition, DungeonId, bIgnorePlayerDistance))
+		{
+			OutOptions.Emplace(DungeonId, Point);
+		}
+	}
+}
+
+ADigetherMonsterSpawnPoint* UDigetherMonsterDirectorSubsystem::PickPoint(const UDigetherMonsterDefinition* Definition,
+	const FName DungeonId, const bool bIgnorePlayerDistance) const
 {
 	const UDigetherMonsterSpawnPolicy* Policy = Definition ? GetPolicy(Definition->SpawnKind) : nullptr;
 	if (!Policy)
@@ -752,6 +772,7 @@ ADigetherMonsterSpawnPoint* UDigetherMonsterDirectorSubsystem::PickPoint(const U
 	FDigetherSpawnPointQuery Query;
 	Query.Definition = Definition;
 	Query.DungeonId = DungeonId;
+	Query.bIgnorePlayerDistance = bIgnorePlayerDistance;
 	Query.ElevatorArrivalLocation = ElevatorArrivalLocation;
 	Query.MinNestDistanceFromElevator = UDigetherMonsterSettings::Get().MinNestDistanceFromElevator;
 	CollectLivingPlayerLocations(Query.LivingPlayerLocations);

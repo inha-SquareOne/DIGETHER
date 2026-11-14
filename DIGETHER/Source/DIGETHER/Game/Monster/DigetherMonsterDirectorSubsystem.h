@@ -125,7 +125,11 @@ private:
 	bool ScheduleSpawn(UDigetherMonsterDefinition* Definition, ADigetherMonsterSpawnPoint* Point, FName DungeonId);
 	void FinishPendingSpawn(int32 PendingId);
 
-	ADigetherMonsterSpawnPoint* PickPoint(const UDigetherMonsterDefinition* Definition, FName DungeonId) const;
+	ADigetherMonsterSpawnPoint* PickPoint(const UDigetherMonsterDefinition* Definition, FName DungeonId,
+		bool bIgnorePlayerDistance = false) const;
+	// 파워 여유가 있는 던전마다 허용 배출구 하나씩 후보 수집
+	void CollectDungeonSpawnOptions(const UDigetherMonsterDefinition* Definition, const TArray<FName>& DungeonIds,
+		bool bIgnorePlayerDistance, TArray<TPair<FName, ADigetherMonsterSpawnPoint*>>& OutOptions) const;
 	void CollectLivingPlayerLocations(TArray<FVector>& OutLocations) const;
 	void CollectDungeonIds(TArray<FName>& OutDungeonIds) const;
 	const UDigetherMonsterSpawnPolicy* GetPolicy(EDigetherMonsterSpawnKind Kind) const;

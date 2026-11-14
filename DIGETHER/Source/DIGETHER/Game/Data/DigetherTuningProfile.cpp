@@ -33,12 +33,30 @@ bool FDigetherRunTuning::CollectProblems(TArray<FText>& OutProblems) const
 	Require(EmergencyWeightLimitKg >= 0.f, LOCTEXT("Emergency", "EmergencyWeightLimitKg는 0 이상이어야 합니다."));
 	Require(DeathLossPercent >= 0 && DeathLossPercent <= 100, LOCTEXT("Loss", "DeathLossPercent는 0~100이어야 합니다."));
 	Require(CorpseRefundPercent >= 0 && CorpseRefundPercent <= 100, LOCTEXT("Refund", "CorpseRefundPercent는 0~100이어야 합니다."));
+	Require(RecoveredDeathLossPercent >= 0 && RecoveredDeathLossPercent <= 100,
+		LOCTEXT("RecoveredLoss", "RecoveredDeathLossPercent는 0~100이어야 합니다."));
 	return OutProblems.Num() == Before;
+}
+
+void FDigetherRunTuning::MigrateLegacyCorpseRefund()
+{
+	if (RecoveredDeathLossPercent != INDEX_NONE)
+	{
+		return;
+	}
+	// 구 규칙: 사망 시 D% 차감 뒤 회수 시 사망 직전 잔고 R% 복구, 순 손실 D - R%(끝수 규칙만 다름)
+	RecoveredDeathLossPercent = FMath::Clamp(DeathLossPercent - CorpseRefundPercent, 0, 100);
 }
 
 FPrimaryAssetId UDigetherTuningProfile::GetPrimaryAssetId() const
 {
 	return FPrimaryAssetId(PrimaryAssetType, GetFName());
+}
+
+void UDigetherTuningProfile::PostLoad()
+{
+	Super::PostLoad();
+	Values.MigrateLegacyCorpseRefund();
 }
 
 FDigetherRunTuning UDigetherTuningProfile::MakeSnapshot() const

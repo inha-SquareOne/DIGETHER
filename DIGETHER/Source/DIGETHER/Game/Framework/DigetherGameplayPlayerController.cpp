@@ -11,6 +11,7 @@
 #include "Game/Framework/DigetherGameplayPlayerState.h"
 #include "Game/Framework/DigetherPlayerCameraManager.h"
 #include "Game/Hub/DigetherHubInteractionComponent.h"
+#include "Game/Input/DigetherPlayerInputData.h"
 #include "Game/Monster/DigetherMonsterCameraSampleComponent.h"
 #include "Game/UI/Deposit/DigetherDepositPanelWidget.h"
 #include "Game/UI/DigetherPlayerScreenComponent.h"
@@ -27,6 +28,8 @@ ADigetherGameplayPlayerController::ADigetherGameplayPlayerController()
 	PlayerScreenComponent = CreateDefaultSubobject<UDigetherPlayerScreenComponent>(TEXT("PlayerScreenComponent"));
 	VoiceComponent = CreateDefaultSubobject<UDigetherVoiceComponent>(TEXT("VoiceComponent"));
 	MonsterCameraSampleComponent = CreateDefaultSubobject<UDigetherMonsterCameraSampleComponent>(TEXT("MonsterCameraSampleComponent"));
+	SpectateInputData = TSoftObjectPtr<UDigetherPlayerInputData>(
+		FSoftObjectPath(TEXT("/Game/Game/Input/Player/DA_PlayerInput.DA_PlayerInput")));
 }
 
 void ADigetherGameplayPlayerController::ClientEnableNetworkVoice_Implementation(const bool bEnable)
@@ -172,6 +175,25 @@ void ADigetherGameplayPlayerController::SetupInputComponent()
 		{
 			Input->BindAction(PauseAction, ETriggerEvent::Started, this, &ThisClass::HandlePausePressed);
 		}
+	}
+	// 관전 중 좌클릭 이전 대상, 키 배치는 캐릭터가 등록한 입력 데이터 매핑 컨텍스트(LMB) 사용
+	// 우클릭 다음 대상은 붓기 입력(HandlePourStarted)에서 관전 중일 때 분기
+	if (IsLocalController())
+	{
+		const UDigetherPlayerInputData* Data = SpectateInputData.LoadSynchronous();
+		UEnhancedInputComponent* Input = Cast<UEnhancedInputComponent>(InputComponent);
+		if (IsValid(Data) && IsValid(Data->AttackAction) && IsValid(Input))
+		{
+			Input->BindAction(Data->AttackAction, ETriggerEvent::Started, this, &ThisClass::HandleSpectatePreviousPressed);
+		}
+	}
+}
+
+void ADigetherGameplayPlayerController::HandleSpectatePreviousPressed()
+{
+	if (IsLocalController() && bLifeInputLocked)
+	{
+		Server_CycleSpectateTarget(false);
 	}
 }
 

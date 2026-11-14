@@ -14,7 +14,7 @@ bool FDigetherEconomyEfficiencyTest::RunTest(const FString& Parameters)
 	// 기본값 없는 런 스냅샷이라 시험 입력 명시
 	FDigetherRunTuning RunTuning;
 	RunTuning.DeathLossPercent = 100;
-	RunTuning.CorpseRefundPercent = 50;
+	RunTuning.RecoveredDeathLossPercent = 50;
 	RunTuning.InitialQuotaCredits = 100;
 	// 2026-11-04 기획 답변 초안 임시값(PAY_DAY_EFFICIENCY), 최종 기획 값 아님
 	TestEqual(TEXT("1일차 임시 효율"), Tuning.DayOneEfficiencyPercent, 30);
@@ -24,7 +24,7 @@ bool FDigetherEconomyEfficiencyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("런 스냅샷 첫 목표"), RunTuning.InitialQuotaCredits, 100);
 	TestEqual(TEXT("임시 고정 증가량"), Tuning.TargetIncreaseCredits, 100);
 	TestEqual(TEXT("런 스냅샷 사망 손실률"), RunTuning.DeathLossPercent, 100);
-	TestEqual(TEXT("런 스냅샷 시체 복구율"), RunTuning.CorpseRefundPercent, 50);
+	TestEqual(TEXT("런 스냅샷 시체 회수 손실률"), RunTuning.RecoveredDeathLossPercent, 50);
 	TestEqual(TEXT("미사용 세션 수명(저장 호환)"), Tuning.DepositSessionLifetimeSeconds, 10.0);
 	TestEqual(TEXT("임시 붓기 기준액(PAY_UNIT_AMOUNT)"), Tuning.PourUnitCredits, 10);
 
@@ -247,7 +247,7 @@ bool FDigetherEconomyEfficiencyTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("별도 초기 목표 입력은 불변"), SeparateInitial.Day == 1 && SeparateInitial.TargetCredits == 250 &&
 		SeparateInitial.DepositedCredits == 0 && SeparateInitial.PeriodGeneration == 0);
 	TestTrue(TEXT("별도 런 스냅샷 입력은 불변"), SeparateRunTuning.InitialQuotaCredits == 250 &&
-		SeparateRunTuning.DeathLossPercent == 100 && SeparateRunTuning.CorpseRefundPercent == 50);
+		SeparateRunTuning.DeathLossPercent == 100 && SeparateRunTuning.RecoveredDeathLossPercent == 50);
 	TestEqual(TEXT("다른 첫 목표를 적용해도 경제 증가량 입력은 불변"), Tuning.TargetIncreaseCredits, 100);
 	FDigetherRunTuning NegativeRunTuning = RunTuning;
 	NegativeRunTuning.InitialQuotaCredits = -1;
