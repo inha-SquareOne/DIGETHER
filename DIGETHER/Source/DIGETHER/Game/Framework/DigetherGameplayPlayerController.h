@@ -22,6 +22,7 @@ class ADigetherHubFacilityActor;
 class UDigetherHubFacilityWidget;
 class UDigetherHubInteractionComponent;
 class UDigetherPauseMenuWidget;
+class UDigetherPlayerInputData;
 class UDigetherPlayerScreenComponent;
 class UDigetherVoiceComponent;
 class UDigetherMonsterCameraSampleComponent;
@@ -295,6 +296,14 @@ private:
 	// --- 화면: HUD·런 결과·크레딧 (위젯 수명·입력 모드는 컴포넌트) ---
 	UPROPERTY(VisibleAnywhere, Category="Digether|UI")
 	TObjectPtr<UDigetherPlayerScreenComponent> PlayerScreenComponent;
+
+	// --- 관전 대상 전환 (런 플로우 v1.1.0 4.6: 좌클릭 이전·우클릭 다음) ---
+	// 새 IA 없이 기존 에셋 재사용: 좌클릭은 플레이어 입력 데이터의 AttackAction(캐릭터 매핑 컨텍스트가 LMB 배치),
+	// 우클릭은 붓기 PourAction(IMC_Pour), 관전 중(bLifeInputLocked)에만 전환하고 공격·붓기 판정은 그대로
+	// 기본 경로는 ADigetherPlayerCharacter::InputData 기본값과 같은 에셋
+	UPROPERTY(EditDefaultsOnly, Category="Digether|Spectate|Input")
+	TSoftObjectPtr<UDigetherPlayerInputData> SpectateInputData;
+	void HandleSpectatePreviousPressed();
 
 	// --- ESC 메뉴 (PauseMenu.cpp) ---
 	UPROPERTY(EditDefaultsOnly, Category="Digether|Pause|Input")

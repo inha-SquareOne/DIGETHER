@@ -67,6 +67,15 @@ void ADigetherGameplayPlayerController::StopPour()
 
 void ADigetherGameplayPlayerController::HandlePourStarted()
 {
+	// 런 플로우 v1.1.0 4.6: 관전 중 우클릭은 다음 관전 대상, 붓기는 관전 중 원래도 거절(StartPour)
+	if (bLifeInputLocked)
+	{
+		if (IsLocalController())
+		{
+			Server_CycleSpectateTarget(true);
+		}
+		return;
+	}
 	if (HubInteractionComponent)
 	{
 		StartPour(Cast<ADigetherDepositStationActor>(HubInteractionComponent->FindInteractionTarget()));

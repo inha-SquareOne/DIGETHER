@@ -1,6 +1,7 @@
 #include "Game/Framework/DigetherGameplayGameState.h"
 
 #include "Game/Economy/DigetherQuotaStateComponent.h"
+#include "Game/Framework/DigetherFrameworkRules.h"
 #include "Game/Run/DigetherGameOverPublicStateComponent.h"
 #include "Game/Run/DigetherRunPublicStateComponent.h"
 
@@ -26,4 +27,12 @@ UDigetherRunPublicStateComponent* ADigetherGameplayGameState::GetRunPublicStateC
 UDigetherQuotaStateComponent* ADigetherGameplayGameState::GetQuotaComponent() const
 {
 	return QuotaComponent.Get();
+}
+
+EDigetherDepartureWarningKind ADigetherGameplayGameState::GetDepartureWarningKind(
+	const EDigetherDepartureWarningKind LeverWarning) const
+{
+	return IsValid(RunPublicStateComponent)
+		? DigetherFrameworkRules::ResolveDepartureWarning(LeverWarning, RunPublicStateComponent->CaptureState())
+		: LeverWarning;
 }

@@ -36,6 +36,26 @@ void UDigetherRunResultWidget::SetResult(const FDigetherRunResult& Result)
 		}
 		Text_Outcome->SetText(Outcome);
 	}
+	if (Text_FarmingCredits)
+	{
+		Text_FarmingCredits->SetText(FText::Format(LOCTEXT("Farming", "이번 탐사 파밍액  {0}"), FText::AsNumber(Result.FarmingCredits)));
+	}
+	if (Text_DeadPlayers)
+	{
+		Text_DeadPlayers->SetText(FText::Format(LOCTEXT("DeadPlayers", "사망자  {0}"), JoinPlayerNames(Result.DeadPlayerNames)));
+	}
+	if (Text_MissingPlayers)
+	{
+		Text_MissingPlayers->SetText(FText::Format(LOCTEXT("MissingPlayers", "실종자  {0}"), JoinPlayerNames(Result.MissingPlayerNames)));
+	}
+	if (Text_ExcludedCredits)
+	{
+		Text_ExcludedCredits->SetText(FText::Format(LOCTEXT("Excluded", "제외된 금액  {0}"), FText::AsNumber(Result.ExcludedCredits)));
+	}
+	if (Text_PreviousBalance)
+	{
+		Text_PreviousBalance->SetText(FText::Format(LOCTEXT("PreviousBalance", "이전 잔고  {0}"), FText::AsNumber(Result.PreviousBalanceCredits)));
+	}
 	if (Text_GeneralCredits)
 	{
 		Text_GeneralCredits->SetText(FText::Format(LOCTEXT("General", "일반 몫  {0}"), FText::AsNumber(Result.GeneralCredits)));
@@ -46,11 +66,13 @@ void UDigetherRunResultWidget::SetResult(const FDigetherRunResult& Result)
 	}
 	if (Text_DeathLoss)
 	{
-		Text_DeathLoss->SetText(FText::Format(LOCTEXT("DeathLoss", "사망 손실  -{0}"), FText::AsNumber(Result.DeathLossCredits)));
+		Text_DeathLoss->SetText(MakeDeathLossText(Result));
 	}
 	if (Text_CorpseRefund)
 	{
-		Text_CorpseRefund->SetText(FText::Format(LOCTEXT("CorpseRefund", "시체 복구  {0}"), FText::AsNumber(Result.CorpseRefundCredits)));
+		// 시체 복구금 폐지, 기존 WBP 배치에 남은 칸은 빈 문구로 접음
+		Text_CorpseRefund->SetText(FText::GetEmpty());
+		Text_CorpseRefund->SetVisibility(ESlateVisibility::Collapsed);
 	}
 	if (Text_Payout)
 	{
@@ -60,6 +82,28 @@ void UDigetherRunResultWidget::SetResult(const FDigetherRunResult& Result)
 	{
 		Text_FinalBalance->SetText(FText::Format(LOCTEXT("FinalBalance", "최종 잔고  {0}"), FText::AsNumber(Result.FinalBalanceCredits)));
 	}
+}
+
+FText UDigetherRunResultWidget::MakeDeathLossText(const FDigetherRunResult& Result)
+{
+	if (Result.Outcome == EDigetherRunReturnOutcome::Returned)
+	{
+		return FText::Format(LOCTEXT("DeathLossNone", "사망 손실  {0}"), FText::AsNumber(0));
+	}
+	const FText Recovery = Result.bCorpseRecovered
+		? LOCTEXT("CorpseRecovered", "시체 회수") : LOCTEXT("CorpseNotRecovered", "시체 미회수");
+	return FText::Format(LOCTEXT("DeathLoss", "사망 손실  -{0} ({1}, {2}%)"),
+		FText::AsNumber(Result.DeathLossCredits), Recovery, FText::AsNumber(Result.DeathLossPercent));
+}
+
+FText UDigetherRunResultWidget::JoinPlayerNames(const TArray<FString>& Names)
+{
+	if (Names.IsEmpty())
+	{
+		return LOCTEXT("NoPlayers", "없음");
+	}
+	// 플레이어 표시 이름은 번역 대상이 아닌 고유 문자열
+	return FText::FromString(FString::Join(Names, TEXT(", ")));
 }
 
 void UDigetherRunResultWidget::FocusCloseButton()

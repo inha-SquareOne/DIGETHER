@@ -23,7 +23,7 @@ namespace
 		Tuning.DepositIntervalSeconds = 0.2f;
 		Tuning.EmergencyWeightLimitKg = 4.f;
 		Tuning.DeathLossPercent = 80;
-		Tuning.CorpseRefundPercent = 30;
+		Tuning.RecoveredDeathLossPercent = 30;
 		return Tuning;
 	}
 
@@ -78,7 +78,7 @@ bool FDigetherFrameworkInvalidTuningTest::RunTest(const FString& Parameters)
 	UDigetherTuningProfile* InvalidProfile = NewObject<UDigetherTuningProfile>();
 	InvalidProfile->Values = MakeFrameworkTuningFixture();
 	InvalidProfile->Values.RunSeconds = -1.f;
-	InvalidProfile->Values.CorpseRefundPercent = 101;
+	InvalidProfile->Values.RecoveredDeathLossPercent = 101;
 	FDigetherRunTuning Snapshot = MakeFrameworkTuningFixture();
 	Snapshot.ProfileVersion = 29;
 	Snapshot.SourceProfile = FPrimaryAssetId(UDigetherTuningProfile::PrimaryAssetType, TEXT("ExistingFrameworkProfile"));
@@ -87,7 +87,7 @@ bool FDigetherFrameworkInvalidTuningTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("범위를 벗어난 프로필 거절"),
 		ADigetherGameplayGameMode::TryMakeRunSnapshot(InvalidProfile, Snapshot, Problems));
 	TestTrue(TEXT("음수 시간의 거절 이유 제공"), HasFrameworkTuningProblem(Problems, TEXT("RunSeconds")));
-	TestTrue(TEXT("100% 초과 복구율의 거절 이유 제공"), HasFrameworkTuningProblem(Problems, TEXT("CorpseRefundPercent")));
+	TestTrue(TEXT("100% 초과 회수 손실률의 거절 이유 제공"), HasFrameworkTuningProblem(Problems, TEXT("RecoveredDeathLossPercent")));
 	TestTrue(TEXT("필드 검증 실패 시 기존 스냅샷과 출처 보존"),
 		AreFrameworkTuningSnapshotsEqual(Snapshot, PreviousSnapshot));
 	return true;

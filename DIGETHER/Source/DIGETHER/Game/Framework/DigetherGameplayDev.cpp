@@ -503,7 +503,7 @@ bool ADigetherGameplayGameMode::DevKillPlayer(ADigetherGameplayPlayerState* Play
 		CycleSpectateTarget(Controller, true);
 	}
 	LogRunStep(TEXT("DevPlayerKilled"));
-	OutMessage = FString::Printf(TEXT("플레이어 %d 사망(관전 전환). 사망 손실·드롭·시체는 재현되지 않습니다."), Player->GetPlayerId());
+	OutMessage = FString::Printf(TEXT("플레이어 %d 사망(관전 전환). 사망 손실은 탐사 종료 정산에서 적용, 드롭·시체는 재현되지 않습니다."), Player->GetPlayerId());
 	return true;
 }
 

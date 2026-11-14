@@ -4,8 +4,8 @@
 
 namespace DigetherFrameworkDefaults
 {
-	// 임시값: 기획 미정(시작 지급액), 2026-11-04
-	inline constexpr int32 StartingBalanceCredits = 0;
+	// 새 진행 첫 참가 때 한 번 주는 시작 자금(런 플로우 v1.1.0 3.1·10.1절, 경제 구조 문서 잠정값), 2026-11-14 사용자 채택
+	inline constexpr int32 StartingBalanceCredits = 20;
 
 	// 임시값: 기획 미정(납부 요청 종류별 최소 간격), 2026-11-04
 	inline constexpr double DepositRequestIntervalSeconds = 0.2;

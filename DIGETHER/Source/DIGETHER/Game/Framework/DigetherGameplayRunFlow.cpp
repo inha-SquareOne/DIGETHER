@@ -1239,6 +1239,9 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 		}
 		FDigetherFrameworkPlayerSnapshot Snapshot;
 		Snapshot.PlayerKey = Player->GetGameplayPlayerKey();
+		Snapshot.DisplayName = Player->GetPlayerName();
+		// 시체 회수 미구현, 모든 탐사 사망은 미회수 비율(D25 개정)
+		Snapshot.bCorpseRecovered = false;
 		Snapshot.Life = Player->GetLifeComponent()->CaptureState();
 		Snapshot.Wallet = Player->GetWalletComponent()->CaptureState();
 		FDigetherRunPlayerInput PlayerInput;
@@ -1267,9 +1270,11 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 		Snapshots.Add(Snapshot);
 	}
 	FDigetherFrameworkReturnPlan Plan;
+	// 일반 화물 회수 정산 미연결(임시 0원), 연결 시 엘리베이터 도착 화물의 유효 일반 회수 총액 전달
+	constexpr int32 UnconnectedGeneralCargoCredits = 0;
 	const FDigetherQuotaState PreviousQuota = State->GetQuotaComponent()->CaptureState().Quota;
 	if (!DigetherFrameworkRules::TryPlanReturn(Input, Snapshots, PreviousQuota,
-		RunTuning, DeparturePlayerCount, Plan))
+		RunTuning, DeparturePlayerCount, UnconnectedGeneralCargoCredits, Plan))
 	{
 		UE_LOG(LogDigetherFramework, Error, TEXT("Run return candidate rejected before commit."));
 		return;
@@ -1406,7 +1411,7 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 		// 기획 S33 220행 ④: 5일차 실패 귀환도 같은 검은 개인 정산 화면 경유
 		// 게임 오버 단계가 정산 화면 시간 뒤 실패 사건으로 넘어가며 결과 닫음(ClearRunResult), 크레딧 진행은 미차단
 		const FDigetherRunResult Result = DigetherFrameworkRules::MakeRunResult(
-			CurrentRunId, PreviousQuota.Day, Plan.Players[Index]);
+			CurrentRunId, PreviousQuota.Day, Plan, Index);
 		const bool bPublished = Player->PublishRunResult(Result);
 		ensureMsgf(bPublished, TEXT("Committed run result could not be published."));
 	}
@@ -1426,7 +1431,7 @@ void ADigetherGameplayGameMode::FinishRunAndReturn(const EDigetherRunTermination
 			HandleStartingNewPlayer(Controller);
 		}
 	}
-	// 기획 S30 ①·④: 일차 변경·정산·복구금·지급 완료 기록·부활·거점 귀환 판정·귀환 합류 반영 뒤 한 번 저장
+	// 기획 S30 ①·④: 일차 변경·정산(사망 손실 포함)·지급 완료 기록·부활·거점 귀환 판정·귀환 합류 반영 뒤 한 번 저장
 	// 실패 시 알림·자동 재시도, 다음 출발은 미차단
 	// 기획 S33 220행 ⑦: 5일차 실패 귀환은 이 저장에 게임 오버 확정·결과 기록 포함(슬롯 초기화는 크레딧 뒤)
 	if (Plan.bGameOver)

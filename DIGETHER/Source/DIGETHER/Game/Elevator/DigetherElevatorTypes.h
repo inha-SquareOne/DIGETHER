@@ -79,15 +79,20 @@ enum class EDigetherElevatorLeverPlacement : uint8
 	Outside
 };
 
-// 거점 출발 레버를 당기는 동안의 경고 연출 종류, 연출(조명·소리·문구 대상)은 BP 결정
+// 거점 출발 경고 연출 종류, 연출(조명·소리·문구 표시 위치)은 BP 결정
+// 문구는 UDigetherElevatorLeverComponent::GetDepartureWarningText·GetDepartureLobbyWarningText(런 플로우 v1.1.0 5.2)
+// 저장·BP 호환: 값 순서 변경 금지, 새 값은 뒤에만 추가
 UENUM(BlueprintType)
 enum class EDigetherDepartureWarningKind : uint8
 {
 	None,
-	// 1~3일차: 주황색 형광등·비프음, 팀원에게 '승강기가 곧 출발합니다'
+	// 1~3일차 레버 조작 중: 주황색 형광등·비프음·게이지·문 움직임으로만 전달, 안내 문구 없음
 	Standard,
-	// 할당량 미달 4일차(마감일): 빨간 경고등·사이렌, 레버 조작자에게 '현재 할당량 마감일입니다!'
-	Deadline
+	// 할당량 미달 4일차(마감일) 레버 조작 중: 빨간 경고등·사이렌, 조작자·로비 전원 문구
+	Deadline,
+	// 4일차 미달 마감 확정(게이지 완료) 뒤 문 닫힘·출발 완료까지, 공통 로딩 실패 뒤 마감 기록 유지 시에도 같음
+	// 레버 상태에는 나오지 않고 DigetherFrameworkRules::ResolveDepartureWarning이 런 공개 상태로 판정
+	DeadlineConfirmed
 };
 
 UENUM(BlueprintType)

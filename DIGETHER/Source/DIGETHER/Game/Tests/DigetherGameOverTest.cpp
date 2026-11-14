@@ -33,7 +33,7 @@ namespace
 		Snapshot.RunTuning.DepositIntervalSeconds = 0.5f;
 		Snapshot.RunTuning.EmergencyWeightLimitKg = 3.f;
 		Snapshot.RunTuning.DeathLossPercent = 100;
-		Snapshot.RunTuning.CorpseRefundPercent = 50;
+		Snapshot.RunTuning.RecoveredDeathLossPercent = 50;
 		FDigetherSavePlayerRecord Host;
 		Host.AuthenticatedPlayerKey = Snapshot.HostAuthenticatedPlayerKey;
 		Host.GameplayPlayerId = FGuid(3, 3, 3, 3);
@@ -283,19 +283,22 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherGameOverResultStatsTest,
 bool FDigetherGameOverResultStatsTest::RunTest(const FString& Parameters)
 {
 	// T29·S33 247행: A 일반 600 + 히든 100, B 일반 300 + 히든 50 → 전체 1,050, 획득 A 700·B 350, 히든 A 100·B 50
-	// A가 구매 300 뒤 사망(차감 400), 시체 회수 복구 200이면 사망 손실 200
+	// 런 플로우 v1.1.0 9.4·10.4: A가 구매 300 뒤 사망·시체 유효 회수면 잔고 400의 50% = 200 차감(복구금 없음)
+	// 통계 사망 손실은 실제 차감액 200, 이전 시험의 '차감 400 - 복구 200' 산식을 실제 차감 산식으로 변경
 	FDigetherWalletState A = FDigetherEconomyRules::ApplyRunSettlement(FDigetherWalletState(), MakePayout(600, 100)).State;
 	FDigetherWalletState B = FDigetherEconomyRules::ApplyRunSettlement(FDigetherWalletState(), MakePayout(300, 50)).State;
 	TestEqual(TEXT("A 누적 획득"), A.LifetimeEarnedCredits, 700);
 	A.BalanceCredits -= 300;
-	A = FDigetherEconomyRules::ApplyDeathLoss(A, 100).State;
-	TestEqual(TEXT("A 사망 차감 400"), A.TotalDeathLossCredits, 400);
-	FDigetherPlayerSettlement Refund;
-	Refund.CorpseRefundCredits = FDigetherEconomyRules::CalculateCorpseRefund(A.LastPreDeathBalanceCredits, 50);
-	A = FDigetherEconomyRules::ApplyRunSettlement(A, Refund).State;
-	TestEqual(TEXT("복구금은 잔고로"), A.BalanceCredits, 200);
-	TestEqual(TEXT("복구금은 획득에 넣지 않음"), A.LifetimeEarnedCredits, 700);
-	TestEqual(TEXT("복구금은 따로 누적"), A.LifetimeCorpseRefundCredits, 200);
+	FDigetherRunTuning LossTuning;
+	LossTuning.DeathLossPercent = 100;
+	LossTuning.RecoveredDeathLossPercent = 50;
+	A = FDigetherEconomyRules::ApplyDeathLoss(A, FDigetherEconomyRules::GetExplorationDeathLossPercent(LossTuning, true)).State;
+	TestEqual(TEXT("A 회수 시체 사망 차감 200"), A.TotalDeathLossCredits, 200);
+	const FDigetherPlayerSettlement DeadSettlement;
+	A = FDigetherEconomyRules::ApplyRunSettlement(A, DeadSettlement).State;
+	TestEqual(TEXT("손실 뒤 잔고 200"), A.BalanceCredits, 200);
+	TestEqual(TEXT("사망 정산은 획득 불변"), A.LifetimeEarnedCredits, 700);
+	TestEqual(TEXT("복구 누적 없음"), A.LifetimeCorpseRefundCredits, 0);
 
 	TArray<FDigetherGameResultInput> Inputs;
 	FDigetherGameResultInput& InputB = Inputs.AddDefaulted_GetRef();
@@ -330,23 +333,26 @@ bool FDigetherGameOverResultStatsTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("결과 값 형태 유효"), DigetherGameOverRules::IsValidGameResult(Result, DigetherSaveTuning::MaxPlayerRecords));
 
-	// 복구 신호 재전송: 같은 탐사 복구 정산은 한 번만(AlreadySettled), 손실 200·복구 200 유지
+	// 정산 재전송: 같은 탐사 정산은 한 번만(AlreadySettled), 실제 차감 손실 200 유지
 	FDigetherSaveSnapshot Snapshot = MakeGameOverSaveFixture();
 	Snapshot.Players[0].Wallet = A;
-	Snapshot.Players[0].Wallet.LifetimeCorpseRefundCredits = 0;
-	Snapshot.Players[0].Wallet.BalanceCredits = 0;
 	FDigetherSaveSnapshot Settled;
-	const TArray<FDigetherPlayerSettlement> RefundOnly = { Refund, FDigetherPlayerSettlement() };
-	if (TestTrue(TEXT("복구 정산 한 번"), DigetherSaveRules::TryApplySettlement(Snapshot, Snapshot.RunId, RefundOnly, Settled)
+	const TArray<FDigetherPlayerSettlement> DeadOnly = { DeadSettlement, FDigetherPlayerSettlement() };
+	if (TestTrue(TEXT("사망자 정산 한 번"), DigetherSaveRules::TryApplySettlement(Snapshot, Snapshot.RunId, DeadOnly, Settled)
 		== EDigetherSaveResult::Success))
 	{
 		FDigetherSaveSnapshot Twice = Settled;
-		TestTrue(TEXT("같은 복구 신호 재전송 거절"), DigetherSaveRules::TryApplySettlement(Settled, Settled.RunId, RefundOnly, Twice)
+		TestTrue(TEXT("같은 정산 재전송 거절"), DigetherSaveRules::TryApplySettlement(Settled, Settled.RunId, DeadOnly, Twice)
 			== EDigetherSaveResult::AlreadySettled);
-		TestEqual(TEXT("재전송 뒤 복구 누적 200 유지"), Twice.Players[0].Wallet.LifetimeCorpseRefundCredits, 200);
-		TestEqual(TEXT("재전송 뒤 사망 손실 순액 200 유지"),
+		TestEqual(TEXT("재전송 뒤 잔고 200 유지"), Twice.Players[0].Wallet.BalanceCredits, 200);
+		TestEqual(TEXT("재전송 뒤 사망 손실 200 유지"),
 			DigetherGameOverRules::CalculateNetDeathLoss(Twice.Players[0].Wallet), 200);
 	}
+	// 구 저장(복구금 시절, 차감 400·복구 200)도 통계는 실제로 빠진 200
+	FDigetherWalletState LegacyWallet;
+	LegacyWallet.TotalDeathLossCredits = 400;
+	LegacyWallet.LifetimeCorpseRefundCredits = 200;
+	TestEqual(TEXT("구 저장 사망 손실 순액 200"), DigetherGameOverRules::CalculateNetDeathLoss(LegacyWallet), 200);
 
 	// 이전 게임 결과 보관: 같은 결과는 한 번, 상한 초과 시 오래된 것부터 삭제
 	TArray<FDigetherGameResult> Archive;

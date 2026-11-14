@@ -154,7 +154,7 @@ namespace
 		Snapshot.RunTuning.DepositIntervalSeconds = .5f;
 		Snapshot.RunTuning.EmergencyWeightLimitKg = 3.f;
 		Snapshot.RunTuning.DeathLossPercent = 50;
-		Snapshot.RunTuning.CorpseRefundPercent = 50;
+		Snapshot.RunTuning.RecoveredDeathLossPercent = 50;
 		Snapshot.Quota.Quota = FDigetherEconomyRules::MakeInitialQuotaState(Snapshot.RunTuning);
 		Snapshot.Quota.Quota.DepositedCredits = 17;
 		FDigetherSavePlayerRecord Record;

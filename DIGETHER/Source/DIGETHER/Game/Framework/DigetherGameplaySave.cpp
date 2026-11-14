@@ -828,32 +828,35 @@ bool ADigetherGameplayGameMode::StartNewGame(ADigetherGameplayPlayerController* 
 		NotifySaveResult(Requester, false, NSLOCTEXT("DigetherSave", "NewGameFailed", "새 게임 저장에 실패했습니다."));
 		return false;
 	}
-	const EDigetherSaveResult WriteResult = Save->Write(Initial, true);
-	if (WriteResult != EDigetherSaveResult::Success)
+	// 미래 버전 저장은 새 게임 쓰기도 거절되므로 진행을 바꾸기 전에 확인해 현재 장부·슬롯 모두 보존
+	FDigetherSaveSnapshot Existing;
+	if (Save->Read(Existing) == EDigetherSaveResult::UnsupportedVersion)
 	{
-		NotifySaveResult(Requester, false, WriteResult == EDigetherSaveResult::UnsupportedVersion
-			? NSLOCTEXT("DigetherSave", "NewGameFutureVersionRejected", "미래 버전 저장이 있어 새 게임을 거절했습니다. 기존 저장은 보존됩니다.")
-			: NSLOCTEXT("DigetherSave", "NewGameFailed", "새 게임 저장에 실패했습니다."));
+		NotifySaveResult(Requester, false, NSLOCTEXT("DigetherSave", "NewGameFutureVersionRejected",
+			"미래 버전 저장이 있어 새 게임을 거절했습니다. 기존 저장은 보존됩니다."));
 		return false;
 	}
-	ClearPendingAutosave();
-	ExplicitNewGamePendingGameId.Invalidate();
-	// 슬롯에 새 게임을 저장했다. 같은 방에서 게임 맵을 다시 열어도 다시 초기화하지 않고 이 슬롯을 이어 간다.
-	Save->CompleteNewGameRequest();
-	const bool bSucceeded = RestoreProgress(Initial);
-	bHasSaveStartupAttempted = true;
-	if (bSucceeded)
+	if (!RestoreProgress(Initial))
 	{
-		for (ADigetherGameplayPlayerState* Player : Players)
+		NotifySaveResult(Requester, false, NSLOCTEXT("DigetherSave", "NewGameFailed", "새 게임 저장에 실패했습니다."));
+		return false;
+	}
+	bHasSaveStartupAttempted = true;
+	// 이전 진행의 재시도 건은 쓰지 않음, 첫 쓰기 성공 전까지 이 게임 ID 저장은 명시 새 게임으로 씀
+	ClearPendingAutosave();
+	ExplicitNewGamePendingGameId = Initial.GameId;
+	for (ADigetherGameplayPlayerState* Player : Players)
+	{
+		if (APlayerController* Controller = Cast<APlayerController>(Player->GetOwner()))
 		{
-			if (APlayerController* Controller = Cast<APlayerController>(Player->GetOwner()))
-			{
-				HandleStartingNewPlayer(Controller);
-			}
+			HandleStartingNewPlayer(Controller);
 		}
 	}
-	NotifySaveResult(Requester, bSucceeded, NSLOCTEXT("DigetherSave", "NewGame", "새 게임을 초기화했습니다."));
-	return bSucceeded;
+	NotifySaveResult(Requester, true, NSLOCTEXT("DigetherSave", "NewGame", "새 게임을 초기화했습니다."));
+	// 런 플로우 v1.1.0 12.2: 새 게임 생성 직후 자동 저장(초기 상태·지급 내역), 게임 오버 뒤 슬롯 초기화와 같은 경로
+	// 실패 시 기존 유효 저장 보존·알림·자동 재시도, 이어하기 전환(CompleteNewGameRequest)은 쓰기 성공 때만(WriteSnapshot)
+	RequestAutosaveSnapshot(Initial, TEXT("NewGameCreated"));
+	return true;
 }
 
 bool ADigetherGameplayGameMode::RecoverFromCommonLoadingFailure()

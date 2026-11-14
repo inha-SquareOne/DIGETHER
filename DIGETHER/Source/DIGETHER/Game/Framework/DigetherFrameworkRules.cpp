@@ -97,19 +97,41 @@ bool DigetherFrameworkRules::IsNewJoinLocked(const FDigetherRunPublicState& Run,
 }
 
 FDigetherRunResult DigetherFrameworkRules::MakeRunResult(const FGuid RunId, const int32 CompletedDay,
-	const FDigetherFrameworkPlayerReturn& Returned)
+	const FDigetherFrameworkReturnPlan& Plan, const int32 PlayerIndex)
 {
 	FDigetherRunResult Result;
+	if (!Plan.Players.IsValidIndex(PlayerIndex))
+	{
+		return Result;
+	}
+	const FDigetherFrameworkPlayerReturn& Returned = Plan.Players[PlayerIndex];
 	Result.RunId = RunId;
 	Result.CompletedDay = CompletedDay;
 	Result.Outcome = Returned.ReturnOutcome;
+	Result.FarmingCredits = Plan.GeneralCargoCredits;
+	Result.ExcludedCredits = Plan.ExcludedGeneralCredits;
+	Result.DeadPlayerNames = Plan.DeadPlayerNames;
+	Result.MissingPlayerNames = Plan.MissingPlayerNames;
+	Result.PreviousBalanceCredits = Returned.PreviousBalanceCredits;
 	Result.GeneralCredits = Returned.Settlement.GeneralCredits;
 	Result.HiddenCredits = Returned.Settlement.HiddenCredits;
 	Result.DeathLossCredits = Returned.DeathLossCredits;
-	Result.CorpseRefundCredits = Returned.Settlement.CorpseRefundCredits;
+	Result.DeathLossPercent = Returned.DeathLossPercent;
+	Result.bCorpseRecovered = Returned.bCorpseRecovered;
 	Result.PayoutCredits = Returned.Settlement.PayoutCredits;
 	Result.FinalBalanceCredits = Returned.SettledWallet.BalanceCredits;
 	return Result;
+}
+
+EDigetherDepartureWarningKind DigetherFrameworkRules::ResolveDepartureWarning(
+	const EDigetherDepartureWarningKind LeverWarning, const FDigetherRunPublicState& Run)
+{
+	// 마감 기록(bPaymentDeadline)은 4일차 게이지 완료 때 남고 탐사 출발(InProgress)·귀환 정리에서 종료
+	if (Run.bPaymentDeadline && !Run.bGameOver && Run.Phase != EDigetherRunPhase::InProgress)
+	{
+		return EDigetherDepartureWarningKind::DeadlineConfirmed;
+	}
+	return LeverWarning;
 }
 
 bool DigetherFrameworkRules::TryPlanChainSummon(const FVector& BoxExtent, const double SpacingCm,
@@ -180,12 +202,13 @@ bool DigetherFrameworkRules::TryPlanChainSummon(const FVector& BoxExtent, const 
 
 bool DigetherFrameworkRules::TryPlanReturn(const FDigetherRunTerminationInput& Input,
 	const TArray<FDigetherFrameworkPlayerSnapshot>& Players, const FDigetherQuotaState& Quota,
-	const FDigetherRunTuning& Tuning, const int32 DepartureCount, FDigetherFrameworkReturnPlan& OutPlan)
+	const FDigetherRunTuning& Tuning, const int32 DepartureCount, const int32 GeneralCargoCredits,
+	FDigetherFrameworkReturnPlan& OutPlan)
 {
 	FDigetherFrameworkReturnPlan Plan;
 	Plan.Termination = FDigetherRunRules::CalculateTermination(Input);
 	if (Plan.Termination.Result != EDigetherRunResult::Success || Players.Num() != Input.Players.Num()
-		|| DepartureCount <= 0 || Players.Num() > DepartureCount)
+		|| DepartureCount <= 0 || Players.Num() > DepartureCount || GeneralCargoCredits < 0)
 	{
 		return false;
 	}
@@ -203,18 +226,16 @@ bool DigetherFrameworkRules::TryPlanReturn(const FDigetherRunTerminationInput& I
 		FDigetherFrameworkPlayerReturn Returned;
 		Returned.LifeAtEnd = Player.Life;
 		Returned.WalletAtEnd = Player.Wallet;
+		Returned.PreviousBalanceCredits = Player.Wallet.BalanceCredits;
 		const FDigetherRunPlayerOutcome& Outcome = Plan.Termination.Players[Index];
 		if (Outcome.Outcome == EDigetherRunPlayerOutcome::MissingDeath)
 		{
 			const FDigetherLifeUpdateResult Death = FDigetherLifeRules::ApplyDeath(Player.Life, Outcome.DeathCause);
-			const FDigetherWalletUpdateResult Loss = FDigetherEconomyRules::ApplyDeathLoss(Player.Wallet,
-				Tuning.DeathLossPercent);
-			if (Death.Result != EDigetherLifeResult::Success || Loss.Result != EDigetherEconomyResult::Success)
+			if (Death.Result != EDigetherLifeResult::Success)
 			{
 				return false;
 			}
 			Returned.LifeAtEnd = Death.State;
-			Returned.WalletAtEnd = Loss.State;
 		}
 		else if (Player.Life.PublicState.Life == EDigetherLifeState::Active)
 		{
@@ -227,27 +248,47 @@ bool DigetherFrameworkRules::TryPlanReturn(const FDigetherRunTerminationInput& I
 		}
 		FDigetherPlayerSettlementInput Settlement;
 		Settlement.bDied = Returned.LifeAtEnd.PublicState.Life == EDigetherLifeState::Dead;
+		if (Player.bCorpseRecovered && !Settlement.bDied)
+		{
+			return false;
+		}
 		if (Settlement.bDied)
 		{
 			Returned.ReturnOutcome = Outcome.Outcome == EDigetherRunPlayerOutcome::MissingDeath
 				? EDigetherRunReturnOutcome::Missing : EDigetherRunReturnOutcome::Died;
-			// 누적 손실은 int32에서 포화될 수 있다. 이번 런의 사망 전 잔고로 같은 손실 규칙을 계산한다.
-			Returned.DeathLossCredits = FDigetherEconomyRules::CalculateDeathLoss(
-				Returned.WalletAtEnd.LastPreDeathBalanceCredits, Tuning.DeathLossPercent).LossCredits;
+			// D25 개정(런 플로우 v1.1.0 9.4): 탐사 중 사망·잔류 사망 모두 여기서 한 번만 차감
+			// 비율은 시체 유효 회수 여부로 확정, 전멸이어도 회수 시체는 회수 비율, 시체 없음은 미회수 비율
+			Returned.bCorpseRecovered = Player.bCorpseRecovered;
+			Returned.DeathLossPercent = FDigetherEconomyRules::GetExplorationDeathLossPercent(Tuning,
+				Player.bCorpseRecovered);
+			const FDigetherWalletUpdateResult Loss = FDigetherEconomyRules::ApplyDeathLoss(Player.Wallet,
+				Returned.DeathLossPercent);
+			if (Loss.Result != EDigetherEconomyResult::Success)
+			{
+				return false;
+			}
+			Returned.WalletAtEnd = Loss.State;
+			// 누적 손실은 int32에서 포화될 수 있어 이번 차감액은 잔고 차이로 기록
+			Returned.DeathLossCredits = Player.Wallet.BalanceCredits - Loss.State.BalanceCredits;
+			TArray<FString>& Names = Returned.ReturnOutcome == EDigetherRunReturnOutcome::Missing
+				? Plan.MissingPlayerNames : Plan.DeadPlayerNames;
+			Names.Add(Player.DisplayName);
 		}
 		Settlement.bSurvived = !Settlement.bDied;
-		Settlement.PreDeathBalanceCredits = Returned.WalletAtEnd.LastPreDeathBalanceCredits;
+		Settlement.bCorpseRecovered = Player.bCorpseRecovered;
 		SettlementInputs.Add(Settlement);
 		Plan.Players.Add(Returned);
 	}
-	// 화물·히든·시체 회수는 아직 없으므로 0원. 분모는 출발 당시 인원으로 고정한다.
+	// 분모는 출발 당시 인원으로 고정, 화물 회수 연결 전에는 호출자가 0원 전달
 	const FDigetherRunSettlementResult Settlement = FDigetherEconomyRules::CalculateRunSettlement(
-		0, DepartureCount, SettlementInputs, Tuning.CorpseRefundPercent);
+		GeneralCargoCredits, DepartureCount, SettlementInputs);
 	const FDigetherDayAdvanceResult Day = FDigetherEconomyRules::AdvanceDay(Quota);
 	if (Settlement.Result != EDigetherEconomyResult::Success || Day.Result != EDigetherEconomyResult::Success)
 	{
 		return false;
 	}
+	Plan.GeneralCargoCredits = GeneralCargoCredits;
+	Plan.ExcludedGeneralCredits = Settlement.LostGeneralCredits;
 	const FDigetherRunQuotaResult Evaluated = FDigetherRunRules::EvaluateQuota(Day.State);
 	if (Evaluated.Result != EDigetherRunResult::Success)
 	{

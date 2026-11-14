@@ -52,7 +52,8 @@ namespace DigetherGameOverRules
 	DIGETHER_API bool TrySetFastForward(const FDigetherCreditPlayback& Current, bool bFastForward, double NowSeconds,
 		const FDigetherGameOverTuning& Tuning, FDigetherCreditPlayback& OutPlayback);
 
-	// 사망 손실 순액 = 사망으로 빠진 금액 합 - 시체 회수 복구액 합(D25 확정 산식), 복구가 손실보다 크면 0
+	// 결과 통계 사망 손실 = 실제 차감액(런 플로우 v1.1.0 10.4), 새 규칙은 TotalDeathLossCredits 그대로
+	// 복구금 폐지 전 구 저장은 복구 전 차감액이라 구 복구 누적(LifetimeCorpseRefundCredits)을 빼서 순액 유지, 음수면 0
 	DIGETHER_API int32 CalculateNetDeathLoss(const FDigetherWalletState& Wallet);
 	// 플레이어별 금액·전체 획득 계산 후 참가 순서로 정렬(0은 알 수 없음, 뒤에 입력 순서대로)
 	// ID 없음·플레이어 0명·음수 일차/기간 수면 false, OutResult 보존

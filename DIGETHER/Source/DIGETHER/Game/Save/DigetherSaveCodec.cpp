@@ -1,5 +1,5 @@
-// v3 진행 스키마의 wire 바이트 변환(SerializeSlot·DeserializeSlot), 쓰기 v5(진행 확장 v2),
-// 읽기 v3·v4·v5(진행 확장 v1·v2)
+// v3 진행 스키마의 wire 바이트 변환(SerializeSlot·DeserializeSlot), 쓰기 v6(진행 확장 v2),
+// 읽기 v3·v4·v5·v6(진행 확장 v1·v2), v5 이하 런 튜닝은 회수 손실률로 이관
 #include "Game/Save/DigetherSaveRules.h"
 
 #include "Game/Hub/DigetherHubRules.h"
@@ -15,7 +15,7 @@ namespace
 	// v1: Hub 진행, v2: v1 뒤에 바닥 금화 목록(진행, 기준점이 있으면 기준점 순), v1을 읽으면 금화는 빈 목록
 	constexpr int32 HubExtensionVersion = 2;
 	constexpr int32 FloorCoinExtensionVersion = 2;
-	// wire v5에서 Hub 확장 뒤에 붙는 블록, v1: 저장 시각, 진행(·기준점) 전체 일차
+	// wire v5부터 Hub 확장 뒤에 붙는 블록, v1: 저장 시각, 진행(·기준점) 전체 일차
 	// v2: v1 뒤에 진행(·기준점)마다 결과 통계(플레이어 누적 획득·복구·표시 이름·참가 순서)와 게임 결과 기록
 	constexpr uint32 ProgressExtensionMagic = 0x31475250; // PRG1
 	constexpr int32 ProgressExtensionVersion = 2;
@@ -152,10 +152,20 @@ namespace
 		{
 			Tuning.SourceProfile = FPrimaryAssetId(SourceProfile);
 		}
+		// 마지막 칸: wire v6부터 회수 손실률, v5 이하는 시체 복구율(읽은 뒤 MigrateLegacyTuning이 이관)
 		Archive << Tuning.ProfileVersion << Tuning.InitialQuotaCredits << Tuning.RunSeconds
 			<< Tuning.InteractionDistanceCm << Tuning.ElevatorCapacityKg << Tuning.ElevatorTripLimit
 			<< Tuning.AscentPenaltySeconds << Tuning.ElevatorTravelSeconds << Tuning.DepositIntervalSeconds
-			<< Tuning.EmergencyWeightLimitKg << Tuning.DeathLossPercent << Tuning.CorpseRefundPercent;
+			<< Tuning.EmergencyWeightLimitKg << Tuning.DeathLossPercent << Tuning.RecoveredDeathLossPercent;
+	}
+
+	// wire v5 이하 튜닝 마지막 칸을 복구율로 재해석해 순 손실률로 이관, Game 코드는 복구율 미사용이라 0으로 비움
+	void MigrateLegacyTuning(FDigetherRunTuning& Tuning)
+	{
+		Tuning.CorpseRefundPercent = Tuning.RecoveredDeathLossPercent;
+		Tuning.RecoveredDeathLossPercent = INDEX_NONE;
+		Tuning.MigrateLegacyCorpseRefund();
+		Tuning.CorpseRefundPercent = 0;
 	}
 
 	void SerializeSnapshot(FArchive& Archive, FDigetherSaveSnapshot& Snapshot)
@@ -322,7 +332,7 @@ namespace
 		const int32 MinimumProgressBytes = static_cast<int32>(sizeof(uint8) + 4 * sizeof(int32)
 			+ (Version >= FloorCoinExtensionVersion ? sizeof(int32) : 0));
 		const int32 MinimumPayloadSize = MinimumProgressBytes * (Slot.bHasDepartureCheckpoint ? 2 : 1);
-		// wire v5는 이 블록 뒤에 진행 확장이 이어져 남은 길이 이하만 확인, 블록 뒤 끝 검사는 호출자 담당
+		// wire v5부터는 이 블록 뒤에 진행 확장이 이어져 남은 길이 이하만 확인, 블록 뒤 끝 검사는 호출자 담당
 		if (Reader.IsError() || PayloadSize < MinimumPayloadSize || PayloadSize > DigetherSaveTuning::MaxSaveBytes
 			|| PayloadSize > Reader.TotalSize() - Reader.Tell())
 		{
@@ -407,7 +417,7 @@ namespace
 		}
 	}
 
-	// wire v5에서 Hub 확장 뒤에 붙는 블록, v3 기본 본문 고정 배치를 유지하려고 새 값은 여기에 추가
+	// wire v5부터 Hub 확장 뒤에 붙는 블록, v3 기본 본문 고정 배치를 유지하려고 새 값은 여기에 추가
 	void WriteProgressExtension(FMemoryWriter& Writer, FDigetherSaveSlotData& Slot)
 	{
 		TArray<uint8> Payload;
@@ -551,7 +561,7 @@ EDigetherSaveResult DigetherSaveRules::DeserializeSlot(const TArray<uint8>& Byte
 		return EDigetherSaveResult::CorruptData;
 	}
 	if (Version != DigetherSaveWire::LegacyVersion && Version != DigetherSaveWire::HubVersion
-		&& Version != DigetherSaveWire::DayVersion)
+		&& Version != DigetherSaveWire::DayVersion && Version != DigetherSaveWire::RecoveredDeathLossVersion)
 	{
 		return Version > DigetherSaveWire::LatestVersion
 			? EDigetherSaveResult::UnsupportedVersion : EDigetherSaveResult::CorruptData;
@@ -606,9 +616,17 @@ EDigetherSaveResult DigetherSaveRules::DeserializeSlot(const TArray<uint8>& Byte
 			}
 		}
 	}
-	if (Version != DigetherSaveWire::DayVersion)
+	if (Version < DigetherSaveWire::DayVersion)
 	{
 		ApplyLegacyProgressEstimate(Candidate);
+	}
+	if (Version < DigetherSaveWire::RecoveredDeathLossVersion)
+	{
+		MigrateLegacyTuning(Candidate.Progress.RunTuning);
+		if (Candidate.bHasDepartureCheckpoint)
+		{
+			MigrateLegacyTuning(Candidate.DepartureCheckpoint.RunTuning);
+		}
 	}
 	const EDigetherSaveResult Validation = DigetherSaveRulesInternal::ValidateSlot(Candidate);
 	if (Validation != EDigetherSaveResult::Success)

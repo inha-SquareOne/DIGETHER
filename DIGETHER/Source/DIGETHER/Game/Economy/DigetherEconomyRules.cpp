@@ -13,11 +13,12 @@ namespace
 		return static_cast<int32>(FMath::Clamp<int64>(Credits, 0, MAX_int32));
 	}
 
-	int32 CalculatePercent(int32 Credits, int32 Percent)
+	// 사망 손실 전용 올림, 잔고 이하라 int32 범위 유지
+	int32 CalculatePercentRoundedUp(int32 Credits, int32 Percent)
 	{
 		const int64 NonNegativeCredits = FMath::Max(0, Credits);
 		const int32 ClampedPercent = FMath::Clamp(Percent, 0, PercentDenominator);
-		return static_cast<int32>(NonNegativeCredits * ClampedPercent / PercentDenominator);
+		return static_cast<int32>((NonNegativeCredits * ClampedPercent + PercentDenominator - 1) / PercentDenominator);
 	}
 }
 
@@ -176,18 +177,19 @@ FDigetherDeathLossResult FDigetherEconomyRules::CalculateDeathLoss(int32 Balance
 {
 	FDigetherDeathLossResult Result;
 	Result.PreDeathBalanceCredits = FMath::Max(0, BalanceCredits);
-	Result.LossCredits = CalculatePercent(Result.PreDeathBalanceCredits, DeathLossPercent);
+	Result.LossCredits = CalculatePercentRoundedUp(Result.PreDeathBalanceCredits, DeathLossPercent);
 	Result.RemainingBalanceCredits = ClampCredits(static_cast<int64>(Result.PreDeathBalanceCredits) - Result.LossCredits);
 	return Result;
 }
 
-int32 FDigetherEconomyRules::CalculateCorpseRefund(int32 PreDeathBalanceCredits, int32 CorpseRefundPercent)
+int32 FDigetherEconomyRules::GetExplorationDeathLossPercent(const FDigetherRunTuning& Tuning,
+	const bool bCorpseRecovered)
 {
-	return CalculatePercent(PreDeathBalanceCredits, CorpseRefundPercent);
+	return bCorpseRecovered ? Tuning.RecoveredDeathLossPercent : Tuning.DeathLossPercent;
 }
 
 FDigetherRunSettlementResult FDigetherEconomyRules::CalculateRunSettlement(int32 GeneralCargoCredits,
-	int32 DepartureCount, const TArray<FDigetherPlayerSettlementInput>& Players, int32 CorpseRefundPercent)
+	int32 DepartureCount, const TArray<FDigetherPlayerSettlementInput>& Players)
 {
 	FDigetherRunSettlementResult Result;
 	if (DepartureCount < 0 || Players.Num() > DepartureCount)
@@ -227,11 +229,7 @@ FDigetherRunSettlementResult FDigetherEconomyRules::CalculateRunSettlement(int32
 			Payment.HiddenCredits = FMath::Max(0, Player.ReturnedHiddenCredits);
 			Payment.PayoutCredits = AddCredits(Payment.GeneralCredits, Payment.HiddenCredits);
 		}
-		else if (Player.bDied && Player.bCorpseRecovered)
-		{
-			// D25 확정: 전멸(생존 귀환 0명)이어도 유효하게 회수된 시체의 복구금 지급
-			Payment.CorpseRefundCredits = CalculateCorpseRefund(Player.PreDeathBalanceCredits, CorpseRefundPercent);
-		}
+		// 사망자 지급 없음, 시체 회수는 복구금 대신 사망 손실 비율로만 반영(런 플로우 v1.1.0 9.4)
 		Result.Players.Add(Payment);
 	}
 	Result.Result = EDigetherEconomyResult::Success;
@@ -262,21 +260,17 @@ FDigetherWalletUpdateResult FDigetherEconomyRules::ApplyRunSettlement(const FDig
 	FDigetherWalletUpdateResult Result;
 	Result.State = State;
 	if (!IsValidWalletState(State) || Settlement.GeneralCredits < 0 || Settlement.HiddenCredits < 0
-		|| Settlement.PayoutCredits < 0 || Settlement.CorpseRefundCredits < 0
-		|| Settlement.PayoutCredits != AddCredits(Settlement.GeneralCredits, Settlement.HiddenCredits)
-		|| (Settlement.PayoutCredits > 0 && Settlement.CorpseRefundCredits > 0))
+		|| Settlement.PayoutCredits < 0
+		|| Settlement.PayoutCredits != AddCredits(Settlement.GeneralCredits, Settlement.HiddenCredits))
 	{
 		return Result;
 	}
 
-	Result.State.BalanceCredits = AddCredits(AddCredits(State.BalanceCredits, Settlement.PayoutCredits),
-		Settlement.CorpseRefundCredits);
+	Result.State.BalanceCredits = AddCredits(State.BalanceCredits, Settlement.PayoutCredits);
 	Result.State.LastRunPayoutCredits = Settlement.PayoutCredits;
 	Result.State.HiddenLifetimeCredits = AddCredits(State.HiddenLifetimeCredits, Settlement.HiddenCredits);
-	// 기획 S33: 결과 통계는 지급마다 누적, 복구금은 새로 번 돈이 아니므로 획득액과 따로 누적
+	// 기획 S33: 결과 통계는 지급마다 누적, 구 복구금 누적(LifetimeCorpseRefundCredits)은 유지만 함
 	Result.State.LifetimeEarnedCredits = AddCredits(State.LifetimeEarnedCredits, Settlement.PayoutCredits);
-	Result.State.LifetimeCorpseRefundCredits = AddCredits(State.LifetimeCorpseRefundCredits,
-		Settlement.CorpseRefundCredits);
 	Result.Result = EDigetherEconomyResult::Success;
 	return Result;
 }

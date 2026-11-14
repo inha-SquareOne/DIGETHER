@@ -37,11 +37,14 @@ public:
 	static int32 CalculateNextTargetCredits(int32 CurrentTargetCredits, const FDigetherEconomyTuning& Tuning);
 
 	// 비율 인자는 런 시작 때 고정한 FDigetherRunTuning 스냅샷의 해당 필드 값
+	// 손실액은 올림(D25 개정, 런 플로우 v1.1.0 9.4), 납부(D27)·몫 분배의 내림 규칙과 별개
 	static FDigetherDeathLossResult CalculateDeathLoss(int32 BalanceCredits, int32 DeathLossPercent);
-	static int32 CalculateCorpseRefund(int32 PreDeathBalanceCredits, int32 CorpseRefundPercent);
+	// 탐사 사망 손실률: 시체 유효 회수면 RecoveredDeathLossPercent, 미회수·시체 없음(미스터리 박스 포식)이면 DeathLossPercent
+	static int32 GetExplorationDeathLossPercent(const FDigetherRunTuning& Tuning, bool bCorpseRecovered);
 	static FDigetherRunSettlementResult CalculateRunSettlement(int32 GeneralCargoCredits, int32 DepartureCount,
-		const TArray<FDigetherPlayerSettlementInput>& Players, int32 CorpseRefundPercent);
+		const TArray<FDigetherPlayerSettlementInput>& Players);
 
+	// 탐사 종료 정산에서 사망자마다 한 번만 호출(시체 회수 여부로 비율 확정 뒤)
 	// 사망·정산 중복 적용 방지와 플레이어별 결과 대응은 조율자 책임
 	static FDigetherWalletUpdateResult ApplyDeathLoss(const FDigetherWalletState& State, int32 DeathLossPercent);
 	static FDigetherWalletUpdateResult ApplyRunSettlement(const FDigetherWalletState& State,

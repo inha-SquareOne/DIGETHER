@@ -9,11 +9,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherEconomySettlementTest,
 
 bool FDigetherEconomySettlementTest::RunTest(const FString& Parameters)
 {
-	// 기본값 없는 런 스냅샷이라 시험 입력 명시
-	FDigetherRunTuning RunTuning;
-	RunTuning.DeathLossPercent = 100;
-	RunTuning.CorpseRefundPercent = 50;
-	RunTuning.InitialQuotaCredits = 100;
 	// 고정 프로토타입 Q01~Q09 산식 입력, 최종 기획 수치 아님
 	struct FDigetherSettlementCase
 	{
@@ -47,7 +42,7 @@ bool FDigetherEconomySettlementTest::RunTest(const FString& Parameters)
 			Players.Add(Player);
 		}
 		const FDigetherRunSettlementResult Result = FDigetherEconomyRules::CalculateRunSettlement(
-			Case.CargoCredits, Case.Departures, Players, RunTuning.CorpseRefundPercent);
+			Case.CargoCredits, Case.Departures, Players);
 		TestTrue(FString::Printf(TEXT("%s: 정산 성공"), Case.Name), Result.Result == EDigetherEconomyResult::Success);
 		TestEqual(FString::Printf(TEXT("%s: 출발 인원으로 나눈 몫"), Case.Name), Result.GeneralShareCredits, Case.ShareCredits);
 		TestEqual(FString::Printf(TEXT("%s: 소멸 일반 회수액"), Case.Name), Result.LostGeneralCredits, Case.LostCredits);
@@ -63,16 +58,14 @@ bool FDigetherEconomySettlementTest::RunTest(const FString& Parameters)
 	}
 
 	const auto CheckPlayer = [this](const TCHAR* Name, const FDigetherPlayerSettlement& Actual,
-		int32 GeneralCredits, int32 HiddenCredits, int32 PayoutCredits, int32 RefundCredits)
+		int32 GeneralCredits, int32 HiddenCredits, int32 PayoutCredits)
 	{
 		TestEqual(FString::Printf(TEXT("%s: 일반 몫"), Name), Actual.GeneralCredits, GeneralCredits);
 		TestEqual(FString::Printf(TEXT("%s: 개인 히든"), Name), Actual.HiddenCredits, HiddenCredits);
 		TestEqual(FString::Printf(TEXT("%s: 런 지급액"), Name), Actual.PayoutCredits, PayoutCredits);
-		TestEqual(FString::Printf(TEXT("%s: 시체 복구액"), Name), Actual.CorpseRefundCredits, RefundCredits);
 	};
 	FDigetherPlayerSettlementInput Dead;
 	Dead.bDied = true;
-	Dead.PreDeathBalanceCredits = 101;
 	Dead.ReturnedHiddenCredits = 77;
 	Dead.bCorpseRecovered = true;
 	FDigetherPlayerSettlementInput FirstSurvivor;
@@ -81,33 +74,32 @@ bool FDigetherEconomySettlementTest::RunTest(const FString& Parameters)
 	FDigetherPlayerSettlementInput SecondSurvivor = FirstSurvivor;
 	SecondSurvivor.ReturnedHiddenCredits = 7;
 	const FDigetherRunSettlementResult Ordered = FDigetherEconomyRules::CalculateRunSettlement(
-		901, 4, { Dead, FirstSurvivor, SecondSurvivor }, RunTuning.CorpseRefundPercent);
+		901, 4, { Dead, FirstSurvivor, SecondSurvivor });
 	TestTrue(TEXT("누락 참가자가 있어도 출발 인원 기준 정산 성공"), Ordered.Result == EDigetherEconomyResult::Success);
 	TestEqual(TEXT("누락 참가자의 몫도 재분배하지 않음"), Ordered.GeneralShareCredits, 225);
 	TestEqual(TEXT("사망자·누락 참가자 몫과 나머지 소멸"), Ordered.LostGeneralCredits, 451);
 	TestEqual(TEXT("결과 배열은 입력 인원 수 유지"), Ordered.Players.Num(), 3);
 	if (Ordered.Players.Num() == 3)
 	{
-		CheckPlayer(TEXT("첫 입력 사망자"), Ordered.Players[0], 0, 0, 0, RunTuning.CorpseRefundPercent);
-		CheckPlayer(TEXT("둘째 입력 생존자"), Ordered.Players[1], 225, 31, 256, 0);
-		CheckPlayer(TEXT("셋째 입력 생존자"), Ordered.Players[2], 225, 7, 232, 0);
+		CheckPlayer(TEXT("회수 시체가 있어도 사망자 지급 없음"), Ordered.Players[0], 0, 0, 0);
+		CheckPlayer(TEXT("둘째 입력 생존자"), Ordered.Players[1], 225, 31, 256);
+		CheckPlayer(TEXT("셋째 입력 생존자"), Ordered.Players[2], 225, 7, 232);
 	}
 
 	FirstSurvivor.ReturnedHiddenCredits = -20;
-	Dead.PreDeathBalanceCredits = -101;
 	const FDigetherRunSettlementResult NegativeAmounts = FDigetherEconomyRules::CalculateRunSettlement(
-		-10, 2, { FirstSurvivor, Dead }, RunTuning.CorpseRefundPercent);
+		-10, 2, { FirstSurvivor, Dead });
 	TestTrue(TEXT("음수 금액 입력은 0으로 정리"), NegativeAmounts.Result == EDigetherEconomyResult::Success);
 	TestEqual(TEXT("음수 일반 회수액은 몫 0"), NegativeAmounts.GeneralShareCredits, 0);
 	TestEqual(TEXT("음수 일반 회수액은 소멸액 0"), NegativeAmounts.LostGeneralCredits, 0);
 	TestEqual(TEXT("음수 금액 정리 후 인원 수"), NegativeAmounts.Players.Num(), 2);
 	if (NegativeAmounts.Players.Num() == 2)
 	{
-		CheckPlayer(TEXT("음수 히든 정리"), NegativeAmounts.Players[0], 0, 0, 0, 0);
-		CheckPlayer(TEXT("음수 사망 직전 잔고 정리"), NegativeAmounts.Players[1], 0, 0, 0, 0);
+		CheckPlayer(TEXT("음수 히든 정리"), NegativeAmounts.Players[0], 0, 0, 0);
+		CheckPlayer(TEXT("음수 금액 입력의 사망자"), NegativeAmounts.Players[1], 0, 0, 0);
 	}
 
-	const FDigetherRunSettlementResult Empty = FDigetherEconomyRules::CalculateRunSettlement(100, 0, {}, RunTuning.CorpseRefundPercent);
+	const FDigetherRunSettlementResult Empty = FDigetherEconomyRules::CalculateRunSettlement(100, 0, {});
 	TestTrue(TEXT("출발 0명과 빈 입력은 성공"), Empty.Result == EDigetherEconomyResult::Success);
 	TestEqual(TEXT("출발 0명은 일반 몫 0"), Empty.GeneralShareCredits, 0);
 	TestEqual(TEXT("출발 0명은 일반 회수액 전부 소멸"), Empty.LostGeneralCredits, 100);
@@ -120,40 +112,39 @@ bool FDigetherEconomySettlementTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("%s: 소멸 집계 없음"), Name), Actual.LostGeneralCredits, 0);
 		TestEqual(FString::Printf(TEXT("%s: 부분 지급 결과 없음"), Name), Actual.Players.Num(), 0);
 	};
-	CheckInvalid(TEXT("음수 출발 인원"), FDigetherEconomyRules::CalculateRunSettlement(100, -1, {}, RunTuning.CorpseRefundPercent));
-	CheckInvalid(TEXT("출발 0명인데 지급 대상 존재"), FDigetherEconomyRules::CalculateRunSettlement(100, 0, { FirstSurvivor }, RunTuning.CorpseRefundPercent));
-	CheckInvalid(TEXT("출발 인원보다 많은 지급 대상"), FDigetherEconomyRules::CalculateRunSettlement(100, 1, { FirstSurvivor, Dead }, RunTuning.CorpseRefundPercent));
-	CheckInvalid(TEXT("출발 1명인데 생존자 2명"), FDigetherEconomyRules::CalculateRunSettlement(100, 1, { FirstSurvivor, SecondSurvivor }, RunTuning.CorpseRefundPercent));
+	CheckInvalid(TEXT("음수 출발 인원"), FDigetherEconomyRules::CalculateRunSettlement(100, -1, {}));
+	CheckInvalid(TEXT("출발 0명인데 지급 대상 존재"), FDigetherEconomyRules::CalculateRunSettlement(100, 0, { FirstSurvivor }));
+	CheckInvalid(TEXT("출발 인원보다 많은 지급 대상"), FDigetherEconomyRules::CalculateRunSettlement(100, 1, { FirstSurvivor, Dead }));
+	CheckInvalid(TEXT("출발 1명인데 생존자 2명"), FDigetherEconomyRules::CalculateRunSettlement(100, 1, { FirstSurvivor, SecondSurvivor }));
 	FDigetherPlayerSettlementInput Contradiction = FirstSurvivor;
 	Contradiction.bDied = true;
-	CheckInvalid(TEXT("생존과 사망 동시 지정"), FDigetherEconomyRules::CalculateRunSettlement(100, 1, { Contradiction }, RunTuning.CorpseRefundPercent));
+	CheckInvalid(TEXT("생존과 사망 동시 지정"), FDigetherEconomyRules::CalculateRunSettlement(100, 1, { Contradiction }));
 	Contradiction.bDied = false;
 	Contradiction.bCorpseRecovered = true;
-	CheckInvalid(TEXT("사망 없이 시체 회수 지정"), FDigetherEconomyRules::CalculateRunSettlement(100, 1, { Contradiction }, RunTuning.CorpseRefundPercent));
+	CheckInvalid(TEXT("사망 없이 시체 회수 지정"), FDigetherEconomyRules::CalculateRunSettlement(100, 1, { Contradiction }));
 
-	Dead.PreDeathBalanceCredits = 101;
-	const FDigetherRunSettlementResult Wipeout = FDigetherEconomyRules::CalculateRunSettlement(600, 2, { Dead, Dead }, RunTuning.CorpseRefundPercent);
+	const FDigetherRunSettlementResult Wipeout = FDigetherEconomyRules::CalculateRunSettlement(600, 2, { Dead, Dead });
 	TestTrue(TEXT("전멸 정산 자체는 성공"), Wipeout.Result == EDigetherEconomyResult::Success);
 	TestEqual(TEXT("전멸 일반 몫은 0"), Wipeout.GeneralShareCredits, 0);
 	TestEqual(TEXT("전멸 일반 회수액 전부 소멸"), Wipeout.LostGeneralCredits, 600);
 	TestEqual(TEXT("전멸 결과 인원 수"), Wipeout.Players.Num(), 2);
 	if (Wipeout.Players.Num() == 2)
 	{
-		// D25 확정(작업리스트 1.1.0): 전멸이어도 회수 목록에 있고 지상 도착한 시체는 복구금 지급(101의 50% 버림)
-		CheckPlayer(TEXT("전멸 첫 사망자"), Wipeout.Players[0], 0, 0, 0, 50);
-		CheckPlayer(TEXT("전멸 둘째 사망자"), Wipeout.Players[1], 0, 0, 0, 50);
+		// 시체 복구금 폐지(런 플로우 v1.1.0 9.4): 전멸이면 회수 시체도 지급 없음, 손실 비율만 회수 여부로 결정(조율자)
+		CheckPlayer(TEXT("전멸 첫 사망자"), Wipeout.Players[0], 0, 0, 0);
+		CheckPlayer(TEXT("전멸 둘째 사망자"), Wipeout.Players[1], 0, 0, 0);
 	}
 
 	FirstSurvivor.ReturnedHiddenCredits = MAX_int32;
 	const FDigetherRunSettlementResult Saturated = FDigetherEconomyRules::CalculateRunSettlement(
-		MAX_int32, 1, { FirstSurvivor }, RunTuning.CorpseRefundPercent);
+		MAX_int32, 1, { FirstSurvivor });
 	TestTrue(TEXT("큰 지급액 정산 성공"), Saturated.Result == EDigetherEconomyResult::Success);
 	TestEqual(TEXT("큰 일반 회수액의 몫"), Saturated.GeneralShareCredits, MAX_int32);
 	TestEqual(TEXT("전원 지급된 일반 회수액은 소멸 없음"), Saturated.LostGeneralCredits, 0);
 	TestEqual(TEXT("큰 지급액 결과 인원 수"), Saturated.Players.Num(), 1);
 	if (Saturated.Players.Num() == 1)
 	{
-		CheckPlayer(TEXT("일반 몫과 히든 합계 포화"), Saturated.Players[0], MAX_int32, MAX_int32, MAX_int32, 0);
+		CheckPlayer(TEXT("일반 몫과 히든 합계 포화"), Saturated.Players[0], MAX_int32, MAX_int32, MAX_int32);
 	}
 
 	TestEqual(TEXT("일반 금액 덧셈"), FDigetherEconomyRules::AddCredits(10, 20), 30);

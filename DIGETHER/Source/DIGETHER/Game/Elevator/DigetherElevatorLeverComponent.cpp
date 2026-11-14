@@ -163,12 +163,28 @@ FDigetherElevatorLeverPublicState UDigetherElevatorLeverComponent::GetPublicStat
 
 FText UDigetherElevatorLeverComponent::GetDepartureWarningText(const EDigetherDepartureWarningKind WarningKind)
 {
+	// 1~3일차(Standard)는 문구 없음, 경고등·소리 연출만(런 플로우 v1.1.0 5.2)
 	switch (WarningKind)
 	{
-	case EDigetherDepartureWarningKind::Standard:
-		return NSLOCTEXT("DigetherElevator", "DepartureWarningStandard", "승강기가 곧 출발합니다");
 	case EDigetherDepartureWarningKind::Deadline:
 		return NSLOCTEXT("DigetherElevator", "DepartureWarningDeadline", "현재 할당량 마감일입니다!");
+	case EDigetherDepartureWarningKind::DeadlineConfirmed:
+		return GetDepartureLobbyWarningText(WarningKind);
+	default:
+		return FText::GetEmpty();
+	}
+}
+
+FText UDigetherElevatorLeverComponent::GetDepartureLobbyWarningText(const EDigetherDepartureWarningKind WarningKind)
+{
+	switch (WarningKind)
+	{
+	case EDigetherDepartureWarningKind::Deadline:
+		return NSLOCTEXT("DigetherElevator", "DepartureLobbyWarningDeadline",
+			"출발하면 납부가 마감됩니다. 목표 미달이면 이번 탐사 후 게임이 종료됩니다.");
+	case EDigetherDepartureWarningKind::DeadlineConfirmed:
+		return NSLOCTEXT("DigetherElevator", "DepartureWarningDeadlineConfirmed",
+			"납부가 마감되었습니다. 이번 탐사 후 게임이 종료됩니다.");
 	default:
 		return FText::GetEmpty();
 	}

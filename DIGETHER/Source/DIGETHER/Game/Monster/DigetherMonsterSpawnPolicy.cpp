@@ -23,7 +23,7 @@ bool UDigetherMonsterSpawnPolicy::IsPointAllowed(const ADigetherMonsterSpawnPoin
 bool UDigetherMonsterSpawnPolicy::IsFarFromPlayers(const FVector& Location, const FDigetherSpawnPointQuery& Query)
 {
 	const float MinDistance = Query.Definition ? Query.Definition->MinPlayerDistance : 0.f;
-	if (MinDistance <= 0.f)
+	if (MinDistance <= 0.f || Query.bIgnorePlayerDistance)
 	{
 		return true;
 	}

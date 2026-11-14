@@ -23,7 +23,10 @@ namespace DigetherSaveWire
 	// 진행 확장 v2(2026-11-05): 결과 통계(플레이어 누적 획득·복구·표시 이름·참가 순서)와 게임 결과 기록 추가
 	// 진행 확장 v1 파일은 해당 값을 0·빈 값으로 읽음, v2를 모르는 실행 파일은 확장 미래 버전으로 보고 덮어쓰지 않음
 	inline constexpr int32 DayVersion = 5;
-	inline constexpr int32 LatestVersion = DayVersion;
+	// v6(2026-11-14): v5와 같은 배치, 런 튜닝 마지막 칸이 시체 복구율(CorpseRefundPercent) 대신 회수 손실률
+	// (RecoveredDeathLossPercent), v5 이하는 읽을 때 DeathLossPercent - 복구율로 이관(런 플로우 v1.1.0 9.4)
+	inline constexpr int32 RecoveredDeathLossVersion = 6;
+	inline constexpr int32 LatestVersion = RecoveredDeathLossVersion;
 }
 
 enum class EDigetherSaveResult : uint8

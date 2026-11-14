@@ -81,7 +81,7 @@ namespace
 		Tuning.DepositIntervalSeconds = .5f;
 		Tuning.EmergencyWeightLimitKg = 3.f;
 		Tuning.DeathLossPercent = 50;
-		Tuning.CorpseRefundPercent = 50;
+		Tuning.RecoveredDeathLossPercent = 50;
 		return Tuning;
 	}
 

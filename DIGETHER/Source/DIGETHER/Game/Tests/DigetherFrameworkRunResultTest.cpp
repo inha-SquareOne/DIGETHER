@@ -4,6 +4,7 @@
 #include "Game/Framework/DigetherFrameworkRules.h"
 #include "Game/Framework/DigetherGameplayPlayerState.h"
 #include "Game/Life/DigetherLifeRules.h"
+#include "Game/UI/Results/DigetherRunResultWidget.h"
 #include "Misc/AutomationTest.h"
 #include "Net/UnrealNetwork.h"
 #include "UObject/UnrealType.h"
@@ -25,7 +26,7 @@ namespace
 		Tuning.DepositIntervalSeconds = 0.2f;
 		Tuning.EmergencyWeightLimitKg = 4.f;
 		Tuning.DeathLossPercent = 80;
-		Tuning.CorpseRefundPercent = 30;
+		Tuning.RecoveredDeathLossPercent = 30;
 		return Tuning;
 	}
 
@@ -90,8 +91,8 @@ bool FDigetherFrameworkRunResultPlanTest::RunTest(const FString& Parameters)
 	Players[1].Wallet.BalanceCredits = 200;
 	Players[1].Wallet.TotalDeathLossCredits = MAX_int32;
 	Players[2].Life = FDigetherLifeRules::ApplyDeath(Players[2].Life, EDigetherDeathCause::Killed).State;
-	Players[2].Wallet.BalanceCredits = 50;
-	Players[2].Wallet.LastPreDeathBalanceCredits = 250;
+	// D25 개정: 탐사 중 사망도 지갑 미차감 상태로 정산에 들어와 한 번만 차감(이전 시험은 사망 시점 차감 뒤 잔고 50 가정)
+	Players[2].Wallet.BalanceCredits = 250;
 	Players[2].Wallet.TotalDeathLossCredits = MAX_int32;
 	Players[3].Life = FDigetherLifeRules::ApplyEscape(Players[3].Life, EDigetherEscapeKind::Emergency).State;
 	Players[3].Wallet.LastPreDeathBalanceCredits = 999;
@@ -112,7 +113,7 @@ bool FDigetherFrameworkRunResultPlanTest::RunTest(const FString& Parameters)
 	Quota.PeriodGeneration = 3;
 	FDigetherFrameworkReturnPlan Plan;
 	if (!TestTrue(TEXT("결과를 포함한 귀환 계획"), DigetherFrameworkRules::TryPlanReturn(
-		Input, Players, Quota, MakeRunResultTuning(), Players.Num(), Plan))
+		Input, Players, Quota, MakeRunResultTuning(), Players.Num(), 0, Plan))
 		|| !TestEqual(TEXT("모든 결과 순서 보존"), Plan.Players.Num(), Players.Num()))
 	{
 		return false;
@@ -122,7 +123,11 @@ bool FDigetherFrameworkRunResultPlanTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("기존 사망자는 Unchanged 종료여도 사망"), Plan.Players[2].ReturnOutcome, EDigetherRunReturnOutcome::Died);
 	TestEqual(TEXT("기존 비상 탈출자는 귀환"), Plan.Players[3].ReturnOutcome, EDigetherRunReturnOutcome::Returned);
 	TestEqual(TEXT("실종 손실은 포화된 누적 차이가 아님"), Plan.Players[1].DeathLossCredits, 160);
-	TestEqual(TEXT("기존 사망 손실은 사망 전 잔고 기준"), Plan.Players[2].DeathLossCredits, 200);
+	TestEqual(TEXT("기존 사망 손실은 정산 때 사망 전 잔고 기준"), Plan.Players[2].DeathLossCredits, 200);
+	TestEqual(TEXT("기존 사망자 최종 지갑"), Plan.Players[2].SettledWallet.BalanceCredits, 50);
+	TestEqual(TEXT("시체 회수 미연결은 미회수 손실률"), Plan.Players[2].DeathLossPercent, 80);
+	TestFalse(TEXT("시체 회수 미연결"), Plan.Players[2].bCorpseRecovered);
+	TestEqual(TEXT("사망자 이전 잔고"), Plan.Players[2].PreviousBalanceCredits, 250);
 	TestEqual(TEXT("이전 사망 전 잔고가 남아도 탈출자의 이번 손실 0"), Plan.Players[3].DeathLossCredits, 0);
 	TestEqual(TEXT("누적 손실 포화가 결과 손실을 지우지 않음"),
 		Plan.Players[1].WalletAtEnd.TotalDeathLossCredits, MAX_int32);
@@ -131,7 +136,6 @@ bool FDigetherFrameworkRunResultPlanTest::RunTest(const FString& Parameters)
 	{
 		TestEqual(TEXT("현재 화물 미연결의 실제 일반 몫 0"), Returned.Settlement.GeneralCredits, 0);
 		TestEqual(TEXT("현재 히든 미연결의 실제 수익 0"), Returned.Settlement.HiddenCredits, 0);
-		TestEqual(TEXT("현재 시체 미연결의 실제 복구 0"), Returned.Settlement.CorpseRefundCredits, 0);
 	}
 	return true;
 }
@@ -142,23 +146,67 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherFrameworkRunResultProjectionTest,
 
 bool FDigetherFrameworkRunResultProjectionTest::RunTest(const FString& Parameters)
 {
-	FDigetherFrameworkPlayerReturn Returned;
+	FDigetherFrameworkReturnPlan Plan;
+	FDigetherFrameworkPlayerReturn& Returned = Plan.Players.AddDefaulted_GetRef();
 	Returned.Settlement.GeneralCredits = 11;
 	Returned.Settlement.HiddenCredits = 13;
 	Returned.Settlement.PayoutCredits = 24;
 	Returned.SettledWallet.BalanceCredits = 100;
 	const FDigetherRunResult Expected = MakeRunResultFixture();
-	const FDigetherRunResult Result = DigetherFrameworkRules::MakeRunResult(Expected.RunId, Expected.CompletedDay, Returned);
+	const FDigetherRunResult Result = DigetherFrameworkRules::MakeRunResult(Expected.RunId, Expected.CompletedDay, Plan, 0);
 	TestTrue(TEXT("런 ID·일차·정산 상세를 손실 없이 투영"), AreRunResultsEqual(Result, Expected));
+
+	// 런 플로우 9.5: 위쪽 공통 값(파밍액·사망자·실종자 이름·제외액)과 아래쪽 본인 값, 복구금 항목 없음
+	Plan.GeneralCargoCredits = 901;
+	Plan.ExcludedGeneralCredits = 676;
+	Plan.DeadPlayerNames = { TEXT("A") };
+	Plan.MissingPlayerNames = { TEXT("B"), TEXT("C") };
 	Returned.ReturnOutcome = EDigetherRunReturnOutcome::Died;
 	Returned.Settlement = FDigetherPlayerSettlement();
-	Returned.Settlement.CorpseRefundCredits = 17;
-	Returned.DeathLossCredits = 31;
-	const FDigetherRunResult CorpseResult = DigetherFrameworkRules::MakeRunResult(Expected.RunId, Expected.CompletedDay, Returned);
-	TestEqual(TEXT("복구를 지급액과 분리"), CorpseResult.CorpseRefundCredits, 17);
-	TestEqual(TEXT("사망 손실 별도 보존"), CorpseResult.DeathLossCredits, 31);
-	TestEqual(TEXT("사망 복구는 탐사 지급액 0"), CorpseResult.PayoutCredits, 0);
-	TestEqual(TEXT("복구 뒤 실제 최종 지갑"), CorpseResult.FinalBalanceCredits, 100);
+	Returned.PreviousBalanceCredits = 101;
+	Returned.DeathLossCredits = 51;
+	Returned.DeathLossPercent = 50;
+	Returned.bCorpseRecovered = true;
+	Returned.SettledWallet.BalanceCredits = 50;
+	const FDigetherRunResult DeadResult = DigetherFrameworkRules::MakeRunResult(Expected.RunId, Expected.CompletedDay, Plan, 0);
+	TestTrue(TEXT("사망 결과 유효"), DeadResult.IsValid());
+	TestEqual(TEXT("파밍액 공개"), DeadResult.FarmingCredits, 901);
+	TestEqual(TEXT("제외된 금액 공개"), DeadResult.ExcludedCredits, 676);
+	TestTrue(TEXT("사망자 이름 별도 목록"), DeadResult.DeadPlayerNames == TArray<FString>({ TEXT("A") }));
+	TestTrue(TEXT("실종자 이름 별도 목록"), DeadResult.MissingPlayerNames == TArray<FString>({ TEXT("B"), TEXT("C") }));
+	TestEqual(TEXT("본인 이전 잔고"), DeadResult.PreviousBalanceCredits, 101);
+	TestEqual(TEXT("사망 손실 실제 차감액"), DeadResult.DeathLossCredits, 51);
+	TestEqual(TEXT("적용 손실률"), DeadResult.DeathLossPercent, 50);
+	TestTrue(TEXT("시체 회수 여부"), DeadResult.bCorpseRecovered);
+	TestEqual(TEXT("사망자 탐사 지급액 0"), DeadResult.PayoutCredits, 0);
+	TestEqual(TEXT("손실 뒤 실제 최종 지갑"), DeadResult.FinalBalanceCredits, 50);
+	TestFalse(TEXT("범위 밖 순번은 무효"), DigetherFrameworkRules::MakeRunResult(Expected.RunId, Expected.CompletedDay, Plan, 1).IsValid());
+
+	FDigetherRunResult Invalid = DeadResult;
+	Invalid.ExcludedCredits = 902;
+	TestFalse(TEXT("제외액이 파밍액보다 크면 무효"), Invalid.IsValid());
+	Invalid = DeadResult;
+	Invalid.DeathLossPercent = 101;
+	TestFalse(TEXT("손실률 100% 초과 무효"), Invalid.IsValid());
+	Invalid = DeadResult;
+	Invalid.Outcome = EDigetherRunReturnOutcome::Returned;
+	TestFalse(TEXT("귀환자 시체 회수 표시는 무효"), Invalid.IsValid());
+
+	// 결과 화면 문구: 사망 손실에 회수 여부·비율, 이름 목록, 복구 항목 없음
+	TestEqual(TEXT("회수 시체 손실 문구"), UDigetherRunResultWidget::MakeDeathLossText(DeadResult).ToString(),
+		FString(TEXT("사망 손실  -51 (시체 회수, 50%)")));
+	FDigetherRunResult Unrecovered = DeadResult;
+	Unrecovered.bCorpseRecovered = false;
+	Unrecovered.DeathLossPercent = 100;
+	Unrecovered.DeathLossCredits = 101;
+	TestEqual(TEXT("미회수 시체 손실 문구"), UDigetherRunResultWidget::MakeDeathLossText(Unrecovered).ToString(),
+		FString(TEXT("사망 손실  -101 (시체 미회수, 100%)")));
+	TestEqual(TEXT("귀환자 손실 문구"), UDigetherRunResultWidget::MakeDeathLossText(Result).ToString(),
+		FString(TEXT("사망 손실  0")));
+	TestEqual(TEXT("이름 목록 문구"), UDigetherRunResultWidget::JoinPlayerNames(DeadResult.MissingPlayerNames).ToString(),
+		FString(TEXT("B, C")));
+	TestEqual(TEXT("빈 이름 목록 문구"), UDigetherRunResultWidget::JoinPlayerNames(TArray<FString>()).ToString(),
+		FString(TEXT("없음")));
 	return true;
 }
 
