@@ -1,5 +1,6 @@
 #include "Game/Data/DigetherItemDefinition.h"
 
+#include "Engine/AssetManager.h"
 #include "Game/Core/DigetherGameplayTags.h"
 
 #if WITH_EDITOR
@@ -13,6 +14,16 @@ const FPrimaryAssetType UDigetherItemDefinition::PrimaryAssetType(TEXT("Digether
 FPrimaryAssetId UDigetherItemDefinition::GetPrimaryAssetId() const
 {
 	return FPrimaryAssetId(PrimaryAssetType, GetFName());
+}
+
+const UDigetherItemDefinition* UDigetherItemDefinition::FindDefinition(const FName DefinitionId)
+{
+	if (DefinitionId.IsNone() || !UAssetManager::IsInitialized())
+	{
+		return nullptr;
+	}
+	const FSoftObjectPath Path = UAssetManager::Get().GetPrimaryAssetPath(FPrimaryAssetId(PrimaryAssetType, DefinitionId));
+	return Path.IsValid() ? Cast<UDigetherItemDefinition>(Path.TryLoad()) : nullptr;
 }
 
 bool UDigetherItemDefinition::IsCargo() const

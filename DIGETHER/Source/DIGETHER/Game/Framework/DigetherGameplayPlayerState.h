@@ -6,6 +6,7 @@
 #include "GameFramework/PlayerState.h"
 #include "DigetherGameplayPlayerState.generated.h"
 
+class UDigetherInventoryComponent;
 class UDigetherLifeStateComponent;
 class UDigetherWalletComponent;
 
@@ -30,6 +31,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Digether|Life")
 	UDigetherLifeStateComponent* GetLifeComponent() const;
+
+	UFUNCTION(BlueprintPure, Category="Digether|Inventory")
+	UDigetherInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 
 	// 서버 월드 안의 조율용 식별자다. 인증 ID·재접속 복원을 대신하지 않는다.
 	void InitializeGameplayIdentity();
@@ -68,6 +72,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Digether|Life")
 	TObjectPtr<UDigetherLifeStateComponent> LifeComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Digether|Inventory")
+	TObjectPtr<UDigetherInventoryComponent> InventoryComponent;
 
 private:
 	bool CopyGameplayStateTo(ADigetherGameplayPlayerState* Target) const;

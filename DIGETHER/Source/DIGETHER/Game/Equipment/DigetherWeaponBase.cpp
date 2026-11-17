@@ -26,7 +26,13 @@ void ADigetherWeaponBase::AttachToCharacter(USceneComponent* Parent)
 	{
 		return;
 	}
+	// 소켓에 맞춘 뒤 장비 BP가 메시에 지정한 위치·회전(잡는 위치 보정)을 다시 적용함
+	// 소켓 맞춤(SnapToTarget)이 상대 위치·회전을 0으로 덮어써서, 따로 적용하지 않으면 BP 보정이 사라짐
+	// 크기는 월드 배율 유지(KeepWorld)라 BP 상대 배율이 그대로 남음
+	const ADigetherWeaponBase* Defaults = GetClass()->GetDefaultObject<ADigetherWeaponBase>();
+	const FTransform GripOffset = IsValid(Defaults) && IsValid(Defaults->WeaponMesh) ? Defaults->WeaponMesh->GetRelativeTransform() : FTransform::Identity;
 	WeaponMesh->AttachToComponent(Parent, FAttachmentTransformRules::SnapToTargetNotIncludingScale, GripSocketName);
+	WeaponMesh->SetRelativeLocationAndRotation(GripOffset.GetLocation(), GripOffset.GetRotation());
 }
 
 void ADigetherWeaponBase::SetWeaponVisible(bool bVisible)

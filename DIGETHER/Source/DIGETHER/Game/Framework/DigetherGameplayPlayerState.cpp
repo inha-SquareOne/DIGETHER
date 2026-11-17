@@ -5,6 +5,7 @@
 #include "Game/Economy/DigetherEconomyRules.h"
 #include "Game/Economy/DigetherWalletComponent.h"
 #include "Game/Framework/DigetherFrameworkLog.h"
+#include "Game/Inventory/DigetherInventoryComponent.h"
 #include "Game/Life/DigetherLifeRules.h"
 #include "Game/Life/DigetherLifeStateComponent.h"
 #include "GameFramework/Pawn.h"
@@ -15,6 +16,7 @@ ADigetherGameplayPlayerState::ADigetherGameplayPlayerState()
 	bReplicates = true;
 	WalletComponent = CreateDefaultSubobject<UDigetherWalletComponent>(TEXT("WalletComponent"));
 	LifeComponent = CreateDefaultSubobject<UDigetherLifeStateComponent>(TEXT("LifeComponent"));
+	InventoryComponent = CreateDefaultSubobject<UDigetherInventoryComponent>(TEXT("InventoryComponent"));
 }
 
 void ADigetherGameplayPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -69,20 +71,23 @@ void ADigetherGameplayPlayerState::OverrideWith(APlayerState* PlayerState)
 bool ADigetherGameplayPlayerState::CopyGameplayStateTo(ADigetherGameplayPlayerState* Target) const
 {
 	if (!HasAuthority() || !IsValid(Target) || !Target->HasAuthority()
-		|| !IsValid(WalletComponent) || !IsValid(LifeComponent)
-		|| !IsValid(Target->WalletComponent) || !IsValid(Target->LifeComponent))
+		|| !IsValid(WalletComponent) || !IsValid(LifeComponent) || !IsValid(InventoryComponent)
+		|| !IsValid(Target->WalletComponent) || !IsValid(Target->LifeComponent) || !IsValid(Target->InventoryComponent))
 	{
 		return false;
 	}
 	const FDigetherWalletState Wallet = WalletComponent->CaptureState();
 	const FDigetherLifeComponentState Life = LifeComponent->CaptureState();
-	if (!FDigetherEconomyRules::IsValidWalletState(Wallet) || !FDigetherLifeRules::IsValidState(Life))
+	const FDigetherInventoryState Inventory = InventoryComponent->CaptureState();
+	if (!FDigetherEconomyRules::IsValidWalletState(Wallet) || !FDigetherLifeRules::IsValidState(Life)
+		|| !FDigetherInventoryRules::IsValidState(Inventory))
 	{
 		return false;
 	}
-	// 두 setter는 권한과 값만 검사한다. 모두 검사한 뒤 외부 알림 없이 같은 시점의 값을 인계한다.
+	// 세 setter는 권한과 값만 검사한다. 모두 검사한 뒤 외부 알림 없이 같은 시점의 값을 인계한다.
 	if (Target->WalletComponent->RestoreState(Wallet, false) != EDigetherEconomyResult::Success
-		|| Target->LifeComponent->RestoreState(Life, false) != EDigetherLifeResult::Success)
+		|| Target->LifeComponent->RestoreState(Life, false) != EDigetherLifeResult::Success
+		|| !Target->InventoryComponent->RestoreState(Inventory, false))
 	{
 		return false;
 	}
@@ -92,6 +97,7 @@ bool ADigetherGameplayPlayerState::CopyGameplayStateTo(ADigetherGameplayPlayerSt
 	Target->LastRunResult = LastRunResult;
 	Target->WalletComponent->NotifyStateChanged();
 	Target->LifeComponent->NotifyStateChanged();
+	Target->InventoryComponent->OnInventoryChanged.Broadcast();
 	Target->OnRep_LastRunResult();
 	return true;
 }

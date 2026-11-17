@@ -14,6 +14,9 @@ class USkeletalMeshComponent;
 class USkeletalMesh;
 class ADigetherWeaponBase;
 class UAnimMontage;
+class UDigetherInteractionComponent;
+class UDigetherInventoryComponent;
+class UDigetherCrosshairWidget;
 class UDigetherMeleeHitComponent;
 class UDigetherPlayerHealthComponent;
 class UDigetherPlayerInputData;
@@ -38,6 +41,8 @@ public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void NotifyControllerChanged() override;
+	virtual void PossessedBy(AController* NewController) override;
+	virtual void UnPossessed() override;
 
 	// 달리기 최대 속도(표 값), 스태미나 구현에서 사용
 	float GetSprintSpeedCmPerSec() const { return SprintSpeedCmPerSec; }
@@ -69,6 +74,9 @@ public:
 
 	// 체력(서버 원본, 수치는 소유자에게만 복제), 사망 여부는 모든 머신에서 맞음
 	UDigetherPlayerHealthComponent* GetHealthComponent() const { return Health; }
+
+	// E 조준 상호작용(조준점 강조 등 소유 화면 표시용)
+	UDigetherInteractionComponent* GetInteractionComponent() const { return Interaction; }
 	bool IsDead() const;
 
 	// 개발용(Shipping 제외): 콘솔에서 자기 캐릭터에 피해·체력 초기화, 서버에 요청해 실제 피해 경로(ApplyDamage)를 탐
@@ -77,6 +85,10 @@ public:
 
 	UFUNCTION(Exec)
 	void DigetherResetHealth();
+
+	// 개발용(Shipping 제외): 정의 이름(예: DA_Item_Pickaxe)의 월드 아이템을 눈앞에서 떨어뜨림, 서버에서 실행됨
+	UFUNCTION(Exec)
+	void DigetherSpawnItem(FName DefinitionId);
 
 	// 서버 전용: 장비를 바꿈(기존 장비는 제거), 빈 클래스면 빈손이 됨
 	void EquipWeapon(TSubclassOf<ADigetherWeaponBase> WeaponClass);
@@ -94,10 +106,15 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Digether|PlayerStat")
 	FName PlayerStatProfile = TEXT("Default");
 
-	// 시작할 때 들 장비 클래스(BP_Weapon_*), 서버가 생성해 복제하고 비우면 빈손
-	// 장비 교체는 EquipWeapon으로 하며 캐릭터는 장비 종류를 알지 못함
+	// 소지품(PlayerState 인벤토리)이 없는 맵에서만 시작할 때 들 장비 클래스(BP_Weapon_*)
+	// 소지품이 있으면 손에 든 슬롯 아이템 정의의 EquipmentClass를 들며 이 값은 쓰지 않음
 	UPROPERTY(EditDefaultsOnly, Category="Digether|Weapon")
 	TSubclassOf<ADigetherWeaponBase> DefaultWeaponClass;
+
+	// 개인 시작 장비 정의 이름(/Game/Data/Items 아래 에셋 이름), PlayerState마다 한 번만 소지품에 넣음
+	// 기획: 개인 삽 1·헤드랜턴 1, 헤드랜턴 전용 칸은 P2-1에서 추가하므로 지금은 삽만
+	UPROPERTY(EditDefaultsOnly, Category="Digether|Inventory")
+	TArray<FName> StartingItemIds = { TEXT("DA_Item_Shovel") };
 
 	// 1인칭 팔에 쓸 메시, 비우면 3인칭 몸과 같은 메시를 씀(머리는 숨김)
 	// 전용 팔 모델이 오면 여기에 지정함, 3인칭 몸과 같은 스켈레톤이어야 자세를 그대로 따라감
@@ -150,6 +167,48 @@ private:
 	// 체력, 최대치는 표(MaxHealth)에서 읽음
 	UPROPERTY(VisibleAnywhere, Category="Digether|Components")
 	TObjectPtr<UDigetherPlayerHealthComponent> Health;
+
+	// E 조준 상호작용(줍기 등), 대상 선택은 소유 화면, 확정은 서버
+	UPROPERTY(VisibleAnywhere, Category="Digether|Components")
+	TObjectPtr<UDigetherInteractionComponent> Interaction;
+
+	void HandleInteractPressed();
+	void HandleDropPressed();
+	void HandleSelectSlotPressed(int32 SlotIndex);
+
+	// 버리기 요청: 서버가 손에 든 슬롯의 아이템을 꺼내 눈앞에서 떨어뜨림(빈손이면 아무것도 안 함)
+	UFUNCTION(Server, Reliable)
+	void Server_DropItem();
+
+	// 슬롯 선택 요청(1~4 키), 서버가 선택을 바꾸면 손에 든 장비가 바뀌어 모두에게 복제됨
+	UFUNCTION(Server, Reliable)
+	void Server_SelectSlot(int32 SlotIndex);
+
+	UFUNCTION(Server, Reliable)
+	void Server_DevSpawnItem(FName DefinitionId);
+
+	// 눈앞에서 아이템을 떨어뜨릴 시작 위치(손 높이, 벽 앞에서 멈춤)와 던지는 방향
+	void GetDropStart(FVector& OutLocation, FVector& OutForward) const;
+
+	// 서버 전용: PlayerState의 소지품, 없으면 nullptr(소지품이 없는 GameMode)
+	UDigetherInventoryComponent* GetServerInventory() const;
+
+	// 서버 전용: 손에 든 슬롯 아이템에 맞게 장비를 바꿈(같은 인스턴스면 그대로 둠)
+	void RefreshEquipmentFromInventory();
+
+	// 지금 손에 든 장비가 나타내는 아이템 인스턴스(서버 전용), 같은 아이템이면 장비를 다시 만들지 않으려고 기억함
+	FGuid EquippedInstanceId;
+
+	// 화면 중앙 조준점, 이 캐릭터를 직접 조종하는 로컬 화면에만 만듦
+	UPROPERTY(Transient)
+	TObjectPtr<UDigetherCrosshairWidget> CrosshairWidget;
+
+	// 로컬 조종 여부에 맞춰 조준점을 만들거나 없앰
+	void RefreshCrosshair();
+
+	// 소지품 변경 구독(서버), 빙의가 풀리면 해제함
+	TWeakObjectPtr<UDigetherInventoryComponent> BoundInventory;
+	FDelegateHandle InventoryChangedHandle;
 
 	// 사망: 달리기 종료, 이동 정지, 이동·점프·웅크리기·공격·달리기 입력 무시(시점 회전은 허용)
 	// 서버는 PlayerState의 생존 상태에 사망(Killed)을 알림, 드롭·관전 전환은 런 흐름 담당(아직 연결 안 됨)

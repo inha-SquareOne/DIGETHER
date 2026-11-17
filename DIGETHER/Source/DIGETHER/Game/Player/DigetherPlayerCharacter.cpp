@@ -22,6 +22,12 @@
 #include "Game/Combat/DigetherMeleeHitComponent.h"
 #include "Game/Player/DigetherPlayerHealthComponent.h"
 #include "Game/Life/DigetherLifeStateComponent.h"
+#include "Game/Data/DigetherItemDefinition.h"
+#include "Game/Interaction/DigetherInteractionComponent.h"
+#include "Game/Inventory/DigetherInventoryComponent.h"
+#include "Game/Inventory/DigetherInventoryLog.h"
+#include "Game/Inventory/DigetherWorldItemActor.h"
+#include "Game/UI/Hud/DigetherCrosshairWidget.h"
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/DamageType.h"
 #include "Kismet/GameplayStatics.h"
@@ -139,6 +145,7 @@ ADigetherPlayerCharacter::ADigetherPlayerCharacter(const FObjectInitializer& Obj
 
 	MeleeHit = CreateDefaultSubobject<UDigetherMeleeHitComponent>(TEXT("MeleeHit"));
 	Health = CreateDefaultSubobject<UDigetherPlayerHealthComponent>(TEXT("Health"));
+	Interaction = CreateDefaultSubobject<UDigetherInteractionComponent>(TEXT("Interaction"));
 
 	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 	{
@@ -166,11 +173,7 @@ void ADigetherPlayerCharacter::BeginPlay()
 		HandleDied();
 	}
 
-	// 장비는 서버가 만들어 복제함
-	if (HasAuthority() && DefaultWeaponClass != nullptr && !IsValid(EquippedWeapon))
-	{
-		EquipWeapon(DefaultWeaponClass);
-	}
+	// 장비는 빙의 때(PossessedBy) 서버가 소지품 또는 DefaultWeaponClass로 정해 복제함
 	// 1인칭 팔은 화면 표현이라 화면이 없는 전용 서버에서는 건너뜀
 	if (GetNetMode() != NM_DedicatedServer)
 	{
@@ -207,6 +210,16 @@ void ADigetherPlayerCharacter::Tick(float DeltaSeconds)
 
 void ADigetherPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (UDigetherInventoryComponent* Inventory = BoundInventory.Get())
+	{
+		Inventory->OnInventoryChanged.Remove(InventoryChangedHandle);
+	}
+	BoundInventory.Reset();
+	if (IsValid(CrosshairWidget))
+	{
+		CrosshairWidget->RemoveFromParent();
+		CrosshairWidget = nullptr;
+	}
 #if !UE_BUILD_SHIPPING
 	if (StatusDebugDrawHandle.IsValid())
 	{
@@ -292,6 +305,36 @@ void ADigetherPlayerCharacter::DrawStatusDebug(UCanvas* Canvas, APlayerControlle
 		Canvas->DrawText(GEngine->GetSmallFont(),
 			FString::Printf(TEXT("스태미나 [%s] %.0f / %.0f%s"), *MakeTextBar(GetStaminaFraction()), StaminaState.Current, StaminaParams.MaxStamina, Status),
 			Left, Y, TextScale, TextScale);
+		Y += DebugLineSpacing;
+	}
+
+	// 소지품과 조준 중인 줍기 대상(정식 HUD 전 임시 표시, PlayerState에 인벤토리가 있을 때만)
+	const APlayerState* OwnerPlayerState = GetPlayerState();
+	const UDigetherInventoryComponent* Inventory = IsValid(OwnerPlayerState) ? OwnerPlayerState->FindComponentByClass<UDigetherInventoryComponent>() : nullptr;
+	if (IsValid(Inventory))
+	{
+		// 손에 든 슬롯은 [ ]로 표시
+		FString Slots = TEXT("소지품");
+		const TArray<FDigetherItemInstance>& GeneralSlots = Inventory->GetState().GeneralSlots;
+		for (int32 Index = 0; Index < GeneralSlots.Num(); ++Index)
+		{
+			const FString Name = GeneralSlots[Index].IsSet() ? GeneralSlots[Index].DefinitionId.ToString() : TEXT("-");
+			Slots += Index == Inventory->GetSelectedSlot()
+				? FString::Printf(TEXT("  [%d:%s]"), Index + 1, *Name)
+				: FString::Printf(TEXT("  %d:%s"), Index + 1, *Name);
+		}
+		Canvas->SetDrawColor(FColor::Cyan);
+		Canvas->DrawText(GEngine->GetSmallFont(), Slots, Left, Y, TextScale, TextScale);
+		Y += DebugLineSpacing;
+	}
+	if (IsValid(Interaction))
+	{
+		const FText Prompt = Interaction->GetFocusedPrompt();
+		if (!Prompt.IsEmpty())
+		{
+			Canvas->SetDrawColor(FColor::White);
+			Canvas->DrawText(GEngine->GetSmallFont(), FString::Printf(TEXT("[E] %s"), *Prompt.ToString()), Left, Y, TextScale, TextScale);
+		}
 	}
 }
 #endif
@@ -692,6 +735,30 @@ void ADigetherPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	Input->BindAction(Data->AttackAction, ETriggerEvent::Started, this, &ADigetherPlayerCharacter::HandleAttackPressed);
 	Input->BindAction(Data->SprintAction, ETriggerEvent::Started, this, &ADigetherPlayerCharacter::HandleSprintStarted);
 	Input->BindAction(Data->SprintAction, ETriggerEvent::Completed, this, &ADigetherPlayerCharacter::HandleSprintCompleted);
+	// 줍기·버리기 액션은 필수가 아님(에셋이 아직 없으면 해당 입력만 동작하지 않음)
+	if (IsValid(Data->InteractAction))
+	{
+		Input->BindAction(Data->InteractAction, ETriggerEvent::Started, this, &ADigetherPlayerCharacter::HandleInteractPressed);
+	}
+	else
+	{
+		UE_LOG(LogDigetherPlayer, Warning, TEXT("입력 데이터 %s에 InteractAction이 비어 있어 E 줍기가 동작하지 않는다"), *Data->GetName());
+	}
+	if (IsValid(Data->DropAction))
+	{
+		Input->BindAction(Data->DropAction, ETriggerEvent::Started, this, &ADigetherPlayerCharacter::HandleDropPressed);
+	}
+	else
+	{
+		UE_LOG(LogDigetherPlayer, Warning, TEXT("입력 데이터 %s에 DropAction이 비어 있어 G 버리기가 동작하지 않는다"), *Data->GetName());
+	}
+	for (int32 SlotIndex = 0; SlotIndex < Data->SelectSlotActions.Num(); ++SlotIndex)
+	{
+		if (IsValid(Data->SelectSlotActions[SlotIndex]))
+		{
+			Input->BindAction(Data->SelectSlotActions[SlotIndex], ETriggerEvent::Started, this, &ADigetherPlayerCharacter::HandleSelectSlotPressed, SlotIndex);
+		}
+	}
 
 	// 입력 바인딩이 컨트롤러 소유 이후에 만들어지는 경우를 위해 지금 컨트롤러에도 등록함
 	SetMappingContext(Controller, true);
@@ -757,6 +824,196 @@ void ADigetherPlayerCharacter::HandleAttackPressed()
 	Server_Attack();
 }
 
+void ADigetherPlayerCharacter::HandleInteractPressed()
+{
+	if (IsDead() || !IsValid(Interaction))
+	{
+		return;
+	}
+	Interaction->RequestInteract();
+}
+
+void ADigetherPlayerCharacter::HandleDropPressed()
+{
+	if (IsDead())
+	{
+		return;
+	}
+	Server_DropItem();
+}
+
+void ADigetherPlayerCharacter::HandleSelectSlotPressed(const int32 SlotIndex)
+{
+	if (IsDead())
+	{
+		return;
+	}
+	Server_SelectSlot(SlotIndex);
+}
+
+namespace
+{
+	// 떨어뜨리기 시작 위치: 눈에서 바라보는 수평 방향으로 이 거리 앞, 이 높이만큼 아래(손 높이), 시험값
+	constexpr float DropForwardCm = 60.f;
+	constexpr float DropBelowEyeCm = 40.f;
+	// 시작 위치가 벽 속이 되지 않게 벽에서 떨어뜨리는 여유(cm)
+	constexpr float DropWallMarginCm = 20.f;
+}
+
+void ADigetherPlayerCharacter::GetDropStart(FVector& OutLocation, FVector& OutForward) const
+{
+	const FRotator YawOnly(0.f, GetBaseAimRotation().Yaw, 0.f);
+	OutForward = YawOnly.Vector();
+	const FVector Eye = GetPawnViewLocation();
+	const FVector Desired = Eye + OutForward * DropForwardCm - FVector(0.f, 0.f, DropBelowEyeCm);
+	// 눈에서 시작 위치까지 막히면 막힌 곳 바로 앞에서 떨어뜨림(벽 너머로 빠지지 않게)
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(DigetherDropStart), false, this);
+	FHitResult Hit;
+	if (GetWorld()->LineTraceSingleByChannel(Hit, Eye, Desired, ECC_Visibility, Params))
+	{
+		OutLocation = Hit.Location - (Desired - Eye).GetSafeNormal() * DropWallMarginCm;
+		return;
+	}
+	OutLocation = Desired;
+}
+
+UDigetherInventoryComponent* ADigetherPlayerCharacter::GetServerInventory() const
+{
+	const APlayerState* OwnerPlayerState = GetPlayerState();
+	return HasAuthority() && IsValid(OwnerPlayerState) ? OwnerPlayerState->FindComponentByClass<UDigetherInventoryComponent>() : nullptr;
+}
+
+void ADigetherPlayerCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	UDigetherInventoryComponent* Inventory = GetServerInventory();
+	if (!IsValid(Inventory))
+	{
+		// 소지품이 없는 GameMode: 예전처럼 캐릭터 기본 장비를 듦
+		if (DefaultWeaponClass != nullptr && !IsValid(EquippedWeapon))
+		{
+			EquipWeapon(DefaultWeaponClass);
+		}
+		return;
+	}
+	if (BoundInventory.Get() != Inventory)
+	{
+		if (UDigetherInventoryComponent* Previous = BoundInventory.Get())
+		{
+			Previous->OnInventoryChanged.Remove(InventoryChangedHandle);
+		}
+		InventoryChangedHandle = Inventory->OnInventoryChanged.AddUObject(this, &ADigetherPlayerCharacter::RefreshEquipmentFromInventory);
+		BoundInventory = Inventory;
+	}
+	// 처음 받는 PlayerState면 시작 장비를 넣음(변경 통지로 장비도 갱신됨), 이미 받았으면 지금 소지품대로 듦
+	Inventory->GrantStartingItemsOnce(StartingItemIds);
+	RefreshEquipmentFromInventory();
+}
+
+void ADigetherPlayerCharacter::UnPossessed()
+{
+	if (UDigetherInventoryComponent* Inventory = BoundInventory.Get())
+	{
+		Inventory->OnInventoryChanged.Remove(InventoryChangedHandle);
+	}
+	BoundInventory.Reset();
+	InventoryChangedHandle.Reset();
+	Super::UnPossessed();
+}
+
+void ADigetherPlayerCharacter::RefreshEquipmentFromInventory()
+{
+	const UDigetherInventoryComponent* Inventory = BoundInventory.Get();
+	if (!HasAuthority() || !IsValid(Inventory))
+	{
+		return;
+	}
+	const FDigetherItemInstance& Held = Inventory->GetSelectedItem();
+	const FGuid HeldId = Held.IsSet() ? Held.InstanceId : FGuid();
+	if (HeldId == EquippedInstanceId && (IsValid(EquippedWeapon) || !HeldId.IsValid()))
+	{
+		return;
+	}
+	EquippedInstanceId = HeldId;
+	const UDigetherItemDefinition* Definition = Held.IsSet() ? UDigetherItemDefinition::FindDefinition(Held.DefinitionId) : nullptr;
+	TSubclassOf<ADigetherWeaponBase> WeaponClass = nullptr;
+	if (IsValid(Definition) && !Definition->EquipmentClass.IsNull())
+	{
+		WeaponClass = Definition->EquipmentClass.LoadSynchronous();
+	}
+	EquipWeapon(WeaponClass);
+}
+
+void ADigetherPlayerCharacter::Server_SelectSlot_Implementation(const int32 SlotIndex)
+{
+	UDigetherInventoryComponent* Inventory = GetServerInventory();
+	if (IsDead() || !IsValid(Inventory))
+	{
+		return;
+	}
+	Inventory->TrySelectSlot(SlotIndex);
+}
+
+void ADigetherPlayerCharacter::Server_DropItem_Implementation()
+{
+	if (IsDead())
+	{
+		return;
+	}
+	UDigetherInventoryComponent* Inventory = GetServerInventory();
+	if (!IsValid(Inventory))
+	{
+		UE_LOG(LogDigetherInventory, Warning, TEXT("버리기 실패: %s의 PlayerState에 인벤토리가 없다"), *GetName());
+		return;
+	}
+	const int32 SlotIndex = Inventory->GetSelectedSlot();
+	if (!Inventory->GetSelectedItem().IsSet())
+	{
+		return;
+	}
+	FVector Start;
+	FVector Forward;
+	GetDropStart(Start, Forward);
+	// 꺼낸 뒤 월드 아이템 생성에 실패하면 되돌려 한 곳에만 있게 함
+	FDigetherItemInstance Item;
+	if (Inventory->TryRemoveSlot(SlotIndex, Item) != EDigetherInventoryResult::Success)
+	{
+		return;
+	}
+	const FRotator Facing(0.f, GetBaseAimRotation().Yaw, 0.f);
+	if (!IsValid(ADigetherWorldItemActor::DropItem(GetWorld(), Item, Start, Facing, Forward, GetVelocity())))
+	{
+		int32 RestoredSlot = INDEX_NONE;
+		Inventory->TryAddItem(Item, RestoredSlot);
+		UE_LOG(LogDigetherInventory, Warning, TEXT("버리기 실패: 월드 아이템을 만들지 못해 소지품으로 되돌렸다"));
+		return;
+	}
+	UE_LOG(LogDigetherInventory, Log, TEXT("%s가 %s를 버렸다(슬롯 %d)"), *GetName(), *Item.DefinitionId.ToString(), SlotIndex + 1);
+}
+
+void ADigetherPlayerCharacter::DigetherSpawnItem(const FName DefinitionId)
+{
+#if !UE_BUILD_SHIPPING
+	Server_DevSpawnItem(DefinitionId);
+#endif
+}
+
+void ADigetherPlayerCharacter::Server_DevSpawnItem_Implementation(const FName DefinitionId)
+{
+#if !UE_BUILD_SHIPPING
+	if (!IsValid(UDigetherItemDefinition::FindDefinition(DefinitionId)))
+	{
+		UE_LOG(LogDigetherInventory, Warning, TEXT("시험 생성 실패: 아이템 정의 %s를 찾지 못했다(/Game/Data/Items 아래 에셋 이름)"), *DefinitionId.ToString());
+		return;
+	}
+	FVector Start;
+	FVector Forward;
+	GetDropStart(Start, Forward);
+	ADigetherWorldItemActor::DropItem(GetWorld(), FDigetherItemInstance::MakeNew(DefinitionId), Start, FRotator(0.f, GetBaseAimRotation().Yaw, 0.f), Forward, GetVelocity());
+#endif
+}
+
 void ADigetherPlayerCharacter::Server_Attack_Implementation()
 {
 	// 서버가 최종 판정: 들고 있는 장비의 몽타주 길이 동안 다음 공격을 막음(별도 쿨다운 수치를 코드에 두지 않음)
@@ -801,6 +1058,26 @@ void ADigetherPlayerCharacter::NotifyControllerChanged()
 	SetMappingContext(PreviousController, false);
 	Super::NotifyControllerChanged();
 	SetMappingContext(Controller, true);
+	RefreshCrosshair();
+}
+
+void ADigetherPlayerCharacter::RefreshCrosshair()
+{
+	APlayerController* PlayerController = Cast<APlayerController>(Controller);
+	const bool bWant = IsValid(PlayerController) && PlayerController->IsLocalController();
+	if (IsValid(CrosshairWidget) && (!bWant || CrosshairWidget->GetOwningPlayer() != PlayerController))
+	{
+		CrosshairWidget->RemoveFromParent();
+		CrosshairWidget = nullptr;
+	}
+	if (bWant && !IsValid(CrosshairWidget))
+	{
+		CrosshairWidget = CreateWidget<UDigetherCrosshairWidget>(PlayerController, UDigetherCrosshairWidget::StaticClass());
+		if (IsValid(CrosshairWidget))
+		{
+			CrosshairWidget->AddToPlayerScreen();
+		}
+	}
 }
 
 bool ADigetherPlayerCharacter::IsDead() const

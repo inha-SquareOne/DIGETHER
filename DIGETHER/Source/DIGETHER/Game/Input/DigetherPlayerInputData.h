@@ -40,6 +40,18 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Input")
 	TObjectPtr<UInputAction> AttackAction;
 
+	// E, 비어 있으면 줍기 입력만 동작하지 않음(필수 아님)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Input")
+	TObjectPtr<UInputAction> InteractAction;
+
+	// G, 비어 있으면 버리기 입력만 동작하지 않음(필수 아님)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Input")
+	TObjectPtr<UInputAction> DropAction;
+
+	// 1~4 슬롯 선택, 배열 순서가 키 순서(0번이 1키), 비어 있는 칸은 해당 키만 동작하지 않음(필수 아님)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Digether|Input")
+	TArray<TObjectPtr<UInputAction>> SelectSlotActions;
+
 	// 액션이 모두 지정됐는지 확인하고 빠진 이름을 모아 반환함
 	bool CollectMissingActions(TArray<FName>& OutMissing) const;
 

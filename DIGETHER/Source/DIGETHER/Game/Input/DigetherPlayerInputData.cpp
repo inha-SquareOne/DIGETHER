@@ -67,6 +67,22 @@ UInputMappingContext* UDigetherPlayerInputData::BuildMappingContext(UObject* Out
 	{
 		Context->MapKey(AttackAction, EKeys::LeftMouseButton);
 	}
+	if (IsValid(InteractAction))
+	{
+		Context->MapKey(InteractAction, EKeys::E);
+	}
+	if (IsValid(DropAction))
+	{
+		Context->MapKey(DropAction, EKeys::G);
+	}
+	const FKey SlotKeys[] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four };
+	for (int32 Index = 0; Index < SelectSlotActions.Num() && Index < UE_ARRAY_COUNT(SlotKeys); ++Index)
+	{
+		if (IsValid(SelectSlotActions[Index]))
+		{
+			Context->MapKey(SelectSlotActions[Index], SlotKeys[Index]);
+		}
+	}
 	return Context;
 }
 
