@@ -70,7 +70,7 @@ protected:
 
 	// 서버가 시작할 때마다 무작위 Seed 사용
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Digether|SpineEdge")
-	bool bRandomSeed = false;
+	bool bRandomSeed = true;
 
 	// 서버 BeginPlay에서 바로 생성 요청
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Digether|SpineEdge")
