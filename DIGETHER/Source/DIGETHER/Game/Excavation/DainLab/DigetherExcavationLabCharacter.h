@@ -1,16 +1,13 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "DigetherLabTool.h"
+#include "Game/Excavation/Dain/DigetherDiggableSoil.h"
 #include "DigetherExcavationLabCharacter.generated.h"
 class UCameraComponent;
+class USkeletalMesh;
+class ADigetherCollapseLab;
 
-// 개인 시험 선택값, 정식 아이템 식별자와 분리
-UENUM()
-enum class EDigetherLabTool : uint8
-{
-	Pickaxe,
-	Shovel
-};
 
 // 개인 맵 입력 어댑터, 공용 Character·정식 장비 연결과 분리
 UCLASS()
@@ -21,14 +18,20 @@ public:
 	ADigetherExcavationLabCharacter();
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* Input) override;
-	// 카메라 첫 흙 타격으로 요청, 지형 Applied만 true, 실패한 시도도 간격 소비
-	bool DigOnce();
-	// 시선 앞 400cm 첫 차단 결과를 OutHit에 출력, 자신은 제외
+	// 기존 시험 호출 호환, 상세 결과는 TryDigOnce 사용
+	bool DigOnce() { return TryDigOnce() == EDigetherSoilEditResult::Applied; }
+	// 입력·간격·대상 거절은 Rejected, 유효 흙 타격은 코어 결과 그대로 반환
+	UFUNCTION(BlueprintCallable, Category = "Digether|Excavation|Lab")
+	EDigetherSoilEditResult TryDigOnce();
+	// 시선 앞 ToolReachCm 첫 차단 결과, 무효 사거리·미충돌 시 OutHit 초기화
 	bool TraceTool(FHitResult& OutHit) const;
-	// 삽 반경(cm), 기존 직렬화 이름과 75cm 기본값 유지, 기획 미확정
+	// 굴착 공통 시험 사거리(cm), 기존 400cm 유지, 정식 장비 수치 미확정
+	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab", meta = (ClampMin = "1", Units = "cm"))
+	float ToolReachCm = 400.f;
+	// 삽 반경(cm), 갱도 v1.0.0 시험값
 	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab",
 			  meta = (ClampMin = "25", ClampMax = "125", Units = "cm"))
-	float SoilBrushRadius = 75.f;
+	float SoilBrushRadius = 125.f;
 	// 삽 사용 간격(초), 기존 직렬화 이름과 기본값 유지, 기획 미확정
 	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab", meta = (ClampMin = "0.15", Units = "s"))
 	float HitInterval = .35f;
@@ -38,14 +41,47 @@ public:
 	float PickaxeRadiusCm = 50.f;
 	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab", meta = (ClampMin = "0.15", Units = "s"))
 	float PickaxeIntervalSeconds = .5f;
+	// 맨손은 도구보다 적게, 느리게 파도록 맞춘 개인 시험값
+	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab", meta = (ClampMin = "25", Units = "cm"))
+	float HandsRadiusCm = 35.f;
+	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab", meta = (ClampMin = "0.15", Units = "s"))
+	float HandsIntervalSeconds = .8f;
 	// 선택만 변경, 직전 사용의 대기 시간은 유지
+	void SelectHands();
+	// 마지막으로 실제 착지 시 받은 단계. 이동·피해 상태와 별개인 개인 시험 기록이다.
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, Category = "Digether|Collapse Lab")
+	int32 LastReceivedBurialStage = 0;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, Category = "Digether|Collapse Lab")
+	bool bIsBuriedForRescue = false;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, Category = "Digether|Collapse Lab")
+	int32 ExposedTopSamples = 0;
+	UFUNCTION(BlueprintPure, Category = "Digether|Collapse Lab")
+	FVector GetBurialTopPoint(int32 Index) const;
+	void FinishBurialRescue();
 	void SelectPickaxe();
 	void SelectShovel();
+	void SelectSteelPickaxe() { SelectedTool = EDigetherLabTool::SteelPickaxe; }
+	void SelectUpperPickaxe() { SelectedTool = EDigetherLabTool::UpperPickaxe; }
+	void SelectDrill() { SelectedTool = EDigetherLabTool::Drill; }
 	EDigetherLabTool GetSelectedTool() const { return SelectedTool; }
 	float GetSelectedRadiusCm() const;
 	float GetSelectedIntervalSeconds() const;
 
 private:
+	friend class ADigetherCollapseLab;
+	void BeginBurial(ADigetherCollapseLab& Site, ADigetherDiggableSoil& Soil, TArray<int32>&& Samples);
+	FVector BurialFeet = FVector::ZeroVector;
+	FQuat BurialRotation = FQuat::Identity;
+	TWeakObjectPtr<ADigetherCollapseLab> BurialSite;
+	TWeakObjectPtr<ADigetherDiggableSoil> BurialSoil;
+	TArray<int32> BurialSamples;
+	FTransform SavedBurialMeshTransform;
+	FVector SavedBurialCameraLocation = FVector::ZeroVector;
+	bool bSavedBurialYawControl = false;
+	bool bSavedBurialMeshVisible = false;
+	bool bSavedBurialOwnerNoSee = false;
+	UPROPERTY(Transient)
+	TObjectPtr<USkeletalMesh> SavedBurialMeshAsset;
 	// 누름/뗌 입력의 반복 요청 상태 전환, 정식 도구 시스템과 분리
 	void StartDig();
 	void StopDig();

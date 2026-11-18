@@ -8,7 +8,7 @@
 #if !UE_BUILD_SHIPPING
 DEFINE_LOG_CATEGORY(LogDigetherSoilPerformance);
 static TAutoConsoleVariable<int32> GDigetherSoilChunkCells(
-	TEXT("digether.SoilChunkCells"), 0, TEXT("Personal comparison: 0 whole, 8 or 16 chunks; applied on BeginPlay"));
+	TEXT("digether.SoilChunkCells"), 8, TEXT("Personal comparison: 0 whole, 8 or 16 chunks; applied on BeginPlay"));
 #endif
 
 ADigetherDiggableSoil::ADigetherDiggableSoil()
@@ -75,7 +75,7 @@ void ADigetherDiggableSoil::BeginPlay()
 #if !UE_BUILD_SHIPPING
 	int32 ComparisonCells = GDigetherSoilChunkCells.GetValueOnGameThread();
 	FParse::Value(FCommandLine::Get(), TEXT("SoilChunkCells="), ComparisonCells);
-	if (ComparisonCells != 0 && SetComparisonChunkCells(ComparisonCells))
+	if (SetComparisonChunkCells(ComparisonCells))
 	{
 		return;
 	}
@@ -93,7 +93,7 @@ bool ADigetherDiggableSoil::ResetSoil()
 	return SetComparisonChunkCells(AppliedChunkCells);
 }
 
-EDigetherSoilEditResult ADigetherDiggableSoil::TryExcavate(FVector WorldPoint, float Radius)
+EDigetherSoilEditResult ADigetherDiggableSoil::TryExcavate(FVector WorldPoint, float Radius, FVector WorldNormal)
 {
 #if !UE_BUILD_SHIPPING
 	DigetherSoilProfiling::FDigetherSoilRequestTimer RequestTimer;
@@ -109,7 +109,8 @@ EDigetherSoilEditResult ADigetherDiggableSoil::TryExcavate(FVector WorldPoint, f
 	LastGeneratedTriangles = 0;
 	FVector Local;
 	// 로컬 권한 검사만 수행, 클라이언트 요청 전달·밀도 복제는 미구현
-	if (!HasAuthority() || !bReady || !DigetherSoil::WorldToLocal(GetActorTransform(), WorldPoint, Local))
+	if (!HasAuthority() || !bReady || WorldNormal.ContainsNaN() || !FMath::IsFinite(BrushDepthScale) ||
+		BrushDepthScale < .25f || BrushDepthScale > 1.f || !DigetherSoil::WorldToLocal(GetActorTransform(), WorldPoint, Local))
 	{
 		return Finish(EDigetherSoilEditResult::Rejected);
 	}
@@ -121,7 +122,8 @@ EDigetherSoilEditResult ADigetherDiggableSoil::TryExcavate(FVector WorldPoint, f
 	FBox Changed;
 	DIGETHER_SOIL_TIMER(CarveTimer, Carve);
 	const DigetherSoil::EDigetherSoilCarveResult Result =
-		DigetherSoil::Carve(AppliedGrid, Candidate, Local, Radius, ProtectedRegions, Changed);
+		DigetherSoil::Carve(AppliedGrid, Candidate, Local, Radius, ProtectedRegions, Changed, GetActorScale3D(), BrushIrregularity, CutEdgeSoftening,
+			GetActorQuat().UnrotateVector(WorldNormal.GetSafeNormal()), BrushDepthScale);
 	DIGETHER_SOIL_STOP(CarveTimer);
 	if (Result == DigetherSoil::EDigetherSoilCarveResult::InvalidInput)
 	{
@@ -131,6 +133,10 @@ EDigetherSoilEditResult ADigetherDiggableSoil::TryExcavate(FVector WorldPoint, f
 	{
 		return Finish(EDigetherSoilEditResult::NoChange);
 	}
+	DIGETHER_SOIL_TIMER(FragmentTimer, Fragments);
+	DigetherSoil::RemoveSmallFragments(AppliedGrid, Density, Candidate, ProtectedRegions,
+		MaxFragmentSamples, MaxFragmentExtentCm, GetActorScale3D(), Changed);
+	DIGETHER_SOIL_STOP(FragmentTimer);
 	if (!(AppliedChunkCells == 0 ? Apply(AppliedGrid, Candidate)
 								 : ApplyChunks(AppliedGrid, Candidate, AppliedChunkCells, false)))
 	{
@@ -145,7 +151,7 @@ EDigetherSoilEditResult ADigetherDiggableSoil::TryExcavate(FVector WorldPoint, f
 bool ADigetherDiggableSoil::Apply(const DigetherSoil::FDigetherSoilGrid& Grid, const TArray<uint8>& Candidate)
 {
 	DigetherSoil::FDigetherSoilSurface Surface;
-	if (!DigetherSoil::BuildSurface(Grid, Candidate, Surface))
+	if (!DigetherSoil::BuildSurface(Grid, Candidate, Surface, bSmoothShading, FaceEmphasis))
 	{
 		return false;
 	}
@@ -167,5 +173,24 @@ bool ADigetherDiggableSoil::Apply(const DigetherSoil::FDigetherSoilGrid& Grid, c
 	AppliedGrid = Grid;
 	bFrontActive = Next == SoilMesh.Get();
 	bReady = true;
+	bAppliedSmoothShading = bSmoothShading;
+	AppliedFaceEmphasis = FaceEmphasis;
 	return true;
+}
+
+void ADigetherDiggableSoil::RefreshShading()
+{
+	if (!bReady || (bSmoothShading == bAppliedSmoothShading && FaceEmphasis == AppliedFaceEmphasis))
+	{
+		return;
+	}
+	// 후보 준비 실패 시 현재 표시 중인 옵션으로 복원
+	const bool bApplied = AppliedChunkCells == 0 ? Apply(AppliedGrid, Density)
+		: ApplyChunks(AppliedGrid, Density, AppliedChunkCells, false);
+	if (!bApplied)
+	{
+		bSmoothShading = bAppliedSmoothShading;
+		FaceEmphasis = AppliedFaceEmphasis;
+		UE_LOG(LogTemp, Warning, TEXT("Soil shading refresh failed; previous terrain retained"));
+	}
 }

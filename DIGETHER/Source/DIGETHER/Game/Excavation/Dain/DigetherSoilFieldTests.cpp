@@ -199,8 +199,8 @@ bool FDigetherSoilValidationTest::RunTest(const FString& Parameters)
 													  EDigetherSoilCarveResult::InvalidInput);
 	TestTrue(TEXT("rejection preserves data"), Density == Before);
 	FVector Local(7);
-	TestFalse(TEXT("scaled actor rejected"),
-			  WorldToLocal(FTransform(FQuat::Identity, FVector::ZeroVector, FVector(2, 1, 1)), FVector(200), Local));
+	TestFalse(TEXT("zero scale rejected"),
+			  WorldToLocal(FTransform(FQuat::Identity, FVector::ZeroVector, FVector(0, 1, 1)), FVector(200), Local));
 	TestTrue(TEXT("failed conversion preserves output"), Local == FVector(7));
 	Density.Pop();
 	FDigetherSoilSurface Surface;
@@ -505,6 +505,182 @@ bool FDigetherSoilSnapshotTest::RunTest(const FString& Parameters)
 	IFileManager::Get().MakeDirectory(*Directory, true);
 	TestTrue(TEXT("write exact comparison evidence"),
 		FFileHelper::SaveArrayToFile(Bytes, *(Directory / TEXT("surface-snapshot.bin"))));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilScaledBrushTest, "DIGETHER.Excavation.SoilCore.ScaledBrush",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FDigetherSoilScaledBrushTest::RunTest(const FString& Parameters)
+{
+    FDigetherSoilGrid Grid;
+    Grid.Cells = FIntVector(16, 16, 16);
+    Grid.SpacingCm = 25;
+    const FVector Center(200);
+    for (const FVector Scale : {FVector(2, 1, 1), FVector(.5, 2, 1), FVector(1, 1, 1)})
+    {
+        TArray<uint8> Density;
+        Initialize(Grid, Density);
+        const TArray<uint8> Before = Density;
+        const FTransform Transform(FRotator(30, 65, 15), FVector(900, -300, 120), Scale);
+        FVector Local;
+        TestTrue(TEXT("translated rotated scaled point accepted"), WorldToLocal(Transform, Transform.TransformPosition(Center), Local));
+        TestTrue(TEXT("world to local round trip"), Local.Equals(Center, 1.e-6));
+        FBox Changed;
+        TestTrue(TEXT("scaled brush applied"), Carve(Grid, Density, Local, 75, {}, Changed, Scale) == EDigetherSoilCarveResult::Changed);
+        for (int32 Z = 1; Z < Grid.Cells.Z; ++Z)
+            for (int32 Y = 1; Y < Grid.Cells.Y; ++Y)
+                for (int32 X = 1; X < Grid.Cells.X; ++X)
+                {
+                    const int32 Index = Grid.GetSampleIndex(X, Y, Z);
+                    if (Before[Index] <= 128) continue;
+                    const double Distance = FVector::Distance(Transform.TransformPosition(Grid.GetSamplePosition(X,Y,Z)), Transform.TransformPosition(Center));
+                    if (Distance < 73) TestTrue(TEXT("inside world radius is air"), Density[Index] <= 128);
+                    if (Distance > 77) TestTrue(TEXT("outside world radius remains solid"), Density[Index] > 128);
+                }
+        Density = Before;
+        TestTrue(TEXT("scaled protection unchanged"), Carve(Grid, Density, Center, 75,
+            {FBox(FVector::ZeroVector, FVector(400))}, Changed, Scale) == EDigetherSoilCarveResult::NoChange);
+        TestTrue(TEXT("protected density preserved"), Density == Before);
+    }
+    return true;
+}
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilFragmentTest, "DIGETHER.Excavation.Soil.FragmentsAndShading",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FDigetherSoilFragmentTest::RunTest(const FString& Parameters)
+{
+	FDigetherSoilGrid Grid;
+	Grid.Cells = FIntVector(16); Grid.SpacingCm = 25;
+	TArray<uint8> Before; Before.Init(0, Grid.GetSampleCount());
+	const int32 Island = Grid.GetSampleIndex(8, 8, 8), Cut = Grid.GetSampleIndex(7, 8, 8);
+	Before[Island] = Before[Cut] = 255;
+	TArray<uint8> Candidate = Before; Candidate[Cut] = 0;
+	FBox Changed(ForceInit);
+	const TArray<uint8> Uncleaned = Candidate;
+	TestEqual(TEXT("small newly separated island removed"), RemoveSmallFragments(Grid, Before, Candidate, {}, 8, 50, FVector::OneVector, Changed), 1);
+	TestEqual(TEXT("island density becomes air"), int32(Candidate[Island]), 0);
+	TestTrue(TEXT("cleanup expands dirty bounds"), Changed.IsInsideOrOn(FVector(200)));
+	Candidate = Uncleaned;
+	TestEqual(TEXT("disabled cleanup"), RemoveSmallFragments(Grid, Before, Candidate, {}, 0, 50, FVector::OneVector, Changed), 0);
+	TestEqual(TEXT("unrelated island preserved"), RemoveSmallFragments(Grid, Uncleaned, Candidate, {}, 8, 50, FVector::OneVector, Changed), 0);
+	TestEqual(TEXT("world scale size limit"), RemoveSmallFragments(Grid, Before, Candidate, {}, 8, 50, FVector(4,1,1), Changed), 0);
+	TestEqual(TEXT("protected island preserved"), RemoveSmallFragments(Grid, Before, Candidate, {FBox(FVector(200),FVector(201))}, 8, 50, FVector::OneVector, Changed), 0);
+	TestTrue(TEXT("protection leaves all bytes intact"), Candidate == Uncleaned);
+	// 대각선 연결 및 청크 경계 너머 큰 성분은 잔여 조각으로 제거하지 않음
+	for (int32 X = 9; X < 16; ++X) Candidate[Grid.GetSampleIndex(X,9,9)] = 255;
+	Candidate[Grid.GetSampleIndex(14,10,9)] = 255;
+	TestEqual(TEXT("large diagonal connected island retained"), RemoveSmallFragments(Grid, Before, Candidate, {}, 8, 1000, FVector::OneVector, Changed), 0);
+	// (1,-1,0)은 같은 셀 안에서 가깝지만 표면을 공유하는 사면체 모서리가 아니다.
+	Before.Init(0, Grid.GetSampleCount());
+	Before[Island] = Before[Cut] = 255;
+	for (int32 X = 9; X <= 15; ++X)
+	{
+		Before[Grid.GetSampleIndex(X,7,8)] = 255;
+	}
+	Before[Grid.GetSampleIndex(15,6,8)] = Before[Grid.GetSampleIndex(15,5,8)] = 255;
+	Candidate = Before;
+	Candidate[Cut] = 0;
+	TestEqual(TEXT("non-edge diagonal does not anchor island"), RemoveSmallFragments(Grid, Before, Candidate, {}, 8, 50, FVector::OneVector, Changed), 1);
+	TestEqual(TEXT("nearby solid survives"), int32(Candidate[Grid.GetSampleIndex(9,7,8)]), 255);
+	Before[Cut] = 100;
+	Candidate = Before;
+	Candidate[Cut] = 80;
+	TestEqual(TEXT("deepened adjacent air rechecks old island"), RemoveSmallFragments(Grid, Before, Candidate, {}, 8, 50, FVector::OneVector, Changed), 1);
+	Initialize(Grid, Candidate);
+	Carve(Grid, Candidate, FVector(25,200,200), 90, {}, Changed);
+	FDigetherSoilSurface Smooth, Flat;
+	TestTrue(TEXT("smooth build"), BuildSurface(Grid,Candidate,Smooth,true));
+	TestTrue(TEXT("flat build"), BuildSurface(Grid,Candidate,Flat,false));
+	TestTrue(TEXT("shading preserves exact geometry"), Smooth.Vertices == Flat.Vertices && Smooth.Indices == Flat.Indices);
+	bool bDifferent = false;
+	for (int32 I=0; I<Flat.Vertices.Num(); I+=3)
+	{
+		const FVector Face = FVector::CrossProduct(Flat.Vertices[I+2]-Flat.Vertices[I],Flat.Vertices[I+1]-Flat.Vertices[I]).GetSafeNormal();
+		for (int32 K=0; K<3; ++K)
+		{
+			TestTrue(TEXT("flat normal points outward"), Flat.Normals[I+K].Equals(Face,1.e-5));
+			bDifferent |= !Smooth.Normals[I+K].Equals(Flat.Normals[I+K],1.e-5);
+		}
+	}
+	TestTrue(TEXT("shading options visibly distinct normals"), bDifferent);
+	FDigetherSoilSurface Mid, End;
+	TestTrue(TEXT("mid shading builds"), BuildSurface(Grid,Candidate,Mid,true,.5f));
+	TestTrue(TEXT("mid geometry unchanged"),Mid.Vertices==Smooth.Vertices && Mid.Indices==Smooth.Indices);
+	for (int32 I=0; I<Mid.Normals.Num(); ++I)
+	{
+		FVector Expected=(Smooth.Normals[I]+Flat.Normals[I]).GetSafeNormal();
+		if (Expected.IsNearlyZero()) Expected=Flat.Normals[I];
+		TestTrue(TEXT("normalized halfway normal"),Mid.Normals[I].Equals(Expected,1.e-5));
+	}
+	TestTrue(TEXT("weight one matches flat"),BuildSurface(Grid,Candidate,End,true,1.f) && End.Normals==Flat.Normals);
+	TestFalse(TEXT("invalid weight rejected"),BuildSurface(Grid,Candidate,End,true,-1.f));
+
+	return true;
+}
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilOrganicBrushTest, "DIGETHER.Excavation.SoilCore.OrganicBrush",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FDigetherSoilOrganicBrushTest::RunTest(const FString& Parameters)
+{
+	FDigetherSoilGrid Grid;
+	Grid.Cells = FIntVector(16); Grid.SpacingCm = 25;
+	TArray<uint8> Initial; Initialize(Grid, Initial);
+	TArray<uint8> Sphere = Initial, ExplicitZero = Initial, Organic = Initial, Soft = Initial;
+	FBox Bounds;
+	const FVector Point(100,200,200);
+	Carve(Grid, Sphere, Point, 75, {}, Bounds);
+	Carve(Grid, ExplicitZero, Point, 75, {}, Bounds, FVector::OneVector, 0, 0);
+	TestTrue(TEXT("zero options preserve legacy density exactly"), Sphere == ExplicitZero);
+	Carve(Grid, Organic, Point, 75, {}, Bounds, FVector::OneVector, .08, 0);
+	TestTrue(TEXT("organic differs from sphere"), Organic != Sphere);
+	for (int32 I=0; I<Initial.Num(); ++I)
+	{
+		TestTrue(TEXT("organic does not exceed spherical removal"), Organic[I] >= Sphere[I]);
+		TestTrue(TEXT("organic only removes density"), Organic[I] <= Initial[I]);
+	}
+	Carve(Grid, Soft, Point, 75, {}, Bounds, FVector::OneVector, .08, .35);
+	TestTrue(TEXT("edge softening changes boundary"), Soft != Organic);
+	TArray<uint8> Repeat = Initial;
+	Carve(Grid, Repeat, Point, 75, {}, Bounds, FVector::OneVector, .08, .35);
+	TestTrue(TEXT("deterministic result"), Repeat == Soft);
+	Carve(Grid, Repeat, Point, 75, {}, Bounds, FVector::OneVector, .08, .35);
+	TestTrue(TEXT("same brush does not repeatedly erode edge"), Repeat == Soft);
+	const FBox Protected(FVector(150,150,150),FVector(175,250,250));
+	TArray<uint8> Guarded = Initial;
+	Carve(Grid, Guarded, Point, 75, {Protected}, Bounds, FVector::OneVector, .08, .35);
+	int32 Softened = 0;
+	for (int32 Z=0; Z<=16; ++Z) for (int32 Y=0; Y<=16; ++Y) for (int32 X=0; X<=16; ++X)
+	{
+		const int32 I=Grid.GetSampleIndex(X,Y,Z);
+		TestTrue(TEXT("softening never fills air"), Soft[I] <= Organic[I]);
+		Softened += Soft[I] < Organic[I];
+		if (Protected.ExpandBy(25).IsInsideOrOn(Grid.GetSamplePosition(X,Y,Z)))
+			TestEqual(TEXT("protected samples unchanged"), Guarded[I], Initial[I]);
+		if (X==0 || Y==0 || Z==0 || X==16 || Y==16 || Z==16)
+			TestEqual(TEXT("outer air unchanged"), Soft[I], Initial[I]);
+	}
+	AddInfo(FString::Printf(TEXT("edge samples softened=%d"),Softened));
+	const TArray<uint8> BeforeInvalid = Soft;
+	TestTrue(TEXT("invalid tuning rejected"), Carve(Grid,Soft,Point,75,{},Bounds,FVector::OneVector,.3,.35)==EDigetherSoilCarveResult::InvalidInput);
+	TestTrue(TEXT("invalid tuning preserves state"),Soft==BeforeInvalid);
+	// 붙어 있는 한 표본 두께 돌출부: 분리 조각 제거 없이 절삭 경계 완화만 비교
+	TArray<uint8> Tip; Tip.Init(0,Grid.GetSampleCount());
+	for (int32 Z=1;Z<16;++Z) for (int32 Y=1;Y<16;++Y) for (int32 X=1;X<=8;++X)
+		Tip[Grid.GetSampleIndex(X,Y,Z)] = 255;
+	for (int32 X=9;X<=12;++X) Tip[Grid.GetSampleIndex(X,8,8)] = 255;
+	for (int32 Z=9;Z<16;++Z) Tip[Grid.GetSampleIndex(12,8,Z)] = 255;
+	for (int32 X=9;X<=12;++X) Tip[Grid.GetSampleIndex(X,8,15)] = 255;
+	TArray<uint8> SharpTip=Tip, SoftTip=Tip;
+	Carve(Grid,SharpTip,FVector(270,225,200),35,{},Bounds,FVector::OneVector,0,0);
+	Carve(Grid,SoftTip,FVector(270,225,200),35,{},Bounds,FVector::OneVector,0,.35);
+	const int32 TipIndex=Grid.GetSampleIndex(12,8,8);
+	TestTrue(TEXT("sharp tip fixture remains solid without softening"),SharpTip[TipIndex]>128);
+	TestTrue(TEXT("thin tip becomes air after one softening pass"),SoftTip[TipIndex]<=128);
+	AddInfo(FString::Printf(TEXT("tip density sharp=%d softened=%d"),SharpTip[TipIndex],SoftTip[TipIndex]));
+	FDigetherSoilSurface Surface;
+	TestTrue(TEXT("organic surface builds"),BuildSurface(Grid,Soft,Surface));
 	return true;
 }
 

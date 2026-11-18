@@ -73,8 +73,9 @@ void ADigetherDiggableSoil::CreateChunkBuffers(const DigetherSoil::FDigetherSoil
 				OutChunks.Add(Chunk);
 				for (int32 Buffer = 0; Buffer < 2; ++Buffer)
 				{
+					// PIE 복제 시 편집용 충돌을 넘기지 않음, BeginPlay에서 새 청크 버퍼 생성
 					UProceduralMeshComponent* Mesh =
-						NewObject<UProceduralMeshComponent>(this, NAME_None, RF_Transient);
+						NewObject<UProceduralMeshComponent>(this, NAME_None, RF_Transient | RF_DuplicateTransient);
 					AddInstanceComponent(Mesh);
 					Mesh->SetupAttachment(SoilMesh);
 					ConfigureMesh(*Mesh);
@@ -156,7 +157,7 @@ bool ADigetherDiggableSoil::ApplyChunks(const DigetherSoil::FDigetherSoilGrid& G
 	for (int32 Index = 0; Index < WorkingChunks.Num(); ++Index)
 	{
 		FDigetherSoilChunk& Chunk = WorkingChunks[Index];
-		bool bDirty = bReset;
+		bool bDirty = bReset || bSmoothShading != bAppliedSmoothShading || FaceEmphasis != AppliedFaceEmphasis;
 		for (const FIntVector& Sample : ChangedSamples)
 		{
 			// 경계 정점의 기울기가 참조하는 이웃 표본까지 포함
@@ -173,7 +174,7 @@ bool ADigetherDiggableSoil::ApplyChunks(const DigetherSoil::FDigetherSoilGrid& G
 		}
 		DigetherSoil::FDigetherSoilSurface Surface;
 		const DigetherSoil::EDigetherSoilRangeState State =
-			DigetherSoil::BuildSurfaceRange(Grid, Candidate, Chunk.Min, Chunk.Max, Surface);
+			DigetherSoil::BuildSurfaceRange(Grid, Candidate, Chunk.Min, Chunk.Max, Surface, bSmoothShading, FaceEmphasis);
 		if (State == DigetherSoil::EDigetherSoilRangeState::Failed)
 		{
 			return Reject();
@@ -223,6 +224,8 @@ bool ADigetherDiggableSoil::ApplyChunks(const DigetherSoil::FDigetherSoilGrid& G
 	AppliedGrid = Grid;
 	AppliedChunkCells = ChunkCells;
 	bReady = true;
+	bAppliedSmoothShading = bSmoothShading;
+	AppliedFaceEmphasis = FaceEmphasis;
 	LastUpdatedChunks = Prepared.Num();
 	LastGeneratedTriangles = GeneratedTriangles;
 	return true;

@@ -39,10 +39,33 @@ public:
 	virtual void OnConstruction(const FTransform& Transform) override;
 	// 월드 타격점·반경(cm) 입력 → 거부/무변경/적용/실패, 성공 시에만 Revision 증가
 	UFUNCTION(BlueprintCallable, Category = "Digether|Excavation")
-	EDigetherSoilEditResult TryExcavate(FVector WorldPoint, float Radius);
+	EDigetherSoilEditResult TryExcavate(FVector WorldPoint, float Radius, FVector WorldNormal = FVector::ZeroVector);
+	// 표면 법선 방향 깊이 배율. 1은 원래 깊이이며 접선 방향 반경은 그대로 사용한다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Digether|Brush", meta = (ClampMin = "0.25", ClampMax = "1.0"))
+	float BrushDepthScale = 1.f;
 	// 현재 규격·모드로 원상 초기화, 실패 시 기존 지형 유지
 	UFUNCTION(BlueprintCallable, Category = "Digether|Excavation")
 	bool ResetSoil();
+	// 편집한 음영 옵션을 현재 지형에 적용, 밀도·Revision은 보존
+	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Digether|Appearance")
+	void RefreshShading();
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Digether|Appearance")
+	bool bSmoothShading = true;
+	// 0 부드러움, 1 면별 음영. 기존 체크를 끄면 값과 무관하게 완전 면별 음영
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Digether|Appearance", meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float FaceEmphasis = .5f;
+	// 0은 기존 구형, 값을 올릴수록 비대칭 절삭면이 뚜렷해짐. 시험값이며 기획 승인값 아님
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Digether|Brush", meta = (ClampMin = "0", ClampMax = "0.2"))
+	float BrushIrregularity = 0.f;
+	// 0은 완화 끔. 새 절삭면의 한 셀 이웃만 밀도 감소, 반경 바깥 가장자리도 소폭 영향
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Digether|Brush", meta = (ClampMin = "0", ClampMax = "0.5"))
+	float CutEdgeSoftening = 0.f;
+	// 개인 시험값: 0은 정리 끔, 큰 분리 덩어리는 붕괴 시스템의 판단 대상으로 보존
+	UPROPERTY(EditAnywhere, Category = "Digether|Fragment Cleanup", meta = (ClampMin = "0", ClampMax = "64"))
+	int32 MaxFragmentSamples = 8;
+	// 밀도 경계 보간 상자의 월드 축별 크기 상한, 회전 전 스케일 반영
+	UPROPERTY(EditAnywhere, Category = "Digether|Fragment Cleanup", meta = (ClampMin = "0", Units = "cm"))
+	double MaxFragmentExtentCm = 50.0;
 	// 마지막 초기화 이후 성공한 굴착 횟수, 네트워크 전송 구현과 별개
 	uint32 GetRevision() const { return Revision; }
 	// 확정 밀도 CRC32, 회귀 비교용이며 충돌 상태의 완전한 증명은 아님
@@ -71,6 +94,8 @@ protected:
 
 private:
 	friend class FDigetherSoilActorTestAccess;
+	// 개인 붕괴 시험만 후보 배열과 기존 적용 경로 재사용
+	friend class ADigetherCollapseLab;
 	// 공유 후보 밀도·청크 크기 입력 → 전 후보 충돌 준비 성공 시에만 확정
 	bool ApplyChunks(const DigetherSoil::FDigetherSoilGrid& Grid, const TArray<uint8>& Candidate, int32 ChunkCells,
 					 bool bReset);
@@ -91,7 +116,7 @@ private:
 	// 밀도 복제 없이 셀 범위·버퍼·표면 분류만 보관
 	TArray<FDigetherSoilChunk> Chunks;
 	// 실제 적용된 모드, 0 전체 / 8·16 청크
-	int32 AppliedChunkCells = 0;
+	int32 AppliedChunkCells = 8;
 	// 최근 요청의 재생성 청크·삼각형 수, 거부 요청도 0으로 갱신
 	int32 LastUpdatedChunks = 0;
 	int32 LastGeneratedTriangles = 0;
@@ -114,4 +139,6 @@ private:
 	bool bFrontActive = false;
 	// 확정 지형 준비 여부, 초기 준비 실패 시 굴착 요청 거부
 	bool bReady = false;
+	bool bAppliedSmoothShading = true;
+	float AppliedFaceEmphasis = .5f;
 };

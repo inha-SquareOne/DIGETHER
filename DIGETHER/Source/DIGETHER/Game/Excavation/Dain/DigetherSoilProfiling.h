@@ -10,7 +10,7 @@ namespace DigetherSoilProfiling
 	// ms 단위, 총시간은 로그 출력 전까지 측정
 	struct FDigetherSoilTimings
 	{
-		double Copy = 0, Carve = 0, Surface = 0, Normals = 0, Remove = 0, MeshCollision = 0, Commit = 0, Total = 0;
+		double Copy = 0, Carve = 0, Fragments = 0, Surface = 0, Normals = 0, Remove = 0, MeshCollision = 0, Commit = 0, Total = 0;
 		int32 Result = -1;
 	};
 	inline TAutoConsoleVariable<int32> Enabled(TEXT("digether.SoilProfile"), 0,
@@ -69,9 +69,9 @@ namespace DigetherSoilProfiling
 			if (Mode >= 2)
 			{
 				UE_LOG(LogDigetherSoilPerformance, Display,
-					   TEXT("ms Copy=%.6f Carve=%.6f Surface=%.6f Normals=%.6f Remove=%.6f MeshCollision=%.6f "
+					   TEXT("ms Copy=%.6f Carve=%.6f Fragments=%.6f Surface=%.6f Normals=%.6f Remove=%.6f MeshCollision=%.6f "
 							"Commit=%.6f Total=%.6f Result=%d"),
-					   Values.Copy, Values.Carve, Values.Surface, Values.Normals, Values.Remove, Values.MeshCollision,
+					   Values.Copy, Values.Carve, Values.Fragments, Values.Surface, Values.Normals, Values.Remove, Values.MeshCollision,
 					   Values.Commit, Values.Total, Values.Result);
 			}
 		}

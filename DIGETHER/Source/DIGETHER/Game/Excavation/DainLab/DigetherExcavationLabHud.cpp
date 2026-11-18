@@ -14,7 +14,7 @@ void ADigetherExcavationLabHud::DrawHUD()
 	DrawLine(X - 6, Y, X + 6, Y, FLinearColor::White);
 	DrawLine(X, Y - 6, X, Y + 6, FLinearColor::White);
 	DrawText(NSLOCTEXT("DigetherExcavationLab", "Controls",
-					   "EXCAVATION LAB | WASD: move | Hold LMB: dig brown soil | Grey rock: protected")
+					   "EXCAVATION LAB | WASD: move | Hold LMB: dig brown soil | Bedrock: protected | Pickaxe: break rubble")
 				 .ToString(),
 			 FLinearColor::White, 20, 20);
 	DrawText(NSLOCTEXT("DigetherExcavationLab", "Instructions",
@@ -24,11 +24,9 @@ void ADigetherExcavationLabHud::DrawHUD()
 	const ADigetherExcavationLabCharacter* Character = PlayerOwner ? Cast<ADigetherExcavationLabCharacter>(PlayerOwner->GetPawn()) : nullptr;
 	if (IsValid(Character))
 	{
-		const FText ToolName = Character->GetSelectedTool() == EDigetherLabTool::Pickaxe
-			? NSLOCTEXT("DigetherExcavationLab", "Pickaxe", "Pickaxe")
-			: NSLOCTEXT("DigetherExcavationLab", "Shovel", "Shovel");
+		const FText ToolName = StaticEnum<EDigetherLabTool>()->GetDisplayNameTextByValue(static_cast<int64>(Character->GetSelectedTool()));
 		DrawText(FText::Format(NSLOCTEXT("DigetherExcavationLab", "ToolSettings",
-			"[1] Pickaxe / [2] Shovel | Selected: {0} | Radius: {1} cm | Interval: {2} s | TEMP - not approved"),
+			"[1] Hands  [2] Shovel  [3] Pickaxe  [4] Steel  [5] Upper  [6] Drill  |  {0}: {1} cm / {2} s (test)"),
 			ToolName, FText::AsNumber(Character->GetSelectedRadiusCm()),
 			FText::AsNumber(Character->GetSelectedIntervalSeconds())).ToString(), FLinearColor(0.f, 1.f, 1.f), 20, 70);
 	}
