@@ -48,6 +48,9 @@ bool FDigetherLabToolContractTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("rejected attempts preserve density"), Soil->GetDensityHash(), InitialHash);
 	// 물리 이동 없이 시험 시각만 진행, 사거리 비교 중 원점 고정
 	World->Tick(LEVELTICK_TimeOnly, 1.f);
+	Character->SelectHands();
+	TestTrue(TEXT("hands remove less soil per swing than a pickaxe"), Character->GetSelectedRadiusCm() < Character->PickaxeRadiusCm);
+	TestTrue(TEXT("hands use longer cooldown than a pickaxe"), Character->GetSelectedIntervalSeconds() > Character->PickaxeIntervalSeconds);
 	TestTrue(TEXT("applied result forwarded"), Character->TryDigOnce() == EDigetherSoilEditResult::Applied);
 	TestEqual(TEXT("one edit committed"), Soil->GetRevision(), uint32(1));
 	const uint32 EditedHash = Soil->GetDensityHash();
@@ -55,7 +58,10 @@ bool FDigetherLabToolContractTest::RunTest(const FString& Parameters)
 	Character->SelectPickaxe();
 	TestFalse(TEXT("legacy bool preserves switch cooldown"), Character->DigOnce());
 	TestEqual(TEXT("cooldown preserves edit"), Soil->GetDensityHash(), EditedHash);
-	World->Tick(LEVELTICK_TimeOnly, 1.f);
+	for (int32 Frame = 0; Frame < 60; ++Frame)
+	{
+		World->Tick(LEVELTICK_TimeOnly, 1.f / 60.f);
+	}
 	// 실제 표면은 남기고 모든 표본을 보호해 NoChange와 Rejected를 구분
 	Soil->ProtectedRegions.Add(FBox(FVector(-1000), FVector(1000)));
 	TestTrue(TEXT("protected soil remains traceable"), Character->TraceTool(Hit) && Hit.GetActor() == Soil);

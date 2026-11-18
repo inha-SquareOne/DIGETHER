@@ -867,7 +867,7 @@ bool FDigetherLabToolsTest::RunTest(const FString& Parameters)
 		{
 			Character->SelectPickaxe();
 		}
-		const float Radius = ToolIndex == 0 ? 50.f : 75.f;
+		const float Radius = ToolIndex == 0 ? 50.f : 125.f;
 		TestEqual(TEXT("selected radius"), Character->GetSelectedRadiusCm(), Radius);
 		TestWorld.Step(Character, 180, true);
 		TestTrue(TEXT("intact wall blocks character"), Character->GetActorLocation().X > 100 && Character->GetActorLocation().X < 225);

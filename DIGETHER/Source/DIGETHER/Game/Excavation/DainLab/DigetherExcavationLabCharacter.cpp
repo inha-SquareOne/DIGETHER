@@ -1,4 +1,5 @@
 #include "DigetherExcavationLabCharacter.h"
+#include "DigetherRubbleRock.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
@@ -6,7 +7,6 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
 #include "InputCoreTypes.h"
-
 ADigetherExcavationLabCharacter::ADigetherExcavationLabCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -26,8 +26,12 @@ void ADigetherExcavationLabCharacter::SetupPlayerInputComponent(UInputComponent*
 	Super::SetupPlayerInputComponent(Input);
 	Input->BindAxisKey(EKeys::MouseX, this, &ADigetherExcavationLabCharacter::LookYaw);
 	Input->BindAxisKey(EKeys::MouseY, this, &ADigetherExcavationLabCharacter::LookPitch);
-	Input->BindKey(EKeys::One, IE_Pressed, this, &ADigetherExcavationLabCharacter::SelectPickaxe);
+	Input->BindKey(EKeys::One, IE_Pressed, this, &ADigetherExcavationLabCharacter::SelectHands);
+	Input->BindKey(EKeys::Three, IE_Pressed, this, &ADigetherExcavationLabCharacter::SelectPickaxe);
 	Input->BindKey(EKeys::Two, IE_Pressed, this, &ADigetherExcavationLabCharacter::SelectShovel);
+	Input->BindKey(EKeys::Four, IE_Pressed, this, &ADigetherExcavationLabCharacter::SelectSteelPickaxe);
+	Input->BindKey(EKeys::Five, IE_Pressed, this, &ADigetherExcavationLabCharacter::SelectUpperPickaxe);
+	Input->BindKey(EKeys::Six, IE_Pressed, this, &ADigetherExcavationLabCharacter::SelectDrill);
 	Input->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &ADigetherExcavationLabCharacter::StartDig);
 	Input->BindKey(EKeys::LeftMouseButton, IE_Released, this, &ADigetherExcavationLabCharacter::StopDig);
 }
@@ -83,6 +87,10 @@ bool ADigetherExcavationLabCharacter::TraceTool(FHitResult& OutHit) const
 												ECC_Visibility, Params);
 }
 
+void ADigetherExcavationLabCharacter::SelectHands()
+{
+	SelectedTool = EDigetherLabTool::Hands;
+}
 void ADigetherExcavationLabCharacter::SelectPickaxe()
 {
 	SelectedTool = EDigetherLabTool::Pickaxe;
@@ -93,11 +101,19 @@ void ADigetherExcavationLabCharacter::SelectShovel()
 }
 float ADigetherExcavationLabCharacter::GetSelectedRadiusCm() const
 {
-	return SelectedTool == EDigetherLabTool::Pickaxe ? PickaxeRadiusCm : SoilBrushRadius;
+	if (SelectedTool == EDigetherLabTool::Hands)
+	{
+		return HandsRadiusCm;
+	}
+	return SelectedTool == EDigetherLabTool::Shovel ? SoilBrushRadius : PickaxeRadiusCm;
 }
 float ADigetherExcavationLabCharacter::GetSelectedIntervalSeconds() const
 {
-	return SelectedTool == EDigetherLabTool::Pickaxe ? PickaxeIntervalSeconds : HitInterval;
+	if (SelectedTool == EDigetherLabTool::Hands)
+	{
+		return HandsIntervalSeconds;
+	}
+	return SelectedTool == EDigetherLabTool::Shovel ? HitInterval : PickaxeIntervalSeconds;
 }
 
 EDigetherSoilEditResult ADigetherExcavationLabCharacter::TryDigOnce()
@@ -111,19 +127,29 @@ EDigetherSoilEditResult ADigetherExcavationLabCharacter::TryDigOnce()
 	{
 		return EDigetherSoilEditResult::Rejected;
 	}
-	// 빗나간 시도도 사용 간격 소비, 보호 벽 뒤 재탐색 금지
-	// 도구를 전환해도 직전 사용의 대기 시각 유지
-	NextUseSeconds = GetWorld()->GetTimeSeconds() + IntervalSeconds;
 	FHitResult Hit;
-	if (!TraceTool(Hit))
+	const bool bHit = TraceTool(Hit);
+	ADigetherRubbleRock* Rock = Cast<ADigetherRubbleRock>(Hit.GetActor());
+	if (Rock && SelectedTool == EDigetherLabTool::Hands)
 	{
 		return EDigetherSoilEditResult::Rejected;
+	}
+	// 맨손에는 바위 상호작용이 없다. 다른 타격은 빗나가도 직전 도구의 간격을 소비한다.
+	NextUseSeconds = GetWorld()->GetTimeSeconds() + IntervalSeconds;
+	if (!bHit)
+	{
+		return EDigetherSoilEditResult::Rejected;
+	}
+	if (Rock)
+	{
+		return Rock->ApplyToolHit(SelectedTool, Hit)
+			? EDigetherSoilEditResult::Applied : EDigetherSoilEditResult::Rejected;
 	}
 	// 첫 충돌만 판정해 보호 벽 뒤의 흙 굴착 방지
 	ADigetherDiggableSoil* CurrentSoil = Cast<ADigetherDiggableSoil>(Hit.GetActor());
 	if (IsValid(CurrentSoil))
 	{
-		return CurrentSoil->TryExcavate(Hit.ImpactPoint, RadiusCm);
+		return CurrentSoil->TryExcavate(Hit.ImpactPoint, RadiusCm, Hit.ImpactNormal);
 	}
 	return EDigetherSoilEditResult::Rejected;
 }

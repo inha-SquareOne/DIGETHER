@@ -1,18 +1,10 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "DigetherLabTool.h"
 #include "Game/Excavation/Dain/DigetherDiggableSoil.h"
 #include "DigetherExcavationLabCharacter.generated.h"
 class UCameraComponent;
-
-// 개인 시험 선택값, 정식 아이템 식별자와 분리
-UENUM()
-enum class EDigetherLabTool : uint8
-{
-	Pickaxe,
-	Shovel
-};
-
 // 개인 맵 입력 어댑터, 공용 Character·정식 장비 연결과 분리
 UCLASS()
 class ADigetherExcavationLabCharacter : public ACharacter
@@ -25,16 +17,17 @@ public:
 	// 기존 시험 호출 호환, 상세 결과는 TryDigOnce 사용
 	bool DigOnce() { return TryDigOnce() == EDigetherSoilEditResult::Applied; }
 	// 입력·간격·대상 거절은 Rejected, 유효 흙 타격은 코어 결과 그대로 반환
+	UFUNCTION(BlueprintCallable, Category = "Digether|Excavation|Lab")
 	EDigetherSoilEditResult TryDigOnce();
 	// 시선 앞 ToolReachCm 첫 차단 결과, 무효 사거리·미충돌 시 OutHit 초기화
 	bool TraceTool(FHitResult& OutHit) const;
-	// 두 도구 공통 시험 사거리(cm), 기존 400cm 유지, 정식 장비 수치 미확정
+	// 굴착 공통 시험 사거리(cm), 기존 400cm 유지, 정식 장비 수치 미확정
 	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab", meta = (ClampMin = "1", Units = "cm"))
 	float ToolReachCm = 400.f;
-	// 삽 반경(cm), 기존 직렬화 이름과 75cm 기본값 유지, 기획 미확정
+	// 삽 반경(cm), 갱도 v1.0.0 시험값
 	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab",
 			  meta = (ClampMin = "25", ClampMax = "125", Units = "cm"))
-	float SoilBrushRadius = 75.f;
+	float SoilBrushRadius = 125.f;
 	// 삽 사용 간격(초), 기존 직렬화 이름과 기본값 유지, 기획 미확정
 	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab", meta = (ClampMin = "0.15", Units = "s"))
 	float HitInterval = .35f;
@@ -44,9 +37,18 @@ public:
 	float PickaxeRadiusCm = 50.f;
 	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab", meta = (ClampMin = "0.15", Units = "s"))
 	float PickaxeIntervalSeconds = .5f;
+	// 맨손은 도구보다 적게, 느리게 파도록 맞춘 개인 시험값
+	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab", meta = (ClampMin = "25", Units = "cm"))
+	float HandsRadiusCm = 35.f;
+	UPROPERTY(EditAnywhere, Category = "Digether|Excavation|Lab", meta = (ClampMin = "0.15", Units = "s"))
+	float HandsIntervalSeconds = .8f;
 	// 선택만 변경, 직전 사용의 대기 시간은 유지
+	void SelectHands();
 	void SelectPickaxe();
 	void SelectShovel();
+	void SelectSteelPickaxe() { SelectedTool = EDigetherLabTool::SteelPickaxe; }
+	void SelectUpperPickaxe() { SelectedTool = EDigetherLabTool::UpperPickaxe; }
+	void SelectDrill() { SelectedTool = EDigetherLabTool::Drill; }
 	EDigetherLabTool GetSelectedTool() const { return SelectedTool; }
 	float GetSelectedRadiusCm() const;
 	float GetSelectedIntervalSeconds() const;
