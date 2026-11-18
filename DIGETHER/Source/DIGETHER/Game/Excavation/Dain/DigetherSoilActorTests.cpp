@@ -1,5 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "DigetherDiggableSoil.h"
+#include "Game/Excavation/DainLab/DigetherCollapseLab.h"
+#include "Game/Excavation/DainLab/DigetherCeilingProbe.h"
 #include "Game/Excavation/DainLab/DigetherExcavationLabCharacter.h"
 #include "Camera/CameraComponent.h"
 #include "Misc/AutomationTest.h"
@@ -1052,5 +1054,139 @@ bool FDigetherSoilOrganicActorTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherManualCollapseTest, "DIGETHER.Excavation.SoilActor.ManualCollapse",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FDigetherManualCollapseTest::RunTest(const FString& Parameters)
+{
+	FDigetherSoilTestWorld TestWorld;
+	TestWorld.CreateFloor();
+	ADigetherDiggableSoil* Soil = TestWorld.World->SpawnActor<ADigetherDiggableSoil>();
+	Soil->GridCells = FIntVector(24, 16, 24);
+	Soil->CellSpacing = 25;
+	TestTrue(TEXT("8 cell initialization"), Soil->SetComparisonChunkCells(8));
+	ADigetherCeilingProbe* Probe = TestWorld.World->SpawnActor<ADigetherCeilingProbe>();
+	Probe->Soil = Soil;
+	Probe->SetActorLocation(FVector(300, 200, 300));
+	Probe->Region->SetBoxExtent(FVector(300, 200, 300));
+	Probe->bDrawCandidates = false;
+	TestTrue(TEXT("original surface baseline"), Probe->CaptureBaseline());
+	ADigetherCollapseLab* Lab = TestWorld.World->SpawnActor<ADigetherCollapseLab>();
+	Lab->CeilingProbe = Probe;
+	Lab->CeilingRemoval->SetWorldLocation(FVector(200, 200, 375));
+	Lab->CeilingRemoval->SetBoxExtent(FVector(60, 125, 75));
+	Lab->Deposit->SetWorldLocation(FVector(200, 200, 150));
+	Lab->Deposit->SetBoxExtent(FVector(60, 150, 125));
+	TestTrue(TEXT("original ceiling cannot collapse"), Lab->TryCollapse() == EDigetherSoilEditResult::NoChange);
+	for (int32 X = 0; X <= 600; X += 75)
+	{
+		TestTrue(TEXT("excavate real tunnel"), Soil->TryExcavate(FVector(X, 200, 140), 180) == EDigetherSoilEditResult::Applied);
+	}
+	TestTrue(TEXT("new excavated ceiling found"), Probe->RefreshCandidates() > 0);
+	FHitResult RoofBefore;
+	TestTrue(TEXT("roof before collapse"), TestWorld.TraceVisibility(FVector(200, 200, 300), FVector(200, 200, 550), RoofBefore));
+	const uint32 Hash = Soil->GetDensityHash();
+	const uint32 Revision = Soil->GetRevision();
+	const FString Signature = FDigetherSoilActorTestAccess::ActiveSignature(*Soil);
+	Soil->ProtectedRegions.Add(FBox(FVector(100, 0, 275), FVector(300, 400, 500)));
+	TestTrue(TEXT("fully protected roof rejects complete edit"), Lab->TryCollapse() == EDigetherSoilEditResult::NoChange);
+	TestEqual(TEXT("protected request never deposits alone"), Soil->GetDensityHash(), Hash);
+	Soil->ProtectedRegions.Reset();
+	Lab->Deposit->SetWorldLocation(FVector(200, 200, -50));
+	TestTrue(TEXT("outside domain rejected"), Lab->TryCollapse() == EDigetherSoilEditResult::Rejected);
+	Lab->Deposit->SetWorldLocation(FVector(200, 200, 150));
+	ACharacter* Inside = TestWorld.CreateCharacter(FVector(200, 200, 96));
+	FDigetherSoilActorTestAccess::SetFailure(*Soil, 1);
+	TestTrue(TEXT("partial candidate failure"), Lab->TryCollapse() == EDigetherSoilEditResult::ApplyFailed);
+	TestEqual(TEXT("failed collapse density unchanged"), Soil->GetDensityHash(), Hash);
+	TestEqual(TEXT("failed collapse revision unchanged"), Soil->GetRevision(), Revision);
+	TestEqual(TEXT("failed collapse active buffers unchanged"), FDigetherSoilActorTestAccess::ActiveSignature(*Soil), Signature);
+	TestFalse(TEXT("failure not completed"), Lab->bCollapsed);
+	FDigetherSoilActorTestAccess::SetFailure(*Soil, -1);
+	TestTrue(TEXT("collapse succeeds on retry"), Lab->TryCollapse() == EDigetherSoilEditResult::Applied);
+	TestEqual(TEXT("unpossessed pawn does not become a burial target"), Lab->LastBurialTargets.Num(), 0);
+	Inside->Destroy();
+	TestTrue(TEXT("roof and deposit both changed"), Lab->RemovedSamples > 0 && Lab->DepositedSamples > 0);
+	TestTrue(TEXT("several boundary chunks updated"), Soil->GetLastUpdatedChunks() > 1);
+	TestEqual(TEXT("one committed revision"), Soil->GetRevision(), Revision + 1);
+	const uint32 CollapsedHash = Soil->GetDensityHash();
+	TestTrue(TEXT("duplicate ignored"), Lab->TryCollapse() == EDigetherSoilEditResult::NoChange);
+	TestEqual(TEXT("duplicate preserves density"), Soil->GetDensityHash(), CollapsedHash);
+	FHitResult RoofAfter;
+	TestTrue(TEXT("roof after removal"), TestWorld.TraceVisibility(FVector(200, 200, 300), FVector(200, 200, 550), RoofAfter));
+	AddInfo(FString::Printf(TEXT("roof before=%s after=%s"), *RoofBefore.ImpactPoint.ToString(), *RoofAfter.ImpactPoint.ToString()));
+	TestTrue(TEXT("roof moved upward"), RoofAfter.ImpactPoint.Z > RoofBefore.ImpactPoint.Z + 50);
+	for (const double Y : {199.9, 200.0, 200.1})
+	{
+		FHitResult Hit;
+		TestTrue(TEXT("deposit collision across chunk boundary"), TestWorld.TraceVisibility(FVector(50, Y, 100), FVector(350, Y, 100), Hit));
+		TestTrue(TEXT("deposit belongs to soil"), Hit.GetActor() == Soil);
+	}
+	ACharacter* Character = TestWorld.CreateCharacter(FVector(60, 200, 96));
+	TestWorld.Step(Character, 120, true);
+	TestTrue(TEXT("CharacterMovement blocked by deposit"), Character->GetActorLocation().X < 150);
+	int32 AppliedDigs = 0;
+	for (int32 Step = 0; Step < 40 && Character->GetActorLocation().X < 450; ++Step)
+	{
+		const FVector Position = Character->GetActorLocation();
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(CollapseRedig), true, Character);
+		// 눈높이만 뚫린 뒤 발목 잔해를 놓치지 않도록 세 높이의 실제 표면을 타격
+		for (const double Height : {40.0, 100.0, 170.0})
+		{
+			FHitResult Hit;
+			const FVector From(Position.X, Position.Y, Height);
+			if (TestWorld.World->LineTraceSingleByChannel(Hit, From, From + FVector(300, 0, 0), ECC_Visibility, Params) && Hit.GetActor() == Soil)
+			{
+				AppliedDigs += Soil->TryExcavate(Hit.ImpactPoint, 125) == EDigetherSoilEditResult::Applied;
+			}
+		}
+		TestWorld.Step(Character, 20, true);
+	}
+	TestTrue(TEXT("existing excavation used for rubble"), AppliedDigs > 0);
+	TestTrue(TEXT("CharacterMovement passes after redig"), Character->GetActorLocation().X > 450);
+	// 재굴착 뒤 낙하는 연출 중 밀도를 바꾸지 않고, 착지 성공 때만 확정
+	const uint32 PartialHash = Soil->GetDensityHash();
+	for (const int32 Stage : {3, 2, 1})
+	{
+		TestFalse(TEXT("remaining pile blocks same or lower stage"), Lab->StartCollapse(Stage));
+		TestEqual(TEXT("partial excavation is preserved"), Soil->GetDensityHash(), PartialHash);
+	}
+	TestTrue(TEXT("excavate the entire remaining pile"),
+		Soil->TryExcavate(Lab->Deposit->GetComponentLocation(), 300) == EDigetherSoilEditResult::Applied);
+	const uint32 RedugHash = Soil->GetDensityHash();
+	const uint32 RedugRevision = Soil->GetRevision();
+	const FString RedugSignature = FDigetherSoilActorTestAccess::ActiveSignature(*Soil);
+	Lab->FallSeconds = 0;
+	TestFalse(TEXT("invalid animation duration rejected"), Lab->StartCollapse());
+	Lab->FallSeconds = 1;
+	TestTrue(TEXT("redig enables falling again"), Lab->StartCollapse());
+	TestFalse(TEXT("duplicate falling request rejected"), Lab->StartCollapse());
+	Lab->Tick(.5f);
+	TestEqual(TEXT("in-flight density unchanged"), Soil->GetDensityHash(), RedugHash);
+	TestEqual(TEXT("in-flight collision unchanged"), FDigetherSoilActorTestAccess::ActiveSignature(*Soil), RedugSignature);
+	FDigetherSoilActorTestAccess::SetFailure(*Soil, 1);
+	Lab->Tick(.5f);
+	TestEqual(TEXT("failed landing keeps density"), Soil->GetDensityHash(), RedugHash);
+	TestEqual(TEXT("failed landing keeps revision"), Soil->GetRevision(), RedugRevision);
+	TestEqual(TEXT("failed landing keeps collision"), FDigetherSoilActorTestAccess::ActiveSignature(*Soil), RedugSignature);
+	TestEqual(TEXT("failed landing not counted"), Lab->CollapseCount, 1);
+	FDigetherSoilActorTestAccess::SetFailure(*Soil, -1);
+	TestTrue(TEXT("retry falling starts"), Lab->StartCollapse());
+	Lab->Deposit->AddWorldOffset(FVector(1, 0, 0));
+	Lab->Tick(.2f);
+	TestFalse(TEXT("layout change cancels falling"), Lab->bFalling);
+	TestEqual(TEXT("cancel keeps density"), Soil->GetDensityHash(), RedugHash);
+	Lab->Deposit->AddWorldOffset(FVector(-1, 0, 0));
+	TestTrue(TEXT("retry after cancellation"), Lab->StartCollapse());
+	Lab->Tick(1.f);
+	TestEqual(TEXT("second collapse applied"), Lab->CollapseCount, 2);
+	TestEqual(TEXT("second collapse commits once"), Soil->GetRevision(), RedugRevision + 1);
+	TestFalse(TEXT("filled region cannot collapse again"), Lab->StartCollapse());
+	Lab->Tick(3.f);
+	TestFalse(TEXT("idle effects stop ticking"), Lab->IsActorTickEnabled());
+	AddInfo(FString::Printf(TEXT("removed=%d deposited=%d redigs=%d character=%s"),
+		Lab->RemovedSamples, Lab->DepositedSamples, AppliedDigs, *Character->GetActorLocation().ToString()));
+	return true;
+}
 
 #endif

@@ -143,8 +143,13 @@ void ADigetherTunnelLayoutVerification::Tick(float DeltaSeconds)
 		MoveTo(FVector(2000,0,0));
 		if (StageSeconds > 3)
 		{
-			const float X = Character->GetActorLocation().X;
-			if (X < 1400 || X > 1515) { Finish(false, TEXT("intact shortcut did not block")); return; }
+			// 현재 흙벽의 실제 충돌로 검사, 이전 두께의 고정 X 좌표에 의존하지 않음
+			FHitResult Hit;
+			const FVector Start = Character->GetActorLocation();
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(TunnelIntact), true, Character.Get());
+			if (!GetWorld()->LineTraceSingleByChannel(Hit, Start, Start + FVector(150,0,0), ECC_Visibility, Params) ||
+				Hit.GetActor() != Shortcut.Get() || Character->GetVelocity().Size2D() > 5)
+			{ Finish(false, TEXT("intact shortcut did not block")); return; }
 			Advance();
 		}
 	}
@@ -174,7 +179,7 @@ void ADigetherTunnelLayoutVerification::Tick(float DeltaSeconds)
 	else if (Stage == 5)
 	{
 		// 지름길 개방 뒤 새 입구 문틀을 통과하고 출발 쪽으로 귀환
-		const FVector Route[] = {{3350,0,0},{1200,0,0}};
+		const FVector Route[] = {{3350,0,0},{1100,0,0}};
 		if (MoveTo(Route[Waypoint]))
 		{
 			if (Waypoint == 0)

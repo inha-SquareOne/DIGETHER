@@ -7,6 +7,11 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
 #include "InputCoreTypes.h"
+#include "DigetherCollapseLab.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
+#include "EngineUtils.h"
+
 ADigetherExcavationLabCharacter::ADigetherExcavationLabCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -121,7 +126,7 @@ EDigetherSoilEditResult ADigetherExcavationLabCharacter::TryDigOnce()
 	const float RadiusCm = GetSelectedRadiusCm();
 	const float IntervalSeconds = GetSelectedIntervalSeconds();
 	// 잘못된 C++ 설정값도 거절, 무효값으로 대기 시각 오염 방지
-	if (!HasAuthority() || !FMath::IsFinite(ToolReachCm) || ToolReachCm <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f ||
+	if (bIsBuriedForRescue || !HasAuthority() || !FMath::IsFinite(ToolReachCm) || ToolReachCm <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f ||
 		!FMath::IsFinite(IntervalSeconds) || IntervalSeconds < .15f ||
 		GetWorld()->GetTimeSeconds() < NextUseSeconds)
 	{
@@ -149,7 +154,65 @@ EDigetherSoilEditResult ADigetherExcavationLabCharacter::TryDigOnce()
 	ADigetherDiggableSoil* CurrentSoil = Cast<ADigetherDiggableSoil>(Hit.GetActor());
 	if (IsValid(CurrentSoil))
 	{
-		return CurrentSoil->TryExcavate(Hit.ImpactPoint, RadiusCm, Hit.ImpactNormal);
+		const EDigetherSoilEditResult Result = CurrentSoil->TryExcavate(Hit.ImpactPoint, RadiusCm, Hit.ImpactNormal);
+		if (Result == EDigetherSoilEditResult::Applied)
+		{
+			for (TActorIterator<ADigetherExcavationLabCharacter> It(GetWorld()); It; ++It)
+			{
+				if (*It != this && It->bIsBuriedForRescue && It->BurialSoil.Get() == CurrentSoil && It->BurialSite.IsValid())
+				{
+					It->BurialSite->UpdateBurialExposure(**It, *CurrentSoil, true);
+				}
+			}
+		}
+		return Result;
 	}
 	return EDigetherSoilEditResult::Rejected;
+}
+
+FVector ADigetherExcavationLabCharacter::GetBurialTopPoint(int32 Index) const
+{
+	const int32 Sample = FMath::Clamp(Index, 0, 39);
+	const double X = ((Sample / 4 + .5) / 10. - .5) * 165.;
+	const double Y = ((Sample % 4 + .5) / 4. - .5) * 56.;
+	return BurialFeet + BurialRotation.RotateVector(FVector(X, Y, 35.));
+}
+
+void ADigetherExcavationLabCharacter::BeginBurial(ADigetherCollapseLab& Site, ADigetherDiggableSoil& Soil, TArray<int32>&& Samples)
+{
+	bIsBuriedForRescue = true;
+	BurialSite = &Site;
+	BurialSoil = &Soil;
+	BurialSamples = MoveTemp(Samples);
+	ExposedTopSamples = 0;
+	BurialFeet = GetActorLocation() - FVector::UpVector * GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	BurialRotation = FRotator(0., GetActorRotation().Yaw, 0.).Quaternion();
+	bDigHeld = false;
+	bSavedBurialYawControl = bUseControllerRotationYaw;
+	bUseControllerRotationYaw = false;
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+
+	SavedBurialCameraLocation = Camera->GetRelativeLocation();
+	Camera->SetWorldLocation(BurialFeet + BurialRotation.RotateVector(FVector(64., 0., 24.)));
+	USkeletalMeshComponent* Body = GetMesh();
+	SavedBurialMeshTransform = Body->GetRelativeTransform();
+	bSavedBurialMeshVisible = Body->IsVisible();
+	bSavedBurialOwnerNoSee = Body->bOwnerNoSee;
+	SavedBurialMeshAsset = Body->GetSkeletalMeshAsset();
+	if (!SavedBurialMeshAsset)
+	{
+		Body->SetSkeletalMeshAsset(LoadObject<USkeletalMesh>(nullptr,
+			TEXT("/Game/Characters/Dwarf/SK_Ch_Dwarf_Miner_UE3.SK_Ch_Dwarf_Miner_UE3")));
+	}
+	if (USkeletalMesh* Asset = Body->GetSkeletalMeshAsset())
+	{
+		const FBoxSphereBounds Bounds = Asset->GetBounds();
+		const FVector Scale = FVector(17.5, 28., 82.5) / Bounds.BoxExtent.ComponentMax(FVector(1.));
+		const FQuat Rotation = BurialRotation * FQuat(FVector::RightVector, UE_HALF_PI);
+		Body->SetWorldTransform(FTransform(Rotation,
+			BurialFeet + FVector::UpVector * 17.5 - Rotation.RotateVector(Bounds.Origin * Scale), Scale));
+		Body->SetVisibility(true);
+		Body->SetOwnerNoSee(true);
+	}
 }

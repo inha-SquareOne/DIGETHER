@@ -5,6 +5,10 @@
 #include "Game/Excavation/Dain/DigetherDiggableSoil.h"
 #include "DigetherExcavationLabCharacter.generated.h"
 class UCameraComponent;
+class USkeletalMesh;
+class ADigetherCollapseLab;
+
+
 // 개인 맵 입력 어댑터, 공용 Character·정식 장비 연결과 분리
 UCLASS()
 class ADigetherExcavationLabCharacter : public ACharacter
@@ -44,6 +48,16 @@ public:
 	float HandsIntervalSeconds = .8f;
 	// 선택만 변경, 직전 사용의 대기 시간은 유지
 	void SelectHands();
+	// 마지막으로 실제 착지 시 받은 단계. 이동·피해 상태와 별개인 개인 시험 기록이다.
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, Category = "Digether|Collapse Lab")
+	int32 LastReceivedBurialStage = 0;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, Category = "Digether|Collapse Lab")
+	bool bIsBuriedForRescue = false;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, Category = "Digether|Collapse Lab")
+	int32 ExposedTopSamples = 0;
+	UFUNCTION(BlueprintPure, Category = "Digether|Collapse Lab")
+	FVector GetBurialTopPoint(int32 Index) const;
+	void FinishBurialRescue();
 	void SelectPickaxe();
 	void SelectShovel();
 	void SelectSteelPickaxe() { SelectedTool = EDigetherLabTool::SteelPickaxe; }
@@ -54,6 +68,20 @@ public:
 	float GetSelectedIntervalSeconds() const;
 
 private:
+	friend class ADigetherCollapseLab;
+	void BeginBurial(ADigetherCollapseLab& Site, ADigetherDiggableSoil& Soil, TArray<int32>&& Samples);
+	FVector BurialFeet = FVector::ZeroVector;
+	FQuat BurialRotation = FQuat::Identity;
+	TWeakObjectPtr<ADigetherCollapseLab> BurialSite;
+	TWeakObjectPtr<ADigetherDiggableSoil> BurialSoil;
+	TArray<int32> BurialSamples;
+	FTransform SavedBurialMeshTransform;
+	FVector SavedBurialCameraLocation = FVector::ZeroVector;
+	bool bSavedBurialYawControl = false;
+	bool bSavedBurialMeshVisible = false;
+	bool bSavedBurialOwnerNoSee = false;
+	UPROPERTY(Transient)
+	TObjectPtr<USkeletalMesh> SavedBurialMeshAsset;
 	// 누름/뗌 입력의 반복 요청 상태 전환, 정식 도구 시스템과 분리
 	void StartDig();
 	void StopDig();
