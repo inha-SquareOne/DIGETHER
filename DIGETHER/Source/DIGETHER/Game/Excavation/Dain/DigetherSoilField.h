@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 
@@ -54,13 +54,13 @@ namespace DigetherSoil
 		const TArray<uint8>& Density,
 		const FIntVector& CellMin,
 		const FIntVector& CellMax,
-		FDigetherSoilSurface& OutSurface);
+		FDigetherSoilSurface& OutSurface, bool bSmoothShading = true, float FaceEmphasis = 0.f);
 
 	// 외곽 공기층은 변경 금지, 표면 기준값은 128
 	// Grid 입력 → 초기 밀도 출력, 실패 시 OutDensity 보존
 	bool Initialize(const FDigetherSoilGrid& Grid, TArray<uint8>& OutDensity);
 	// 전체 밀도 입력 → OutSurface, 정상 빈 결과도 true, 실패 시 출력 보존
-	bool BuildSurface(const FDigetherSoilGrid& Grid, const TArray<uint8>& Density, FDigetherSoilSurface& OutSurface);
+	bool BuildSurface(const FDigetherSoilGrid& Grid, const TArray<uint8>& Density, FDigetherSoilSurface& OutSurface, bool bSmoothShading = true, float FaceEmphasis = 0.f);
 	// 로컬 중심·월드 반경(cm)·보호 상자·양수 스케일 입력 → Density 감소와 로컬 변경 범위 출력
 	// 로컬 보호 영역에 한 셀 여유 적용
 	// OutChangedBounds는 이웃 표면을 포함한 변경 범위이며 붕괴 구역 판정이 아님
@@ -71,7 +71,13 @@ namespace DigetherSoil
 		double Radius,
 		const TArray<FBox>& ProtectedBoxes,
 		FBox& OutChangedBounds,
-		const FVector& WorldScale = FVector::OneVector, double Irregularity = 0.0, double EdgeSoftening = 0.0);
+		const FVector& WorldScale = FVector::OneVector, double Irregularity = 0.0, double EdgeSoftening = 0.0,
+		const FVector& HitNormal = FVector::ZeroVector, double DepthScale = 1.0);
+	// 이번 굴착 인접의 작은 분리 성분만 제거, 사면체 모서리 연결·보호 여유 보존
+	// 반환값은 제거 표본 수, 후보 배열만 수정하고 변경 상자를 확장
+	int32 RemoveSmallFragments(const FDigetherSoilGrid& Grid, const TArray<uint8>& Previous,
+		TArray<uint8>& Candidate, const TArray<FBox>& ProtectedBoxes, int32 MaxSamples,
+		double MaxExtentCm, const FVector& WorldScale, FBox& InOutChangedBounds);
 	// Transform·월드점 입력 → OutLocal(cm), 유효 변환일 때만 true
 	// 이동·회전·양수 비균일 스케일 허용, 0과 음수 반전은 거절
 	bool WorldToLocal(const FTransform& Transform, const FVector& WorldPoint, FVector& OutLocal);

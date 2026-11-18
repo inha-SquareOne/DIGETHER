@@ -14,6 +14,7 @@
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "Engine/Level.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
@@ -26,6 +27,13 @@
 class FDigetherSoilActorTestAccess
 {
 public:
+	// 회귀 테스트 전용: 런타임 공개 API나 Revision 정책을 추가하지 않음
+	static TArray<uint8> CopyDensity(const ADigetherDiggableSoil& Soil) { return Soil.Density; }
+	static bool ApplyDensity(ADigetherDiggableSoil& Soil, const TArray<uint8>& Candidate)
+	{
+		return Soil.ApplyChunks(Soil.AppliedGrid, Candidate, 8, false);
+	}
+	// 실패 전후 활성 메시 식별·정점·삼각형·충돌 상태를 비교, 비활성 후보는 제외
 	static FString ActiveSignature(const ADigetherDiggableSoil& Soil)
 	{
 		FString Result;
@@ -930,6 +938,93 @@ bool FDigetherSoilScaledWalkTest::RunTest(const FString& Parameters)
     return VerifyWalk(*this, 8, 2.f);
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilAppearanceTest, "DIGETHER.Excavation.SoilActor.Appearance",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FDigetherSoilAppearanceTest::RunTest(const FString& Parameters)
+{
+	FDigetherSoilTestWorld TestWorld;
+	ADigetherDiggableSoil* DefaultSoil = TestWorld.World->SpawnActor<ADigetherDiggableSoil>();
+	TestEqual(TEXT("ordinary actor defaults to eight-cell chunks"), DefaultSoil->GetComparisonChunkCells(), 8);
+	TestTrue(TEXT("ordinary initialization"), DefaultSoil->ResetSoil());
+	TestEqual(TEXT("reset retains default chunks"), DefaultSoil->GetComparisonChunkCells(), 8);
+	DefaultSoil->Destroy();
+	for (int32 Mode : {0,8,16})
+	{
+		ADigetherDiggableSoil* Soil = TestWorld.World->SpawnActor<ADigetherDiggableSoil>();
+		Soil->GridCells=FIntVector(16); Soil->CellSpacing=25;
+		TestTrue(TEXT("initialize mode"), Soil->SetComparisonChunkCells(Mode));
+		TestTrue(TEXT("dig before shading switch"), Soil->TryExcavate(FVector(25,200,200),90)==EDigetherSoilEditResult::Applied);
+		const uint32 Hash=Soil->GetDensityHash(), Revision=Soil->GetRevision();
+		FHitResult Before, After;
+		TestTrue(TEXT("old collision"), TestWorld.TraceVisibility(FVector(-100,200,200),FVector(500,200,200),Before));
+		Soil->bSmoothShading=false; Soil->RefreshShading();
+		TestEqual(TEXT("shading keeps density"), Soil->GetDensityHash(),Hash);
+		TestEqual(TEXT("shading keeps revision"), Soil->GetRevision(),Revision);
+		TestTrue(TEXT("flat collision unchanged"), TestWorld.TraceVisibility(FVector(-100,200,200),FVector(500,200,200),After) && Before.ImpactPoint.Equals(After.ImpactPoint,.01));
+		if (Mode!=0)
+		{
+			const FString Signature=FDigetherSoilActorTestAccess::ActiveSignature(*Soil);
+			FDigetherSoilActorTestAccess::SetFailure(*Soil,Mode == 16 ? 0 : 1);
+			AddExpectedError(TEXT("Soil shading refresh failed"),EAutomationExpectedErrorFlags::Contains,1);
+			Soil->bSmoothShading=true; Soil->RefreshShading();
+			TestFalse(TEXT("failed shading restores option"),Soil->bSmoothShading);
+			TestEqual(TEXT("failed shading preserves active state"),FDigetherSoilActorTestAccess::ActiveSignature(*Soil),Signature);
+			FDigetherSoilActorTestAccess::SetFailure(*Soil,-1);
+		}
+		Soil->bSmoothShading=true; Soil->RefreshShading();
+		TestEqual(TEXT("round trip density"),Soil->GetDensityHash(),Hash);
+		Soil->FaceEmphasis=.3f; Soil->RefreshShading();
+		TestEqual(TEXT("weight-only refresh density"),Soil->GetDensityHash(),Hash);
+		TestEqual(TEXT("weight-only refresh revision"),Soil->GetRevision(),Revision);
+		TestTrue(TEXT("weight-only collision unchanged"),TestWorld.TraceVisibility(FVector(-100,200,200),FVector(500,200,200),After) && Before.ImpactPoint.Equals(After.ImpactPoint,.01));
+
+		Soil->Destroy();
+	}
+	// 후보 밀도에서만 제거하고, 다중 청크 실패 시 충돌과 밀도를 함께 보존
+	ADigetherDiggableSoil* Soil=TestWorld.World->SpawnActor<ADigetherDiggableSoil>();
+	Soil->GridCells=FIntVector(16); Soil->CellSpacing=25; Soil->SetComparisonChunkCells(8);
+	TArray<uint8> Density=FDigetherSoilActorTestAccess::CopyDensity(*Soil); Density.Init(0,Density.Num());
+	Density[(8*17+8)*17+8]=255; Density[(8*17+8)*17+7]=255;
+	TestTrue(TEXT("island fixture"),FDigetherSoilActorTestAccess::ApplyDensity(*Soil,Density));
+	FHitResult Hit;
+	TestTrue(TEXT("island blocks before cleanup"),TestWorld.TraceVisibility(FVector(200,200,100),FVector(200,200,300),Hit));
+	const uint32 Hash=Soil->GetDensityHash();
+	FDigetherSoilActorTestAccess::SetFailure(*Soil,1);
+	TestTrue(TEXT("failed dig rollback"),Soil->TryExcavate(FVector(175,200,200),13)==EDigetherSoilEditResult::ApplyFailed);
+	TestEqual(TEXT("failed cleanup preserves density"),Soil->GetDensityHash(),Hash);
+	TestTrue(TEXT("failed cleanup preserves collision"),TestWorld.TraceVisibility(FVector(200,200,100),FVector(200,200,300),Hit));
+	FDigetherSoilActorTestAccess::SetFailure(*Soil,-1);
+	TestTrue(TEXT("cleanup committed"),Soil->TryExcavate(FVector(175,200,200),13)==EDigetherSoilEditResult::Applied);
+	TestFalse(TEXT("removed island leaves no ghost collision"),TestWorld.TraceVisibility(FVector(200,200,100),FVector(200,200,300),Hit));
+	return true;
+}
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilPIEBuffersTest, "DIGETHER.Excavation.Soil.PIEBuffers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FDigetherSoilPIEBuffersTest::RunTest(const FString& Parameters)
+{
+	FDigetherSoilTestWorld TestWorld;
+	ADigetherDiggableSoil* Source = TestWorld.World->SpawnActor<ADigetherDiggableSoil>();
+	FObjectDuplicationParameters Params(Source, TestWorld.World->PersistentLevel);
+	Params.DuplicateMode = EDuplicateMode::PIE;
+	ADigetherDiggableSoil* Copy = CastChecked<ADigetherDiggableSoil>(StaticDuplicateObjectEx(Params));
+	// PIE는 UObject만 복제하고 일반 C++ 청크 상태는 초기화, 생성 메시도 함께 재구성 필요
+	TestTrue(TEXT("PIE soil initializes"), Copy->ResetSoil());
+	TInlineComponentArray<UProceduralMeshComponent*> Meshes(Copy);
+	TestEqual(TEXT("one chunk has exactly two buffers plus two whole buffers"), Meshes.Num(), 4);
+	FHitResult Hit;
+	const FVector From(-50, 200, 200), To(50, 200, 200);
+	// 같은 위치의 원본 Actor는 제외하고 복제본의 실제 Chaos 충돌 검사
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(SoilPIE), true, Source);
+	TestTrue(TEXT("initial surface blocks"), TestWorld.World->LineTraceSingleByChannel(Hit, From, To, ECC_Visibility, Query));
+	TestTrue(TEXT("first dig applies"), Copy->TryExcavate(FVector(25, 200, 200), 100) == EDigetherSoilEditResult::Applied);
+	TestFalse(TEXT("PIE preview leaves no old collision"), TestWorld.World->LineTraceSingleByChannel(Hit, From, To, ECC_Visibility, Query));
+	Copy->Destroy();
+	return true;
+}
+
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilOrganicActorTest, "DIGETHER.Excavation.SoilActor.OrganicBrush",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FDigetherSoilOrganicActorTest::RunTest(const FString& Parameters)
@@ -956,5 +1051,6 @@ bool FDigetherSoilOrganicActorTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("organic failure preserves collision buffers"),FDigetherSoilActorTestAccess::ActiveSignature(*Soil),Signature);
 	return true;
 }
+
 
 #endif

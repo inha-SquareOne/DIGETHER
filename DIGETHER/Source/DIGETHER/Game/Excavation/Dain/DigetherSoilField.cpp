@@ -6,6 +6,37 @@ namespace DigetherSoil
 	// 밀도 경계값: 초과는 흙, 이하는 공기
 	static constexpr int32 SurfaceThreshold = 128;
 
+	// 인접 셀의 경계가 맞도록 모든 셀에서 동일한 분할 사용
+	static constexpr int32 Corners[8][3] = {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0},
+											{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}};
+	static constexpr int32 Tetrahedra[6][4] = {{0, 1, 2, 6}, {0, 2, 3, 6}, {0, 3, 7, 6},
+											   {0, 7, 4, 6}, {0, 4, 5, 6}, {0, 5, 1, 6}};
+
+	// 표면을 만드는 사면체에서 실제로 쓰는 양방향 모서리만 한 번 수집한다.
+	static const TArray<FIntVector>& GetSurfaceNeighbors()
+	{
+		static const TArray<FIntVector> Neighbors = []
+		{
+			TArray<FIntVector> Result;
+			for (const auto& Tet : Tetrahedra)
+			{
+				for (int32 A = 0; A < 4; ++A)
+				{
+					for (int32 B = A + 1; B < 4; ++B)
+					{
+						const auto& From = Corners[Tet[A]];
+						const auto& To = Corners[Tet[B]];
+						const FIntVector Edge(To[0] - From[0], To[1] - From[1], To[2] - From[2]);
+						Result.AddUnique(Edge);
+						Result.AddUnique(FIntVector::ZeroValue - Edge);
+					}
+				}
+			}
+			return Result;
+		}();
+		return Neighbors;
+	}
+
 	bool FDigetherSoilGrid::IsValid() const
 	{
 		return Cells.X >= 4 && Cells.Y >= 4 && Cells.Z >= 4 && Cells.X <= 64 && Cells.Y <= 64 && Cells.Z <= 64 &&
@@ -141,11 +172,13 @@ namespace DigetherSoil
 	}
 	EDigetherSoilCarveResult Carve(const FDigetherSoilGrid& Grid, TArray<uint8>& Density, const FVector& Point,
 								   double Radius, const TArray<FBox>& ProtectedBoxes, FBox& OutChangedBounds,
-								   const FVector& WorldScale, double Irregularity, double EdgeSoftening)
+								   const FVector& WorldScale, double Irregularity, double EdgeSoftening,
+								   const FVector& HitNormal, double DepthScale)
 	{
 		OutChangedBounds = FBox(ForceInit);
 		if (!IsDensityValid(Grid, Density) || Point.ContainsNaN() || !FMath::IsFinite(Radius) ||
 			WorldScale.ContainsNaN() || WorldScale.GetMin() <= UE_SMALL_NUMBER ||
+			HitNormal.ContainsNaN() || !FMath::IsFinite(DepthScale) || DepthScale < .25 || DepthScale > 1 ||
 			!FMath::IsFinite(Irregularity) || Irregularity < 0 || Irregularity > .2 ||
 			!FMath::IsFinite(EdgeSoftening) || EdgeSoftening < 0 || EdgeSoftening > .5)
 		{
@@ -174,6 +207,12 @@ namespace DigetherSoil
 		// 타격 중심 1cm 양자화, 반복 요청에서 동일 중심 유지
 		const FVector Center(FMath::RoundToDouble(Point.X), FMath::RoundToDouble(Point.Y),
 							 FMath::RoundToDouble(Point.Z));
+		const FVector DepthStretch = HitNormal * (1.0 / DepthScale - 1.0);
+		const double ShapeWeight = FMath::Clamp((Irregularity - .08) / .12, 0.0, 1.0);
+		// 같은 타격점은 같은 절삭 방향을 사용해 반복 입력의 결과를 유지한다.
+		const FQuat CutRotation = ShapeWeight > 0
+			? FRotator(Center.Y * .71 + Center.Z * .19, Center.X * .83 + Center.Y * .31, Center.Z * .57).Quaternion()
+			: FQuat::Identity;
 		for (int32 Z = 1; Z < Grid.Cells.Z; ++Z)
 		{
 			for (int32 Y = 1; Y < Grid.Cells.Y; ++Y)
@@ -191,15 +230,25 @@ namespace DigetherSoil
 					}
 					// 반경 밖 양수 밀도도 감소 가능, 반경으로 순회 범위 제한 금지
 					// 비균일 확대에서도 도구 반경은 월드 cm, 회전은 거리 크기에 영향 없음
-					const FVector Offset = (SamplePosition - Center) * WorldScale;
-					double LocalRadius = Radius;
+					FVector Offset = (SamplePosition - Center) * WorldScale;
+					Offset += DepthStretch * FVector::DotProduct(Offset, HitNormal);
+					double CutDistance = Offset.Size() - Radius;
 					if (Irregularity > 0)
 					{
-						// 저주파 방향 노이즈, 같은 입력은 같은 결과. 기본 구의 바깥으로 확장하지 않음
 						const float Noise = FMath::PerlinNoise3D(Offset.GetSafeNormal() * 1.5 + Center * WorldScale / 400.0);
-						LocalRadius *= 1.0 - Irregularity * FMath::Clamp(.5 + double(Noise) * .5, 0.0, 1.0);
+						CutDistance = Offset.Size() - Radius * (1.0 - Irregularity * FMath::Clamp(.5 + double(Noise) * .5, 0.0, 1.0));
 					}
-					const uint8 CarvedDensity = EncodeDistance(Offset.Size() - LocalRadius);
+					if (ShapeWeight > UE_KINDA_SMALL_NUMBER)
+					{
+						// 서로 다른 깊이의 면으로 구의 일부를 잘라, 한쪽이 넓고 다른 쪽은 짧은 흙덩이 형태를 만든다.
+						const FVector Local = CutRotation.UnrotateVector(Offset);
+						const double FaceDistance = FMath::Max3(
+							FMath::Max(Local.X - .54 * Radius, -Local.X - .86 * Radius),
+							FMath::Max(Local.Y - .73 * Radius, -Local.Y - .59 * Radius),
+							FMath::Max(Local.Z - .63 * Radius, -Local.Z - .91 * Radius));
+						CutDistance += ShapeWeight * FMath::Max(0.0, FaceDistance - CutDistance);
+					}
+					const uint8 CarvedDensity = EncodeDistance(CutDistance);
 					uint8& CurrentDensity = Density[Grid.GetSampleIndex(X, Y, Z)];
 					if (CarvedDensity < CurrentDensity)
 					{
@@ -296,7 +345,7 @@ namespace DigetherSoil
 	}
 
 	static void UpdateSmoothNormals(const FDigetherSoilGrid& Grid, const TArray<uint8>& Density,
-									FDigetherSoilSurface& Surface)
+									FDigetherSoilSurface& Surface, float FaceEmphasis)
 	{
 		// 음영용 밀도 기울기 보간, 정점 위치와 충돌은 유지
 		if (Surface.Vertices.IsEmpty())
@@ -352,7 +401,9 @@ namespace DigetherSoil
 			}
 			if (Normal.Normalize())
 			{
-				Surface.Normals[VertexIndex] = Normal;
+				// 기존 면 노멀과 보간 노멀을 혼합, 반대 방향 상쇄 시 면 노멀 유지
+				FVector Blended = FMath::Lerp(Normal, Surface.Normals[VertexIndex], double(FaceEmphasis));
+				if (Blended.Normalize()) Surface.Normals[VertexIndex] = Blended;
 			}
 		}
 
@@ -362,16 +413,11 @@ namespace DigetherSoil
 	// 전체·청크의 분할·보간·노멀 순서 일치, 빈 결과 정책은 호출부 책임
 	static void ExtractSurface(const FDigetherSoilGrid& Grid, const TArray<uint8>& Density,
 							   const FIntVector& CellMin, const FIntVector& CellMax,
-							   FDigetherSoilSurface& OutSurface, bool& bOutHasAir, bool& bOutHasSolid)
+							   FDigetherSoilSurface& OutSurface, bool& bOutHasAir, bool& bOutHasSolid, bool bSmoothShading, float FaceEmphasis)
 	{
 		DIGETHER_SOIL_TIMER(SurfaceTimer, Surface);
 		bOutHasAir = false;
 		bOutHasSolid = false;
-		// 인접 셀의 경계가 맞도록 모든 셀에서 동일한 분할 사용
-		static constexpr int32 Corners[8][3] = {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0},
-												{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}};
-		static constexpr int32 Tetrahedra[6][4] = {{0, 1, 2, 6}, {0, 2, 3, 6}, {0, 3, 7, 6},
-												   {0, 7, 4, 6}, {0, 4, 5, 6}, {0, 5, 1, 6}};
 		for (int32 Z = CellMin.Z; Z < CellMax.Z; ++Z)
 		{
 			for (int32 Y = CellMin.Y; Y < CellMax.Y; ++Y)
@@ -400,28 +446,31 @@ namespace DigetherSoil
 		}
 		DIGETHER_SOIL_STOP(SurfaceTimer);
 		DIGETHER_SOIL_TIMER(NormalTimer, Normals);
-		UpdateSmoothNormals(Grid, Density, OutSurface);
+		if (bSmoothShading && FaceEmphasis < 1.f)
+		{
+			UpdateSmoothNormals(Grid, Density, OutSurface, FaceEmphasis);
+		}
 		DIGETHER_SOIL_STOP(NormalTimer);
 	}
 
-	bool BuildSurface(const FDigetherSoilGrid& Grid, const TArray<uint8>& Density, FDigetherSoilSurface& OutSurface)
+	bool BuildSurface(const FDigetherSoilGrid& Grid, const TArray<uint8>& Density, FDigetherSoilSurface& OutSurface, bool bSmoothShading, float FaceEmphasis)
 	{
-		if (!IsDensityValid(Grid, Density))
+		if (!FMath::IsFinite(FaceEmphasis) || FaceEmphasis < 0 || FaceEmphasis > 1 || !IsDensityValid(Grid, Density))
 		{
 			return false;
 		}
 		FDigetherSoilSurface Result;
 		bool bHasAir, bHasSolid;
-		ExtractSurface(Grid, Density, FIntVector::ZeroValue, Grid.Cells, Result, bHasAir, bHasSolid);
+		ExtractSurface(Grid, Density, FIntVector::ZeroValue, Grid.Cells, Result, bHasAir, bHasSolid, bSmoothShading, FaceEmphasis);
 		// 전체 경로는 혼합 밀도의 무표면 결과도 허용, 청크 경로의 Failed 정책과 차이
 		OutSurface = MoveTemp(Result);
 		return true;
 	}
 	EDigetherSoilRangeState BuildSurfaceRange(const FDigetherSoilGrid& Grid, const TArray<uint8>& Density,
 											  const FIntVector& CellMin, const FIntVector& CellMax,
-											  FDigetherSoilSurface& OutSurface)
+											  FDigetherSoilSurface& OutSurface, bool bSmoothShading, float FaceEmphasis)
 	{
-		if (!IsDensityValid(Grid, Density) || CellMin.X < 0 || CellMin.Y < 0 || CellMin.Z < 0 ||
+		if (!FMath::IsFinite(FaceEmphasis) || FaceEmphasis < 0 || FaceEmphasis > 1 || !IsDensityValid(Grid, Density) || CellMin.X < 0 || CellMin.Y < 0 || CellMin.Z < 0 ||
 			CellMax.X > Grid.Cells.X || CellMax.Y > Grid.Cells.Y || CellMax.Z > Grid.Cells.Z ||
 			CellMin.X >= CellMax.X || CellMin.Y >= CellMax.Y || CellMin.Z >= CellMax.Z)
 		{
@@ -429,7 +478,7 @@ namespace DigetherSoil
 		}
 		FDigetherSoilSurface Result;
 		bool bHasAir, bHasSolid;
-		ExtractSurface(Grid, Density, CellMin, CellMax, Result, bHasAir, bHasSolid);
+		ExtractSurface(Grid, Density, CellMin, CellMax, Result, bHasAir, bHasSolid, bSmoothShading, FaceEmphasis);
 		// 표면이 없는 내부 흙과 완전 공기를 구분
 		if (Result.Indices.IsEmpty() && bHasAir && bHasSolid)
 		{
@@ -444,3 +493,83 @@ namespace DigetherSoil
 	}
 
 } // namespace DigetherSoil
+
+namespace DigetherSoil
+{
+	int32 RemoveSmallFragments(const FDigetherSoilGrid& Grid, const TArray<uint8>& Previous,
+		TArray<uint8>& Candidate, const TArray<FBox>& ProtectedBoxes, int32 MaxSamples,
+		double MaxExtentCm, const FVector& WorldScale, FBox& InOutChangedBounds)
+	{
+		if (MaxSamples <= 0 || !FMath::IsFinite(MaxExtentCm) || MaxExtentCm <= 0 ||
+			WorldScale.ContainsNaN() || WorldScale.GetMin() <= 0 ||
+			!IsDensityValid(Grid, Candidate) || Previous.Num() != Candidate.Num())
+		{
+			return 0;
+		}
+		const TArray<FIntVector>& Neighbors = GetSurfaceNeighbors();
+		TBitArray<> Visited(false, Candidate.Num());
+		TArray<FIntVector> Component;
+		int32 Removed = 0;
+		for (int32 Z = 1; Z < Grid.Cells.Z; ++Z)
+		for (int32 Y = 1; Y < Grid.Cells.Y; ++Y)
+		for (int32 X = 1; X < Grid.Cells.X; ++X)
+		{
+			const int32 Seed = Grid.GetSampleIndex(X, Y, Z);
+			if (Visited[Seed] || Candidate[Seed] <= SurfaceThreshold)
+			{
+				continue;
+			}
+			Component.Reset();
+			Component.Add(FIntVector(X, Y, Z));
+			Visited[Seed] = true;
+			FBox Bounds(ForceInit);
+			bool bProtected = false, bTouched = false;
+			for (int32 Head = 0; Head < Component.Num(); ++Head)
+			{
+				const FIntVector Sample = Component[Head];
+				const FVector Position = Grid.GetSamplePosition(Sample.X, Sample.Y, Sample.Z);
+				Bounds += Position;
+				bProtected |= ProtectedBoxes.ContainsByPredicate([&](const FBox& Box)
+				{
+					return Box.ExpandBy(Grid.SpacingCm).IsInsideOrOn(Position);
+				});
+				for (const FIntVector& Offset : Neighbors)
+				{
+					const FIntVector Next = Sample + Offset;
+					if (Next.X < 0 || Next.Y < 0 || Next.Z < 0 || Next.X > Grid.Cells.X ||
+						Next.Y > Grid.Cells.Y || Next.Z > Grid.Cells.Z)
+					{
+						continue;
+					}
+					const int32 Index = Grid.GetSampleIndex(Next.X, Next.Y, Next.Z);
+					bTouched |= Candidate[Index] <= SurfaceThreshold && Candidate[Index] < Previous[Index];
+					// 실제 표면 모서리에서 보간해 월드 크기 상한을 검사한다.
+					if (Head < MaxSamples && Candidate[Index] <= SurfaceThreshold)
+					{
+						const int32 Solid = Candidate[Grid.GetSampleIndex(Sample.X, Sample.Y, Sample.Z)];
+						const double Alpha = double(Solid - SurfaceThreshold) / (Solid - Candidate[Index]);
+						Bounds += FMath::Lerp(Position, Grid.GetSamplePosition(Next.X, Next.Y, Next.Z), Alpha);
+					}
+					if (!Visited[Index] && Candidate[Index] > SurfaceThreshold)
+					{
+						Visited[Index] = true;
+						Component.Add(Next);
+					}
+				}
+			}
+			// 실제 경계 보간 범위로 크기 제한, 비균일 스케일에서 작은 조각을 과대평가하지 않음
+			if (!bTouched || bProtected || Component.Num() > MaxSamples ||
+				(Bounds.GetSize() * WorldScale).GetMax() > MaxExtentCm)
+			{
+				continue;
+			}
+			for (const FIntVector& Sample : Component)
+			{
+				Candidate[Grid.GetSampleIndex(Sample.X, Sample.Y, Sample.Z)] = 0;
+			}
+			Removed += Component.Num();
+			InOutChangedBounds += Bounds.ExpandBy(Grid.SpacingCm);
+		}
+		return Removed;
+	}
+}

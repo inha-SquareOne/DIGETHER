@@ -545,6 +545,81 @@ bool FDigetherSoilScaledBrushTest::RunTest(const FString& Parameters)
     return true;
 }
 
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilFragmentTest, "DIGETHER.Excavation.Soil.FragmentsAndShading",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FDigetherSoilFragmentTest::RunTest(const FString& Parameters)
+{
+	FDigetherSoilGrid Grid;
+	Grid.Cells = FIntVector(16); Grid.SpacingCm = 25;
+	TArray<uint8> Before; Before.Init(0, Grid.GetSampleCount());
+	const int32 Island = Grid.GetSampleIndex(8, 8, 8), Cut = Grid.GetSampleIndex(7, 8, 8);
+	Before[Island] = Before[Cut] = 255;
+	TArray<uint8> Candidate = Before; Candidate[Cut] = 0;
+	FBox Changed(ForceInit);
+	const TArray<uint8> Uncleaned = Candidate;
+	TestEqual(TEXT("small newly separated island removed"), RemoveSmallFragments(Grid, Before, Candidate, {}, 8, 50, FVector::OneVector, Changed), 1);
+	TestEqual(TEXT("island density becomes air"), int32(Candidate[Island]), 0);
+	TestTrue(TEXT("cleanup expands dirty bounds"), Changed.IsInsideOrOn(FVector(200)));
+	Candidate = Uncleaned;
+	TestEqual(TEXT("disabled cleanup"), RemoveSmallFragments(Grid, Before, Candidate, {}, 0, 50, FVector::OneVector, Changed), 0);
+	TestEqual(TEXT("unrelated island preserved"), RemoveSmallFragments(Grid, Uncleaned, Candidate, {}, 8, 50, FVector::OneVector, Changed), 0);
+	TestEqual(TEXT("world scale size limit"), RemoveSmallFragments(Grid, Before, Candidate, {}, 8, 50, FVector(4,1,1), Changed), 0);
+	TestEqual(TEXT("protected island preserved"), RemoveSmallFragments(Grid, Before, Candidate, {FBox(FVector(200),FVector(201))}, 8, 50, FVector::OneVector, Changed), 0);
+	TestTrue(TEXT("protection leaves all bytes intact"), Candidate == Uncleaned);
+	// 대각선 연결 및 청크 경계 너머 큰 성분은 잔여 조각으로 제거하지 않음
+	for (int32 X = 9; X < 16; ++X) Candidate[Grid.GetSampleIndex(X,9,9)] = 255;
+	Candidate[Grid.GetSampleIndex(14,10,9)] = 255;
+	TestEqual(TEXT("large diagonal connected island retained"), RemoveSmallFragments(Grid, Before, Candidate, {}, 8, 1000, FVector::OneVector, Changed), 0);
+	// (1,-1,0)은 같은 셀 안에서 가깝지만 표면을 공유하는 사면체 모서리가 아니다.
+	Before.Init(0, Grid.GetSampleCount());
+	Before[Island] = Before[Cut] = 255;
+	for (int32 X = 9; X <= 15; ++X)
+	{
+		Before[Grid.GetSampleIndex(X,7,8)] = 255;
+	}
+	Before[Grid.GetSampleIndex(15,6,8)] = Before[Grid.GetSampleIndex(15,5,8)] = 255;
+	Candidate = Before;
+	Candidate[Cut] = 0;
+	TestEqual(TEXT("non-edge diagonal does not anchor island"), RemoveSmallFragments(Grid, Before, Candidate, {}, 8, 50, FVector::OneVector, Changed), 1);
+	TestEqual(TEXT("nearby solid survives"), int32(Candidate[Grid.GetSampleIndex(9,7,8)]), 255);
+	Before[Cut] = 100;
+	Candidate = Before;
+	Candidate[Cut] = 80;
+	TestEqual(TEXT("deepened adjacent air rechecks old island"), RemoveSmallFragments(Grid, Before, Candidate, {}, 8, 50, FVector::OneVector, Changed), 1);
+	Initialize(Grid, Candidate);
+	Carve(Grid, Candidate, FVector(25,200,200), 90, {}, Changed);
+	FDigetherSoilSurface Smooth, Flat;
+	TestTrue(TEXT("smooth build"), BuildSurface(Grid,Candidate,Smooth,true));
+	TestTrue(TEXT("flat build"), BuildSurface(Grid,Candidate,Flat,false));
+	TestTrue(TEXT("shading preserves exact geometry"), Smooth.Vertices == Flat.Vertices && Smooth.Indices == Flat.Indices);
+	bool bDifferent = false;
+	for (int32 I=0; I<Flat.Vertices.Num(); I+=3)
+	{
+		const FVector Face = FVector::CrossProduct(Flat.Vertices[I+2]-Flat.Vertices[I],Flat.Vertices[I+1]-Flat.Vertices[I]).GetSafeNormal();
+		for (int32 K=0; K<3; ++K)
+		{
+			TestTrue(TEXT("flat normal points outward"), Flat.Normals[I+K].Equals(Face,1.e-5));
+			bDifferent |= !Smooth.Normals[I+K].Equals(Flat.Normals[I+K],1.e-5);
+		}
+	}
+	TestTrue(TEXT("shading options visibly distinct normals"), bDifferent);
+	FDigetherSoilSurface Mid, End;
+	TestTrue(TEXT("mid shading builds"), BuildSurface(Grid,Candidate,Mid,true,.5f));
+	TestTrue(TEXT("mid geometry unchanged"),Mid.Vertices==Smooth.Vertices && Mid.Indices==Smooth.Indices);
+	for (int32 I=0; I<Mid.Normals.Num(); ++I)
+	{
+		FVector Expected=(Smooth.Normals[I]+Flat.Normals[I]).GetSafeNormal();
+		if (Expected.IsNearlyZero()) Expected=Flat.Normals[I];
+		TestTrue(TEXT("normalized halfway normal"),Mid.Normals[I].Equals(Expected,1.e-5));
+	}
+	TestTrue(TEXT("weight one matches flat"),BuildSurface(Grid,Candidate,End,true,1.f) && End.Normals==Flat.Normals);
+	TestFalse(TEXT("invalid weight rejected"),BuildSurface(Grid,Candidate,End,true,-1.f));
+
+	return true;
+}
+
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDigetherSoilOrganicBrushTest, "DIGETHER.Excavation.SoilCore.OrganicBrush",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FDigetherSoilOrganicBrushTest::RunTest(const FString& Parameters)
